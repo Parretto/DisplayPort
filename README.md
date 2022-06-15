@@ -1,7 +1,7 @@
 # DisplayPort
 
 The DisplayPort IP-core is a resource optimized DisplayPort solution for FPGA devices.   
-The IP-core will autonome handle the link training and bring up of the video stream.  
+The DP IP-core will autonome handle the link training and bring up of the video stream.  
 The thin host driver has a simple API, which is used by the application to interact with the DP IP-core.   
 
 # Features
