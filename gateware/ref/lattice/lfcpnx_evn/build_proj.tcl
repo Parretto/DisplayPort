@@ -17,9 +17,7 @@ prj_add_source $SRC/lib/prt_dp_lib_mem.sv
 
 # Application
 prj_add_source $SRC/app/dp_app_if.sv
-prj_add_source $SRC/app/dp_app_ram_lat.v
 prj_add_source $SRC/app/dp_app_ram.sv
-prj_add_source $SRC/app/dp_app_rom_lat.v
 prj_add_source $SRC/app/dp_app_rom.sv
 prj_add_source $SRC/app/dp_app_top.sv
 
@@ -117,6 +115,19 @@ file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.ipx ./sys_pll/.
 file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.cfg ./sys_pll/.
 prj_add_source ./sys_pll/sys_pll.ipx
 
+# Application ROM
+file mkdir ./dp_app_rom_lat
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.mem ./dp_app_rom_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.ipx ./dp_app_rom_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.cfg ./dp_app_rom_lat/.
+prj_add_source ./dp_app_rom_lat/dp_app_rom_lat.ipx
+
+# Application RAM
+file mkdir ./dp_app_ram_lat
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.mem ./dp_app_ram_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.ipx ./dp_app_ram_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.cfg ./dp_app_ram_lat/.
+prj_add_source ./dp_app_ram_lat/dp_app_ram_lat.ipx
+
 # Set top level
 prj_set_impl_opt -impl impl1 top dp_ref_lat_lfcpnx_evn
-

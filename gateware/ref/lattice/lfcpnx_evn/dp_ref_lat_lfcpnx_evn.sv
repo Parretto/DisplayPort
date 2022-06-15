@@ -186,7 +186,7 @@ wire [3:0]                      dir_from_lmmi;
 wire [(4*9)-1:0]                adr_from_lmmi;
 wire [(4*8)-1:0]                dat_from_lmmi;
 
-// Serdes
+// PHY
 wire                            tx_clk_from_phy;
 wire                            rx_clk_from_phy;
 wire [79:0]                     tx_dat_to_phy[0:3];
