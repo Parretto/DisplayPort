@@ -1,0 +1,101 @@
+###
+# Timing
+###
+
+###
+# False path
+###
+
+# System clock
+set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks vid_clk]
+set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks tx_lnk_clk]
+set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks rx_lnk_clk]
+
+# Video clock
+set_false_path -from [get_clocks vid_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks vid_clk] -to [get_clocks tx_lnk_clk]
+set_false_path -from [get_clocks vid_clk] -to [get_clocks rx_lnk_clk]
+
+# TX link clock
+set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks vid_clk]
+
+# RX link clock
+set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks vid_clk]
+
+###
+# Pins
+###
+# Bank VCCIO
+ldc_set_vcc -bank 1 3.3
+ldc_set_vcc -bank 3 1.8
+ldc_set_vcc -bank 4 1.8
+ldc_set_vcc -bank 5 1.8
+ldc_set_vcc -bank 7 3.3
+#ldc_set_sysconfig {CONFIGIO_VOLTAGE_BANK1=3.3}
+
+# Clocks
+ldc_set_location -site {N25} [get_ports SYS_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports SYS_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVDS} [get_ports TENTIVA_VID_CLK_IN]
+ldc_set_location -site {AD21} [get_ports TENTIVA_VID_CLK_IN]
+
+# LED
+ldc_set_location -site {N5} [get_ports {LED_OUT[0]}]
+ldc_set_location -site {N6} [get_ports {LED_OUT[1]}]
+ldc_set_location -site {N7} [get_ports {LED_OUT[2]}]
+ldc_set_location -site {N8} [get_ports {LED_OUT[3]}]
+ldc_set_location -site {L6} [get_ports {LED_OUT[4]}]
+ldc_set_location -site {N9} [get_ports {LED_OUT[5]}]
+ldc_set_location -site {L8} [get_ports {LED_OUT[6]}]
+ldc_set_location -site {M9} [get_ports {LED_OUT[7]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[0]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[1]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[2]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[3]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[4]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[5]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[6]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[7]}]
+
+# I2C
+ldc_set_location -site {H22} [get_ports I2C_SCL_INOUT]
+ldc_set_location -site {H23} [get_ports I2C_SDA_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SCL_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SDA_INOUT]
+
+# UART
+# On-board FTDI device
+ldc_set_location -site {L1} [get_ports UART_TX_OUT]
+ldc_set_location -site {L2} [get_ports UART_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_RX_IN]
+
+# Tentiva Base board
+ldc_set_location -site {AB23} [get_ports TENTIVA_CLK_SEL_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_CLK_SEL_OUT]
+ldc_set_location -site {AF6} [get_ports TENTIVA_PHY_CLK_LOCK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_PHY_CLK_LOCK_IN]
+ldc_set_location -site {AA7} [get_ports TENTIVA_VID_CLK_LOCK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_VID_CLK_LOCK_IN]
+
+# Tentiva DP1.4 RX
+ldc_set_location -site {AB22} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_location -site {AA22} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_location -site {AC9} [get_ports DPRX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_RX_IN]
+ldc_set_location -site {AC22} [get_ports DPRX_HPD_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_HPD_OUT]
+
+# Tentiva DP1.4 TX
+ldc_set_location -site {AE26} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_location -site {AB25} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_location -site {AF25} [get_ports DPTX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_RX_IN]
+ldc_set_location -site {W21} [get_ports DPTX_HPD_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_HPD_IN]
