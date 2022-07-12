@@ -113,9 +113,10 @@ typedef struct {
     logic   [7:0]                   tail;
     logic   [7:0]                   delta;
     logic                           rdy;
+    logic   [7:0]                   rd_cnt_in;
     logic   [7:0]                   rd_cnt;
     logic                           rd_cnt_end;
-    logic   [1:0]                   rd_seq;
+    logic   [2:0]                   rd_seq;
 } fifo_struct;
 
 typedef struct {
@@ -817,7 +818,7 @@ endgenerate
 
 // Head low
 // Due to the skew some lanes might lead or lag.
-// To prevent underruning of the FIFO we have to find the lowest head.
+// To prevent underrunning of the FIFO we have to find the lowest head.
     always_ff @ (posedge CLK_IN)
     begin
         // To improve performance this process is split into two levels
@@ -940,6 +941,19 @@ endgenerate
         end    
     end
 
+// Read counter in
+generate
+    if (P_PPC == 4)
+    begin : gen_rd_cnt_in_4ppc
+        assign clk_fifo.rd_cnt_in = {clk_fifo.delta[0+:$left(clk_fifo.rd_cnt)], 2'b00}; // One block is four reads
+    end
+
+    else
+    begin : gen_rd_cnt_in_2ppc
+        assign clk_fifo.rd_cnt_in = {clk_fifo.delta[0+:$left(clk_fifo.rd_cnt)], 3'b000}; // One block is eight reads
+    end
+endgenerate
+
 // Read counter
     always_ff @ (posedge CLK_IN)
     begin
@@ -954,12 +968,7 @@ endgenerate
             begin
                 // Load
                 if (clk_fifo.rdy && clk_fifo.rd_cnt_end)
-                begin
-                    if (P_PPC == 4)
-                        clk_fifo.rd_cnt <= {clk_fifo.delta[0+:$left(clk_fifo.rd_cnt)], 2'b00}; // One block is four reads
-                    else
-                        clk_fifo.rd_cnt <= clk_fifo.delta[3+:$left(clk_fifo.rd_cnt)]; // Should be multiple of eight            
-                end
+                    clk_fifo.rd_cnt <= clk_fifo.rd_cnt_in;
 
                 // Decrement
                 else if (!clk_fifo.rd_cnt_end)
@@ -1000,10 +1009,17 @@ endgenerate
                 clk_fifo.rd_seq <= 0;
             
             // Increment
-            else if (|clk_fifo.rd[0])
+            else if (!clk_fifo.rd_cnt_end)
             begin
-                if (clk_fifo.rd_seq == 'd3)
+                // Clear 4 PPC
+                if ((clk_fifo.rd_seq == 'd3) && (P_PPC == 4)) 
                     clk_fifo.rd_seq <= 0;
+
+                // Clear 2 PPC
+                else if ((clk_fifo.rd_seq == 'd7) && (P_PPC == 2)) 
+                    clk_fifo.rd_seq <= 0;
+
+                // Increment
                 else
                     clk_fifo.rd_seq <= clk_fifo.rd_seq + 'd1;
             end

@@ -70,11 +70,13 @@ module prt_dptx_vid
 import prt_dp_pkg::*;
 
 // Parameters
-localparam P_FIFO_WRDS = 64;
+localparam P_FIFO_WRDS = 32;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 9;
 localparam P_FIFO_STRIPES = 4;
 localparam P_TU_SIZE = 64;
+localparam P_TU_CNT_LD = P_TU_SIZE / P_SPL;
+localparam P_VU_DE_CNT_LD = P_TU_CNT_LD - 2;
 
 // Structures
 typedef struct {
@@ -138,7 +140,6 @@ typedef struct {
     logic                           blnk;
     logic                           blnk_re;
     logic                           blnk_evt;
-    logic                           blnk_evt_clr;
 } lnk_vid_struct;
 
 typedef struct {
@@ -161,7 +162,8 @@ typedef struct {
     logic                           vu_de_cnt_last;
     logic                           vu_de_cnt_end;
     logic [2:0]                     ins_be;
-    logic                           vu_sel;                         // Video unit select
+    logic                           vu_rd_sel;                      // Video unit rd select
+    logic                           vu_de_sel;                      // Video unit de select
     logic [7:0]                     vu_dat[0:P_LANES-1][0:P_SPL-1]; // Video unit data
     logic [P_SPL-1:0]               k[0:P_LANES-1];
     logic [7:0]                     dat[0:P_LANES-1][0:P_SPL-1];
@@ -950,7 +952,8 @@ endgenerate
 // FIFO words
 // This process calculates the totals number of words in the fifo. 
 // This is used for the fifo ready signal
-// Only the last fifo of the last lane is used.
+// Only the last stripe / fifo of the last lane is used.
+// As there are four stripes per lane, the fifo words are multiplied by four. 
     always_ff @ (posedge LNK_CLK_IN)
     begin
         lclk_lnk.fifo_wrds <= {lclk_fifo.wrds[P_LANES-1][P_FIFO_STRIPES-1], 2'b00};
@@ -967,14 +970,39 @@ endgenerate
     end
 
 // FIFO read
-// To-do : add support for two sublanes
 generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_fifo_rd
-        for (j = 0; j < P_FIFO_STRIPES; j++)
-            assign lclk_fifo.rd[i][j] = (lclk_lnk.vu_rd_cnt_end) ? 0 : 1;
+    if (P_SPL == 4)
+    begin : gen_fifo_rd_4spl
+        for (i = 0; i < P_LANES; i++)
+        begin 
+            for (j = 0; j < P_FIFO_STRIPES; j++)
+                assign lclk_fifo.rd[i][j] = (lclk_lnk.vu_rd_cnt_end) ? 0 : 1;
+        end
+    end
+
+    else
+    begin : gen_fifo_rd_2spl
+        for (i = 0; i < P_LANES; i++)
+        begin 
+            assign lclk_fifo.rd[i][0] = (lclk_lnk.vu_rd_cnt_end) ? 0 : ~lclk_lnk.vu_rd_sel;
+            assign lclk_fifo.rd[i][1] = (lclk_lnk.vu_rd_cnt_end) ? 0 : ~lclk_lnk.vu_rd_sel;
+            assign lclk_fifo.rd[i][2] = (lclk_lnk.vu_rd_cnt_end) ? 0 : lclk_lnk.vu_rd_sel;
+            assign lclk_fifo.rd[i][3] = (lclk_lnk.vu_rd_cnt_end) ? 0 : lclk_lnk.vu_rd_sel;
+        end
     end
 endgenerate
+
+// Video read data select
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Clear
+        if (lclk_vid.hs)
+            lclk_lnk.vu_rd_sel <= 0;
+
+        // Read
+        else if (!lclk_lnk.vu_rd_cnt_end)
+            lclk_lnk.vu_rd_sel <= ~lclk_lnk.vu_rd_sel;
+    end
 
 // FIFO de edge detector
     prt_dp_lib_edge
@@ -1164,7 +1192,7 @@ endgenerate
 
             // Load
             if (lclk_lnk.tu_cnt_end || lclk_lnk.tu_cnt_last)
-                lclk_lnk.tu_cnt <= P_TU_SIZE / P_SPL;
+                lclk_lnk.tu_cnt <= P_TU_CNT_LD;
 
             // Decrement
             else if (!lclk_lnk.tu_cnt_end)
@@ -1213,7 +1241,7 @@ endgenerate
         if (lclk_lnk.tu_run)
         begin    
             // Load
-            if (lclk_lnk.tu_cnt == 'd16)
+            if (lclk_lnk.tu_cnt == P_TU_CNT_LD)
                 lclk_lnk.vu_rd_cnt <= lclk_lnk.vu_len;
 
             // Decrement
@@ -1243,7 +1271,7 @@ endgenerate
         if (lclk_lnk.tu_run)
         begin
             // Load
-            if (lclk_lnk.tu_cnt == 'd14)
+            if (lclk_lnk.tu_cnt == P_VU_DE_CNT_LD)
                 lclk_lnk.vu_de_cnt <= lclk_lnk.vu_rd_cnt + P_SPL;
 
             // Decrement
@@ -1280,11 +1308,11 @@ endgenerate
     begin
         // Clear
         if (lclk_vid.hs)
-            lclk_lnk.vu_sel <= 0;
+            lclk_lnk.vu_de_sel <= 0;
 
         // Video data
         else if (lclk_lnk.fifo_de)
-            lclk_lnk.vu_sel <= ~lclk_lnk.vu_sel;
+            lclk_lnk.vu_de_sel <= ~lclk_lnk.vu_de_sel;
     end
 
 // Video data 
@@ -1305,7 +1333,7 @@ generate
         for (i = 0; i < P_LANES; i++)
         begin
             for (j = 0; j < P_SPL; j++)
-                assign lclk_lnk.vu_dat[i][j] = (lclk_lnk.vu_sel) ? lclk_fifo.dout[i][j+2] : lclk_fifo.dout[i][j]; 
+                assign lclk_lnk.vu_dat[i][j] = (lclk_lnk.vu_de_sel) ? lclk_fifo.dout[i][j+2] : lclk_fifo.dout[i][j]; 
         end
     end
 endgenerate
@@ -1349,7 +1377,7 @@ endgenerate
         end
 
         // Single fill word
-        else if ((lclk_lnk.tu_cnt == 'd14) && lclk_lnk.fifo_de_fe && lclk_vid.act_evt)
+        else if ((lclk_lnk.tu_cnt == P_VU_DE_CNT_LD) && lclk_lnk.fifo_de_fe && lclk_vid.act_evt)
         begin
             for (int i = 0; i < P_LANES; i++)
             begin
@@ -1367,7 +1395,7 @@ endgenerate
 
 
         // Fill end
-        else if ((lclk_lnk.tu_cnt == 'd14) && lclk_vid.act_evt)
+        else if ((lclk_lnk.tu_cnt == P_VU_DE_CNT_LD) && lclk_vid.act_evt)
         begin
             for (int i = 0; i < P_LANES; i++)
                 {lclk_lnk.k[i][P_SPL-1], lclk_lnk.dat[i][P_SPL-1]} <= P_SYM_FE;     // Sublane 1
