@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added downstream port 8
 
     License
     =======
@@ -30,7 +31,7 @@
 // Module
 module prt_lb_mux
 #(
-     parameter P_PORTS = 7
+     parameter P_PORTS = 8
 )
 (
      // Reset and clock
@@ -48,7 +49,8 @@ module prt_lb_mux
      prt_dp_lb_if.lb_out           LB_DWN_IF4,
      prt_dp_lb_if.lb_out           LB_DWN_IF5,
      prt_dp_lb_if.lb_out           LB_DWN_IF6,
-     prt_dp_lb_if.lb_out           LB_DWN_IF7
+     prt_dp_lb_if.lb_out           LB_DWN_IF7,
+     prt_dp_lb_if.lb_out           LB_DWN_IF8
 );
 
 // Parameters
@@ -232,6 +234,13 @@ endgenerate
      assign LB_DWN_IF7.rd = clk_dwn[7].rd;
      assign clk_dwn[7].din = LB_DWN_IF7.dout; // For the outport the data directions are swapped
      assign clk_dwn[7].vld = LB_DWN_IF7.vld; 
+
+     assign LB_DWN_IF8.adr = clk_dwn[8].adr;
+     assign LB_DWN_IF8.din = clk_dwn[8].dout; // For the out port the data directions are swapped
+     assign LB_DWN_IF8.wr = clk_dwn[8].wr;
+     assign LB_DWN_IF8.rd = clk_dwn[8].rd;
+     assign clk_dwn[8].din = LB_DWN_IF8.dout; // For the outport the data directions are swapped
+     assign clk_dwn[8].vld = LB_DWN_IF8.vld; 
 
      assign LB_UP_IF.dout = clk_up.dout;
      assign LB_UP_IF.vld = clk_up.vld;

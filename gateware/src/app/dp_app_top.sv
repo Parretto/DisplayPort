@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added scaler interface
 
     License
     =======
@@ -74,6 +75,9 @@ module dp_app_top
     // PHY interface
     prt_dp_lb_if.lb_out                     PHY_IF,
 
+    // Scaler interface
+    prt_dp_lb_if.lb_out                     SCALER_IF,
+
     // Aqua 
     input wire                              AQUA_SEL_IN,
     input wire                              AQUA_CTL_IN,
@@ -96,7 +100,7 @@ localparam P_RAM_SIZE = 64 * 1024;                      // RAM size in bytes
 localparam P_RAM_ADR = $clog2(P_RAM_SIZE);
 localparam P_UART_BEAT = 'd868; // 115200 baud @ 100 MHz system clock 
 localparam P_TMR_BEAT = 'd100; // 100 MHz
-localparam P_LB_MUX_PORTS = 8;
+localparam P_LB_MUX_PORTS = 9;
 
 // Interfaces
 prt_dp_app_rom_if 
@@ -276,7 +280,8 @@ wire tx_from_uart;
         .LB_DWN_IF4         (lb_from_mux[4]),
         .LB_DWN_IF5         (lb_from_mux[5]),
         .LB_DWN_IF6         (lb_from_mux[6]),
-        .LB_DWN_IF7         (lb_from_mux[7])
+        .LB_DWN_IF7         (lb_from_mux[7]),
+        .LB_DWN_IF8         (lb_from_mux[8])
     );
    
     // Upstream
@@ -453,6 +458,14 @@ endgenerate
     assign PHY_IF.din           = lb_from_mux[7].din;
     assign lb_from_mux[7].dout  = PHY_IF.dout;
     assign lb_from_mux[7].vld   = PHY_IF.vld;
+
+// Scaler interface
+    assign SCALER_IF.adr        = lb_from_mux[8].adr;
+    assign SCALER_IF.wr         = lb_from_mux[8].wr;
+    assign SCALER_IF.rd         = lb_from_mux[8].rd;
+    assign SCALER_IF.din        = lb_from_mux[8].din;
+    assign lb_from_mux[8].dout  = SCALER_IF.dout;
+    assign lb_from_mux[8].vld   = SCALER_IF.vld;
 
 endmodule
 

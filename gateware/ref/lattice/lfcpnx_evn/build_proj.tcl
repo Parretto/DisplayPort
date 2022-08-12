@@ -97,6 +97,14 @@ prj_add_source $SRC/misc/prt_dp_msg_cdc.sv
 prj_add_source $SRC/misc/prt_hb.sv
 prj_add_source $SRC/misc/prt_uart.sv
 
+# Scaler
+prj_add_source $SRC/scaler/prt_scaler_lib.sv 
+prj_add_source $SRC/scaler/prt_scaler_ctl.sv 
+prj_add_source $SRC/scaler/prt_scaler_tg.sv
+prj_add_source $SRC/scaler/prt_scaler_hbs.sv
+prj_add_source $SRC/scaler/prt_scaler_vbs.sv
+prj_add_source $SRC/scaler/prt_scaler_top.sv 
+
 # Top
 prj_add_source ../../ref/lattice/lfcpnx_evn/dp_ref_lat_lfcpnx_evn.sv
 

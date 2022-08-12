@@ -60,7 +60,7 @@ module prt_vtb_top
 
     // Native video
 	input wire 								VID_CLK_IN,				// Clock
-  	output wire 							VID_CKE_OUT,			// Clock enable
+  	input wire 								VID_CKE_IN,				// Clock enable
  	output wire 							VID_VS_OUT,				// Vsync
   	output wire 							VID_HS_OUT,				// Hsync
    	output wire [(P_BPC * P_PPC)-1:0]		VID_R_OUT,				// Red
@@ -121,7 +121,6 @@ wire [28:0]					co_from_cr;
 
 // Clock generator
 wire 						run_to_cg;
-wire 						cke_from_cg;
 
 // FIFO
 wire						run_to_fifo;
@@ -297,6 +296,7 @@ endgenerate
 		.SYS_CLK_IN			(SYS_CLK_IN),					// System Clock
 		.LNK_CLK_IN			(RX_LNK_CLK_IN),				// Link Clock
 		.VID_CLK_IN			(VID_CLK_IN),					// Video Clock
+		.VID_CKE_IN			(VID_CKE_IN),					// Video Clock enable
 
 		// Control
 	 	.CTL_RUN_IN			(og_from_ctl[0][P_CTL_CR_RUN]),	// Run
@@ -318,7 +318,7 @@ endgenerate
 		// Link
 		.LNK_SYNC_IN		(LNK_SYNC_IN),
 
-		// Direct I2C Acess
+		// Direct I2C Access
 		.DIA_RDY_IN			(DIA_RDY_IN),
 		.DIA_DAT_OUT		(DIA_DAT_OUT),
 		.DIA_VLD_OUT		(DIA_VLD_OUT),
@@ -329,6 +329,7 @@ endgenerate
 	);
 
 // Clock generator
+/*
 	prt_vtb_cg
 	CG_INST
 	(
@@ -348,6 +349,7 @@ endgenerate
 		// Clock enable
 		.CKE_OUT			(cke_from_cg)
 	);
+*/
 
 // FIFO
 	prt_vtb_fifo
@@ -363,7 +365,7 @@ endgenerate
 		.LNK_CLK_IN			(RX_LNK_CLK_IN),			// Clock
 		.VID_RST_IN			(rst_from_vid_rst),			// Reset
 		.VID_CLK_IN			(VID_CLK_IN),				// Clock
-		.VID_CKE_IN			(cke_from_cg),				// Clock enable
+		.VID_CKE_IN			(VID_CKE_IN),				// Clock enable
 
 		// Control
 		.CTL_RUN_IN			(run_to_fifo),				// Run
@@ -404,7 +406,7 @@ endgenerate
 		// Reset and clock
 		.RST_IN				(rst_from_vid_rst),		// Reset
 		.CLK_IN				(VID_CLK_IN),			// Clock
-		.CKE_IN				(cke_from_cg),			// Clock enable
+		.CKE_IN				(VID_CKE_IN),			// Clock enable
 
 		// Control
 		.CTL_RUN_IN			(run_to_tg),			// Run
@@ -435,7 +437,7 @@ endgenerate
 		// Reset and clock
 		.RST_IN				(rst_from_vid_rst),		// Reset
 		.CLK_IN				(VID_CLK_IN),			// Clock
-		.CKE_IN				(cke_from_cg),			// Clock enable
+		.CKE_IN				(VID_CKE_IN),			// Clock enable
 
 		// Control
 		.CTL_RUN_IN			(run_to_tpg),			// Run
@@ -527,7 +529,7 @@ endgenerate
 
 		// Monitored clock
 		.MON_CLK_IN			(VID_CLK_IN),			// Clock
-		.MON_CKE_IN			(cke_from_cg),			// Clock enable
+		.MON_CKE_IN			(VID_CKE_IN),			// Clock enable
 
 		// Frequency
 		.FREQ_OUT			(freq_from_vid_clk_freq)
@@ -551,34 +553,7 @@ endgenerate
 		.STA_LIN_OUT	(lin_from_mon)
 	);
 
-
-// Checker
-/*
-	prt_vtb_chk
-	#(
-		.P_PPC 				(P_PPC),				// Pixels per clock
-		.P_AXIS_DAT			(P_AXIS_DAT)				// AXIS data width
-	)
-	CHK_INST
-	(
-		// Reset and clock
-//		.RST_IN			(rst_from_lnk_rst),			// Reset
-		.RST_IN			(1'b0),			// Reset
-		.CLK_IN			(RX_LNK_CLK_IN),			// Clock
-
-		// Video in
-		.VID_SOF_IN		(AXIS_SOF_IN),        // Start of frame
-		.VID_EOL_IN		(AXIS_EOL_IN),        // End of line
-		.VID_DAT_IN		(AXIS_DAT_IN),        // Data
-		.VID_VLD_IN		(AXIS_VLD_IN),        // Valid
-
-		// Status
-		.ERR_OUT		()
-	);
-*/
-
 // Outputs
-	assign VID_CKE_OUT	= cke_from_cg;
 	assign VID_VS_OUT   = (run_to_tpg) ? vid_vs_from_tpg : vid_vs_from_fifo;
 	assign VID_HS_OUT   = (run_to_tpg) ? vid_hs_from_tpg : vid_hs_from_fifo;
 	assign VID_R_OUT 	= (run_to_tpg) ? vid_r_from_tpg  : vid_r_from_fifo;

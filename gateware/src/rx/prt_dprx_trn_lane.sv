@@ -101,26 +101,9 @@ sta_struct  clk_sta;
 lnk_struct  clk_lnk;
 trn_struct  clk_trn;
 
-(* syn_preserve=1 *) logic [8:0] clk_dbg_dat0;
-(* syn_preserve=1 *) logic [8:0] clk_dbg_dat1;
-(* syn_preserve=1 *) logic [8:0] clk_dbg_dat2;
-(* syn_preserve=1 *) logic [8:0] clk_dbg_dat3;
-
 genvar i;
 
 // Logic
-
-/*
-    Debug
-*/
-    always_ff @ (posedge CLK_IN)
-    begin
-        clk_dbg_dat0 <= clk_lnk.din[0];
-        clk_dbg_dat1 <= clk_lnk.din[1];
-        clk_dbg_dat2 <= clk_lnk.din[2];
-        clk_dbg_dat3 <= clk_lnk.din[3];
-    end
-
 
 // Config
     always_ff @ (posedge CLK_IN)

@@ -90,6 +90,7 @@ localparam P_SPL            = 4;
 localparam P_PPC            = 4;
 localparam P_BPC            = 8;
 localparam P_AXI_WIDTH      = 96;
+localparam P_SCALER         = 1;
 
 // Interfaces
 
@@ -120,6 +121,13 @@ prt_dp_lb_if
   .P_ADR_WIDTH  (16)
 )
 phy_if();
+
+// Scaler
+prt_dp_lb_if
+#(
+  .P_ADR_WIDTH  (16)
+)
+scaler_if();
 
 
 /*
@@ -167,13 +175,21 @@ wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
 wire                            vid_vld_from_dprx;   // Valid
 
 // VTB
-wire                            cke_from_vtb;
 wire                            vs_from_vtb;
 wire                            hs_from_vtb;
 wire [(P_PPC*P_BPC)-1:0]        r_from_vtb;
 wire [(P_PPC*P_BPC)-1:0]        g_from_vtb;
 wire [(P_PPC*P_BPC)-1:0]        b_from_vtb;
 wire                            de_from_vtb;
+
+// Scaler
+wire                            cke_from_scaler;
+wire                            vs_from_scaler;
+wire                            hs_from_scaler;
+wire [(P_PPC*P_BPC)-1:0]        r_from_scaler;
+wire [(P_PPC*P_BPC)-1:0]        g_from_scaler;
+wire [(P_PPC*P_BPC)-1:0]        b_from_scaler;
+wire                            de_from_scaler;
 
 // DIA
 wire                            dia_rdy_from_app;
@@ -316,6 +332,9 @@ wire                            led_from_vid_hb;
         // PHY interface
         .PHY_IF             (phy_if),
 
+        // Scaler interface
+        .SCALER_IF          (scaler_if),
+
         // Aqua 
         .AQUA_SEL_IN        (1'b0),
         .AQUA_CTL_IN        (1'b0),
@@ -372,13 +391,13 @@ wire                            led_from_vid_hb;
 
         // Video
         .VID_CLK_IN         (clk_from_vid_buf),
-        .VID_CKE_IN         (cke_from_vtb),
-        .VID_VS_IN          (vs_from_vtb),              // Vsync
-        .VID_HS_IN          (hs_from_vtb),              // Hsync
-        .VID_R_IN           (r_from_vtb),               // Red
-        .VID_G_IN           (g_from_vtb),               // Green
-        .VID_B_IN           (b_from_vtb),               // Blue
-        .VID_DE_IN          (de_from_vtb),              // Data enable
+        .VID_CKE_IN         (1'b1),
+        .VID_VS_IN          (vs_from_scaler),           // Vsync
+        .VID_HS_IN          (hs_from_scaler),           // Hsync
+        .VID_R_IN           (r_from_scaler),            // Red
+        .VID_G_IN           (g_from_scaler),            // Green
+        .VID_B_IN           (b_from_scaler),            // Blue
+        .VID_DE_IN          (de_from_scaler),           // Data enable
 
         // Link
         .LNK_CLK_IN         (clk_from_tx_buf),
@@ -468,7 +487,7 @@ wire                            led_from_vid_hb;
 
         // Native video
         .VID_CLK_IN             (clk_from_vid_buf),
-        .VID_CKE_OUT            (cke_from_vtb),
+        .VID_CKE_IN             (cke_from_scaler),
         .VID_VS_OUT             (vs_from_vtb),
         .VID_HS_OUT             (hs_from_vtb),
         .VID_R_OUT              (r_from_vtb),
@@ -480,6 +499,58 @@ wire                            led_from_vid_hb;
         .DBG_CR_SYNC_END_OUT    (),                         // Sync end out
         .DBG_CR_PIX_END_OUT     ()                          // Pixel end out
     );
+
+// Scaler
+generate
+    if (P_SCALER == 1)
+    begin : gen_scaler
+        prt_scaler_top
+        #(
+            .P_PPC (4),          // Pixels per clock
+            .P_BPC (8)           // Bits per component
+        )
+        SCALER_INST
+        (
+             // System
+            .SYS_RST_IN             (dptx_rst_from_app),
+            .SYS_CLK_IN             (clk_from_sys_pll),
+
+            // Local bus interface
+            .LB_IF                  (scaler_if),
+
+            // Video
+            .VID_CLK_IN             (clk_from_vid_buf),
+
+             // Video in
+            .VID_VS_IN              (vs_from_vtb),          // Vertical sync
+            .VID_HS_IN              (hs_from_vtb),          // Horizontal sync    
+            .VID_R_IN               (r_from_vtb),           // Red
+            .VID_G_IN               (g_from_vtb),           // Green
+            .VID_B_IN               (b_from_vtb),           // Blue
+            .VID_DE_IN              (de_from_vtb),          // Data enable
+
+             // Video out
+            .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
+            .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
+            .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
+            .VID_R_OUT              (r_from_scaler),        // Red
+            .VID_G_OUT              (g_from_scaler),        // Green
+            .VID_B_OUT              (b_from_scaler),        // Blue
+            .VID_DE_OUT             (de_from_scaler)        // Data enable
+        );
+    end
+
+    else
+    begin : gen_no_scaler
+        assign cke_from_scaler = 1;
+        assign vs_from_scaler = vs_from_vtb;
+        assign hs_from_scaler = hs_from_vtb;
+        assign r_from_scaler = r_from_vtb;
+        assign g_from_scaler = g_from_vtb;
+        assign b_from_scaler = b_from_vtb;
+        assign de_from_scaler = de_from_vtb;
+    end
+endgenerate
 
 // LMMI bridge
     prt_lat_lmmi
@@ -515,7 +586,7 @@ wire                            led_from_vid_hb;
         .Z (clk_from_tx_buf)    // O
     );
 
-// PHY TX clock buffer
+// PHY RX clock buffer
     BUF
     BUF_RX_INST
     (

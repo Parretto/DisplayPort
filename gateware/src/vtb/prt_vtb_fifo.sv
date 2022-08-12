@@ -243,7 +243,7 @@ genvar i;
     VID_SOF_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
-        .CKE_IN    (1'b1), 		      	// Clock enable
+        .CKE_IN    (VID_CKE_IN), 	   	// Clock enable
         .A_IN      (vclk_vid.sof_in),	// Input
         .RE_OUT    (vclk_vid.sof_re),   // Rising edge
         .FE_OUT    (vclk_vid.sof_fe)   	// Falling edge
@@ -260,7 +260,9 @@ genvar i;
 // Data enable
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		vclk_vid.de <= VID_DE_IN;
+		// Enable
+		if (VID_CKE_IN)
+			vclk_vid.de <= VID_DE_IN;
 	end
 
 // DE edge detector
@@ -269,7 +271,7 @@ genvar i;
     VID_DE_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
-        .CKE_IN    (1'b1),            	// Clock enable
+        .CKE_IN    (VID_CKE_IN),       	// Clock enable
         .A_IN      (vclk_vid.de),		// Input
         .RE_OUT    (vclk_vid.de_re),    // Rising edge
         .FE_OUT    () 				  	// Falling edge
@@ -278,19 +280,23 @@ genvar i;
 // FIFO read enable
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		if (vclk_vid.run)
-		begin	
-			// Clear
-			if (vclk_fifo.rd_en_clr)
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			if (vclk_vid.run)
+			begin	
+				// Clear
+				if (vclk_fifo.rd_en_clr)
+					vclk_fifo.rd_en <= 0;
+
+				// Set
+				else if (vclk_fifo.rd_en_set)
+					vclk_fifo.rd_en <= 1;
+			end
+
+			else
 				vclk_fifo.rd_en <= 0;
-
-			// Set
-			else if (vclk_fifo.rd_en_set)
-				vclk_fifo.rd_en <= 1;
 		end
-
-		else
-			vclk_fifo.rd_en <= 0;
 	end
 
 // FIFO read
@@ -351,18 +357,22 @@ genvar i;
 			vclk_vid.sm_cur <= sm_idle;
 		
 		else
-		begin		
-			// Run
-			if (vclk_vid.run)
-			begin
-				if (vclk_vid.sof)
-					vclk_vid.sm_cur <= sm_sof;
-				else
-					vclk_vid.sm_cur <= vclk_vid.sm_nxt;
-			end
+		begin
+			// Enable
+			if (VID_CKE_IN)
+			begin		
+				// Run
+				if (vclk_vid.run)
+				begin
+					if (vclk_vid.sof)
+						vclk_vid.sm_cur <= sm_sof;
+					else
+						vclk_vid.sm_cur <= vclk_vid.sm_nxt;
+				end
 
-			else
-				vclk_vid.sm_cur <= sm_idle;
+				else
+					vclk_vid.sm_cur <= sm_idle;
+			end
 		end
 	end
 
@@ -457,12 +467,16 @@ genvar i;
 // Timing generator sync
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Default
-		vclk_vid.tg_sync <= 0;
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			// Default
+			vclk_vid.tg_sync <= 0;
 
-		// Set
-		if (vclk_vid.tg_sync_set)
-			vclk_vid.tg_sync <= 1;
+			// Set
+			if (vclk_vid.tg_sync_set)
+				vclk_vid.tg_sync <= 1;
+		end
 	end
 
 // The video data path has three clocks latency.
@@ -482,7 +496,7 @@ genvar i;
     VID_VS_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
-        .CKE_IN    (1'b1),            	// Clock enable
+        .CKE_IN    (VID_CKE_IN),       	// Clock enable
         .A_IN      (vclk_vid.vs[0]),	// Input
         .RE_OUT    (vclk_vid.vs_re),    // Rising edge
         .FE_OUT    () 				  	// Falling edge
@@ -491,39 +505,47 @@ genvar i;
 // Enable
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Run
-		if (vclk_vid.run)
-		begin		
-			// Clear
-			if (vclk_vid.en_clr)
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			// Run
+			if (vclk_vid.run)
+			begin		
+				// Clear
+				if (vclk_vid.en_clr)
+					vclk_vid.en <= 0;
+
+				// Set
+				else if (vclk_vid.en_set)
+					vclk_vid.en <= 1;
+			end
+
+			else
 				vclk_vid.en <= 0;
-
-			// Set
-			else if (vclk_vid.en_set)
-				vclk_vid.en <= 1;
 		end
-
-		else
-			vclk_vid.en <= 0;
 	end
 
 // Lock
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Run
-		if (vclk_vid.run)
+		// Enable
+		if (VID_CKE_IN)
 		begin
-			// Set
-			if (vclk_vid.en_set) 
-				vclk_vid.lock <= 1;
+			// Run
+			if (vclk_vid.run)
+			begin
+				// Set
+				if (vclk_vid.en_set) 
+					vclk_vid.lock <= 1;
 
-			// Clear
-			else if (vclk_fifo.rd && (vclk_fifo.ep || vclk_fifo.fl))
+				// Clear
+				else if (vclk_fifo.rd && (vclk_fifo.ep || vclk_fifo.fl))
+					vclk_vid.lock <= 0;
+			end
+
+			else
 				vclk_vid.lock <= 0;
 		end
-
-		else
-			vclk_vid.lock <= 0;
 	end
 
 // Outputs

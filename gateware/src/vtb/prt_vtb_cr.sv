@@ -38,6 +38,7 @@ module prt_vtb_cr
 	input wire 				SYS_CLK_IN,			// System Clock
 	input wire 				LNK_CLK_IN,			// Link Clock
 	input wire 				VID_CLK_IN,			// Video Clock
+	input wire 				VID_CKE_IN,			// Video Clock enable
 
 	// Control
  	input wire 				CTL_RUN_IN,			// Run
@@ -244,9 +245,9 @@ dia_struct 		sclk_dia;
     prt_dp_lib_cdc_bit
     VCLK_SYNC_CDC_INST
     (
-        .SRC_CLK_IN   	(LNK_CLK_IN),           	// Clock
-        .SRC_DAT_IN    	(lclk_lnk.sync_toggle),  // Data
-        .DST_CLK_IN    	(VID_CLK_IN),           	// Clock
+        .SRC_CLK_IN   	(LNK_CLK_IN),           // Clock
+        .SRC_DAT_IN    	(lclk_lnk.sync_toggle), // Data
+        .DST_CLK_IN    	(VID_CLK_IN),           // Clock
         .DST_DAT_OUT   	(vclk_vid.sync)      	// Data
     );
 
@@ -254,7 +255,7 @@ dia_struct 		sclk_dia;
     VCLK_SYNC_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN), 		   	// Clock
-        .CKE_IN    (1'b1),           	 	// Clock enable
+        .CKE_IN    (VID_CKE_IN),      	 	// Clock enable
         .A_IN      (vclk_vid.sync),      	// Input
         .RE_OUT    (vclk_vid.sync_re), 		// Rising edge
         .FE_OUT    (vclk_vid.sync_fe) 		// Falling edge
@@ -263,13 +264,17 @@ dia_struct 		sclk_dia;
 // Sync Counter
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Load
-		if (vclk_vid.sync_cnt_ld)
-			vclk_vid.sync_cnt <= P_LINES;
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			// Load
+			if (vclk_vid.sync_cnt_ld)
+				vclk_vid.sync_cnt <= P_LINES;
 
-		// Decrement on every sync pulse
-		else if (!vclk_vid.sync_cnt_end && (vclk_vid.sync_re || vclk_vid.sync_fe))
-			vclk_vid.sync_cnt <= vclk_vid.sync_cnt - 'd1;
+			// Decrement on every sync pulse
+			else if (!vclk_vid.sync_cnt_end && (vclk_vid.sync_re || vclk_vid.sync_fe))
+				vclk_vid.sync_cnt <= vclk_vid.sync_cnt - 'd1;
+		end
 	end
 
 // Sync counter end
@@ -284,13 +289,17 @@ dia_struct 		sclk_dia;
 // Pixel Counter
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Load
-		if (vclk_vid.pix_cnt_ld)
-			vclk_vid.pix_cnt <= {vclk_vid.htotal, {P_LINES_LOG{1'b0}}};
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			// Load
+			if (vclk_vid.pix_cnt_ld)
+				vclk_vid.pix_cnt <= {vclk_vid.htotal, {P_LINES_LOG{1'b0}}};
 
-		// Decrement
-		else if (!vclk_vid.pix_cnt_end)
-			vclk_vid.pix_cnt <= vclk_vid.pix_cnt - P_PPC;
+			// Decrement
+			else if (!vclk_vid.pix_cnt_end)
+				vclk_vid.pix_cnt <= vclk_vid.pix_cnt - P_PPC;
+		end
 	end
 
 // Pixel Counter end
@@ -305,12 +314,16 @@ dia_struct 		sclk_dia;
 // State machine
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Run
-		if (vclk_vid.run)
-			vclk_vid.sm_cur <= vclk_vid.sm_nxt;
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			// Run
+			if (vclk_vid.run)
+				vclk_vid.sm_cur <= vclk_vid.sm_nxt;
 
-		else
-			vclk_vid.sm_cur <= vid_sm_idle;
+			else
+				vclk_vid.sm_cur <= vid_sm_idle;
+		end
 	end
 
 // State machine decoder
@@ -374,24 +387,28 @@ dia_struct 		sclk_dia;
 // The error becomes negative is case of a slower video clock
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Clear
-		if (vclk_vid.err_cnt_clr)
-			vclk_vid.err_cnt <= 0;
-
-		// Video clock is too slow
-		else if (vclk_vid.sync_cnt_end && !vclk_vid.pix_cnt_end)
+		// Enable
+		if (VID_CKE_IN)
 		begin
-			// Prevent overflow
-			if (vclk_vid.err_cnt != {1'b0, {$size(vclk_vid.err_cnt)-1{1'b1}}})
-				vclk_vid.err_cnt <= vclk_vid.err_cnt + 'd1;
-		end
+			// Clear
+			if (vclk_vid.err_cnt_clr)
+				vclk_vid.err_cnt <= 0;
 
-		// Video clock is too fast
-		else if (!vclk_vid.sync_cnt_end && vclk_vid.pix_cnt_end)
-		begin
-			// Prevent undeflow
-			if (vclk_vid.err_cnt != {1'b1, {$size(vclk_vid.err_cnt)-1{1'b0}}})	
-				vclk_vid.err_cnt <= vclk_vid.err_cnt - 'd1;
+			// Video clock is too slow
+			else if (vclk_vid.sync_cnt_end && !vclk_vid.pix_cnt_end)
+			begin
+				// Prevent overflow
+				if (vclk_vid.err_cnt != {1'b0, {$size(vclk_vid.err_cnt)-1{1'b1}}})
+					vclk_vid.err_cnt <= vclk_vid.err_cnt + 'd1;
+			end
+
+			// Video clock is too fast
+			else if (!vclk_vid.sync_cnt_end && vclk_vid.pix_cnt_end)
+			begin
+				// Prevent undeflow
+				if (vclk_vid.err_cnt != {1'b1, {$size(vclk_vid.err_cnt)-1{1'b0}}})	
+					vclk_vid.err_cnt <= vclk_vid.err_cnt - 'd1;
+			end
 		end
 	end
 
@@ -399,28 +416,32 @@ dia_struct 		sclk_dia;
 // This flag is asserted when the new error value is ready 
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Run
-		if (vclk_vid.run)
+		// Enable
+		if (VID_CKE_IN)
 		begin
-			// Clear
-			if (vclk_vid.busy_re)
+			// Run
+			if (vclk_vid.run)
+			begin
+				// Clear
+				if (vclk_vid.busy_re)
+					vclk_vid.rdy <= 0;
+
+				// Set
+				else if (vclk_vid.rdy_set)
+					vclk_vid.rdy <= 1;
+			end
+
+			else
 				vclk_vid.rdy <= 0;
-
-			// Set
-			else if (vclk_vid.rdy_set)
-				vclk_vid.rdy <= 1;
 		end
-
-		else
-			vclk_vid.rdy <= 0;
 	end
 
     prt_dp_lib_cdc_bit
     VCLK_BUSY_CDC_INST
     (
-    	.SRC_CLK_IN   	(SYS_CLK_IN),           	// Clock
+    	.SRC_CLK_IN   	(SYS_CLK_IN),          	// Clock
        	.SRC_DAT_IN   	(sclk_dcl.busy), 	 	// Data
-       	.DST_CLK_IN   	(VID_CLK_IN),           	// Clock
+       	.DST_CLK_IN   	(VID_CLK_IN),          	// Clock
        	.DST_DAT_OUT  	(vclk_vid.busy)      	// Data
 	);
 
@@ -428,7 +449,7 @@ dia_struct 		sclk_dia;
     VCLK_BUSY_EDGE_INST
     (
         .CLK_IN    	(VID_CLK_IN), 		   	// Clock
-        .CKE_IN    	(1'b1),           	 	// Clock enable
+        .CKE_IN    	(VID_CKE_IN),      	 	// Clock enable
         .A_IN      	(vclk_vid.busy),      	// Input
         .RE_OUT    	(vclk_vid.busy_re), 	// Rising edge
         .FE_OUT 	(vclk_vid.busy_fe) 		// Falling edge
