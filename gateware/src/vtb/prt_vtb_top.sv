@@ -29,6 +29,7 @@
 
 module prt_vtb_top
 #(
+    parameter P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
 	parameter P_SYS_FREQ = 'd125_000_000,	// System frequency
 	parameter P_PPC = 2,					// Pixels per clock
 	parameter P_BPC = 8,					// Bits per component
@@ -52,21 +53,23 @@ module prt_vtb_top
 	input wire 								RX_LNK_CLK_IN,			// RX link clock
 	input wire								LNK_SYNC_IN,			// Sync
 
-	// AXI-stream Video
+	// Video
+  	input wire 								VID_CKE_IN,				// Clock enable
+	input wire 								VID_CLK_IN,				// Clock
+
+	// Video in
    	input wire          					AXIS_SOF_IN,    		// Start of frame
 	input wire          					AXIS_EOL_IN,    		// End of line
     input wire [P_AXIS_DAT-1:0]  			AXIS_DAT_IN,    		// Data
     input wire          					AXIS_VLD_IN,    		// Valid
 
-    // Native video
-	input wire 								VID_CLK_IN,				// Clock
-  	input wire 								VID_CKE_IN,				// Clock enable
- 	output wire 							VID_VS_OUT,				// Vsync
+    // Video out
+  	output wire 							VID_VS_OUT,				// Vsync
   	output wire 							VID_HS_OUT,				// Hsync
-   	output wire [(P_BPC * P_PPC)-1:0]		VID_R_OUT,				// Red
- 	output wire [(P_BPC * P_PPC)-1:0]		VID_G_OUT,				// Green
- 	output wire [(P_BPC * P_PPC)-1:0]		VID_B_OUT,				// Blue
-  	output wire 							VID_DE_OUT,				// Data enable out
+  	output wire [(P_BPC * P_PPC)-1:0]		VID_R_OUT,				// Red
+  	output wire [(P_BPC * P_PPC)-1:0]		VID_G_OUT,				// Green
+  	output wire [(P_BPC * P_PPC)-1:0]		VID_B_OUT,				// Blue
+   	output wire 							VID_DE_OUT,				// Data enable out
 
 	// Debug
 	output wire 							DBG_CR_SYNC_END_OUT,	// Sync end out
@@ -89,8 +92,9 @@ localparam P_CTL_CG_RUN 	= 2;
 localparam P_CTL_TG_RUN 	= 3;
 localparam P_CTL_TG_MODE 	= 4;
 localparam P_CTL_TPG_RUN 	= 5;
-localparam P_CTL_FIFO_RUN 	= 6;
-localparam P_CTL_CR_RUN 	= 7;
+localparam P_CTL_TPG_RAMP 	= 6;
+localparam P_CTL_FIFO_RUN 	= 7;
+localparam P_CTL_CR_RUN 	= 8;
 
 // Signals
 
@@ -109,7 +113,7 @@ wire [15:0]						vps_dat_from_ctl;
 wire 							vps_vld_from_ctl;
 
 // CDC
-wire [4:0]						ctl_from_cdc;
+wire [5:0]						ctl_from_cdc;
 
 // Clock recovery
 wire						sync_from_cr;
@@ -124,7 +128,7 @@ wire 						run_to_cg;
 
 // FIFO
 wire						run_to_fifo;
-wire						tg_sync_from_fifo;
+wire						tg_run_from_fifo;
 wire [(P_BPC * P_PPC)-1:0] 	vid_r_from_fifo;
 wire [(P_BPC * P_PPC)-1:0] 	vid_g_from_fifo;
 wire [(P_BPC * P_PPC)-1:0] 	vid_b_from_fifo;
@@ -142,9 +146,11 @@ wire 						vid_rdy_to_tg;
 wire 						vid_vs_from_tg;
 wire 						vid_hs_from_tg;
 wire 						vid_de_from_tg;
+logic 						vclk_tg_run;
 
 // Test pattern
 wire 						run_to_tpg;
+wire 						ramp_to_tpg;
 wire [(P_BPC * P_PPC)-1:0] 	vid_r_from_tpg;
 wire [(P_BPC * P_PPC)-1:0] 	vid_g_from_tpg;
 wire [(P_BPC * P_PPC)-1:0] 	vid_b_from_tpg;
@@ -167,6 +173,7 @@ genvar i;
 // Control 
 	prt_vtb_ctl
 	#(
+		.P_VENDOR	(P_VENDOR),
 		.P_IG_PORTS	(P_CTL_IG_PORTS),		// Ingress ports
 		.P_OG_PORTS (P_CTL_OG_PORTS)		// Outgress ports
 	)
@@ -225,16 +232,17 @@ endgenerate
 	)
 	CTL_CDC_INST
 	(
-		.SRC_CLK_IN		(SYS_CLK_IN),			// Clock
-		.SRC_DAT_IN		(og_from_ctl[0][2+:5]),	// Data
-		.DST_CLK_IN		(VID_CLK_IN),			// Clock
-		.DST_DAT_OUT	(ctl_from_cdc)			// Data
+		.SRC_CLK_IN		(SYS_CLK_IN),								// Clock
+		.SRC_DAT_IN		(og_from_ctl[0][2+:$size(ctl_from_cdc)]),	// Data
+		.DST_CLK_IN		(VID_CLK_IN),								// Clock
+		.DST_DAT_OUT	(ctl_from_cdc)								// Data
 	);
 
 	assign run_to_cg 	= ctl_from_cdc[P_CTL_CG_RUN-2];
 	assign run_to_tg 	= ctl_from_cdc[P_CTL_TG_RUN-2];
 	assign mode_to_tg 	= ctl_from_cdc[P_CTL_TG_MODE-2];
 	assign run_to_tpg 	= ctl_from_cdc[P_CTL_TPG_RUN-2];
+	assign ramp_to_tpg 	= ctl_from_cdc[P_CTL_TPG_RAMP-2];
 	assign run_to_fifo 	= ctl_from_cdc[P_CTL_FIFO_RUN-2];
 
 // FIFO words clock domain crossing
@@ -244,10 +252,10 @@ endgenerate
 	)
 	FIFO_CDC_INST
 	(
-		.SRC_CLK_IN		(VID_CLK_IN),		// Clock
+		.SRC_CLK_IN		(VID_CLK_IN),															// Clock
 		.SRC_DAT_IN		({11'h0, lock_from_fifo, min_wrds_from_fifo, max_wrds_from_fifo}),		// Data
-		.DST_CLK_IN		(SYS_CLK_IN),			// Clock
-		.DST_DAT_OUT	(ig_to_ctl[7])			// Data
+		.DST_CLK_IN		(SYS_CLK_IN),															// Clock
+		.DST_DAT_OUT	(ig_to_ctl[7])															// Data
 	);
 
 // Monitor pixel and lines clock domain crossing
@@ -257,10 +265,10 @@ endgenerate
 	)
 	MON_CDC_INST
 	(
-		.SRC_CLK_IN		(RX_LNK_CLK_IN),		// Clock
+		.SRC_CLK_IN		(VID_CLK_IN),						// Clock
 		.SRC_DAT_IN		({lin_from_mon, pix_from_mon}),		// Data
-		.DST_CLK_IN		(SYS_CLK_IN),			// Clock
-		.DST_DAT_OUT	(ig_to_ctl[8])			// Data
+		.DST_CLK_IN		(SYS_CLK_IN),						// Clock
+		.DST_DAT_OUT	(ig_to_ctl[8])						// Data
 	);
 
 // Link reset
@@ -354,6 +362,7 @@ endgenerate
 // FIFO
 	prt_vtb_fifo
 	#(
+		.P_VENDOR			(P_VENDOR),					// Vendor
 		.P_PPC 				(P_PPC),					// Pixels per clock
 		.P_BPC 				(P_BPC),					// Bits per component
 	    .P_AXIS_DAT			(P_AXIS_DAT)				// AXIS data width
@@ -361,8 +370,6 @@ endgenerate
 	FIFO_INST
 	(
 		// Reset and clocks
-		.LNK_RST_IN			(rst_from_lnk_rst),			// Reset
-		.LNK_CLK_IN			(RX_LNK_CLK_IN),			// Clock
 		.VID_RST_IN			(rst_from_vid_rst),			// Reset
 		.VID_CLK_IN			(VID_CLK_IN),				// Clock
 		.VID_CKE_IN			(VID_CKE_IN),				// Clock enable
@@ -376,15 +383,15 @@ endgenerate
 		.STA_MIN_WRDS_OUT	(min_wrds_from_fifo),		// Minimum words
 
 		// Timing
-		.TG_SYNC_OUT		(tg_sync_from_fifo),
+		.TG_RUN_OUT			(tg_run_from_fifo),
 
-		// AXIS		
+		// Video in
 		.AXIS_SOF_IN		(AXIS_SOF_IN),				// Start of frame
 		.AXIS_EOL_IN		(AXIS_EOL_IN),				// End of line
 		.AXIS_DAT_IN		(AXIS_DAT_IN),				// Data
 		.AXIS_VLD_IN		(AXIS_VLD_IN),				// Valid
 
-		// Video
+		// Video out
 		.VID_VS_IN			(vid_vs_from_tg),			// Vsync in
 		.VID_HS_IN			(vid_hs_from_tg),			// Hsync in
 		.VID_DE_IN			(vid_de_from_tg),			// Data enable in
@@ -409,7 +416,7 @@ endgenerate
 		.CKE_IN				(VID_CKE_IN),			// Clock enable
 
 		// Control
-		.CTL_RUN_IN			(run_to_tg),			// Run
+		.CTL_RUN_IN			(vclk_tg_run),			// Run
 		.CTL_MODE_IN		(mode_to_tg),			// Mode; 0-free running / 1-sync
 
 		// Video parameter set
@@ -417,14 +424,30 @@ endgenerate
 		.VPS_DAT_IN			(vps_dat_from_ctl),		// Data
 		.VPS_VLD_IN			(vps_vld_from_ctl),		// Valid
 
-		// Sync
-		.TG_SYNC_IN			(tg_sync_from_fifo),	// Synchronization
-
 		// Native video
 		.VID_VS_OUT			(vid_vs_from_tg),		// Vsync
 		.VID_HS_OUT			(vid_hs_from_tg),		// Hsync
 		.VID_DE_OUT			(vid_de_from_tg)		// Data enable
 	);
+
+// Timing generator run
+	always_ff @ (posedge rst_from_vid_rst, posedge VID_CLK_IN)
+	begin
+		// Reset
+		if (rst_from_vid_rst)
+			vclk_tg_run <= 0;
+
+		else
+		begin
+			// Sync mode
+			if (mode_to_tg)
+				vclk_tg_run <= tg_run_from_fifo && run_to_tg;
+
+			// Free running
+			else
+				vclk_tg_run <= run_to_tg;
+		end
+	end 
 
 // Test Pattern Generator
 	prt_vtb_tpg
@@ -441,6 +464,7 @@ endgenerate
 
 		// Control
 		.CTL_RUN_IN			(run_to_tpg),			// Run
+		.CTL_RAMP_IN		(ramp_to_tpg),			// Ramp
 
 		// Video parameter set
 		.VPS_IDX_IN			(vps_idx_from_ctl),		// Index
@@ -540,13 +564,13 @@ endgenerate
 	MON_INST
 	(
 		// Reset and clock
-		.RST_IN			(rst_from_lnk_rst),			// Reset
-		.CLK_IN			(RX_LNK_CLK_IN),			// Clock
+		.RST_IN			(rst_from_vid_rst),		// Reset
+		.CLK_IN			(VID_CLK_IN),			// Clock
 
 		// Video in
-		.VID_SOF_IN		(AXIS_SOF_IN),        // Start of frame
-		.VID_EOL_IN		(AXIS_EOL_IN),        // End of line
-		.VID_VLD_IN		(AXIS_VLD_IN),        // Valid
+		.VID_SOF_IN		(AXIS_SOF_IN),        	// Start of frame
+		.VID_EOL_IN		(AXIS_EOL_IN),        	// End of line
+		.VID_VLD_IN		(AXIS_VLD_IN),        	// Valid
 
 		// Status
 		.STA_PIX_OUT	(pix_from_mon),

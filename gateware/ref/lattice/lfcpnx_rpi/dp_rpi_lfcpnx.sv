@@ -25,9 +25,10 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
+// The nettype overwrite can't be used when using the Reveal analyzer
 //`default_nettype none
 
-module dp_ref_lat_lfcpnx_evn
+module dp_rpi_lfcpnx
 (
     // Clock
     input wire              SYS_CLK_IN,               // 125 MHz
@@ -42,17 +43,28 @@ module dp_ref_lat_lfcpnx_evn
 
     // Tentiva
     output wire             TENTIVA_CLK_SEL_OUT,        // Clock select
-    input wire              TENTIVA_PHY_CLK_LOCK_IN,    // PHY clock lock
+    input wire              TENTIVA_GT_CLK_LOCK_IN,     // GT clock lock
     input wire              TENTIVA_VID_CLK_LOCK_IN,    // Video clock lock
     input wire              TENTIVA_VID_CLK_IN,         // Video clock 
 
-    // PHY reference clocks
+    // Serdes
     input wire              SD_REFCLK0_IN_P,
     input wire              SD_REFCLK0_IN_N,
     input wire              SD_REFCLK1_IN_P,
     input wire         	    SD_REFCLK1_IN_N,
     input wire  [3:0]     	SD_REXT_IN,
     input wire  [3:0]      	SD_REFRET_IN,
+
+    // RPI DPI
+    input wire              RPI_DPI_CLK_IN,   
+
+    input wire              RPI_DPI_HS_IN,
+    input wire              RPI_DPI_VS_IN,
+    input wire              RPI_DPI_DEN_IN,
+
+    input wire [7:0]        RPI_DPI_R_IN,
+    input wire [7:0]        RPI_DPI_G_IN,
+    input wire [7:0]        RPI_DPI_B_IN,
 
     // DP TX
     output wire [3:0]       DPTX_ML_OUT_P,          // Main link
@@ -62,16 +74,16 @@ module dp_ref_lat_lfcpnx_evn
     input wire              DPTX_AUX_RX_IN,         // AUX Receive
     input wire              DPTX_HPD_IN,            // HPD
 
-    // DP RX
-    input wire [3:0]        DPRX_ML_IN_P,            // Main link
-    input wire [3:0]        DPRX_ML_IN_N,            // Main link
-    output wire             DPRX_AUX_EN_OUT,         // AUX Enable
-    output wire             DPRX_AUX_TX_OUT,         // AUX Transmit
-    input wire              DPRX_AUX_RX_IN,          // AUX Receive
-    output wire             DPRX_HPD_OUT,            // HPD
-
     // Misc
-    output wire [7:0]       LED_OUT
+    output wire [7:0]       LED_OUT,
+    input wire [1:0]        SW_IN,
+    output wire [7:0]       DEBUG_OUT,
+
+    // Aqua
+    input wire              AQUA_SEL_IN,
+    input wire              AQUA_CTL_IN,
+    input wire              AQUA_CLK_IN,
+    input wire              AQUA_DAT_IN
 );
 
 
@@ -90,7 +102,6 @@ localparam P_SPL            = 4;
 localparam P_PPC            = 4;
 localparam P_BPC            = 8;
 localparam P_AXI_WIDTH      = 96;
-localparam P_SCALER         = 1;
 
 // Interfaces
 
@@ -101,12 +112,12 @@ prt_dp_lb_if
 )
 dptx_if();
 
-// DPRX
+// RPI
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
-dprx_if();
+rpi_if();
 
 // VTB
 prt_dp_lb_if
@@ -135,17 +146,16 @@ scaler_if();
 */
 
 // Reset
-(* syn_preserve=1 *) logic [9:0]             sclk_rst_cnt;
-(* syn_preserve=1 *) logic                   sclk_rst;
+(* syn_preserve=1 *) logic [9:0]    sclk_rst_cnt;
+(* syn_preserve=1 *) logic          sclk_rst;
 
 // Clocks
-wire    clk_from_sys_pll;
-wire    lock_from_sys_pll;
-wire    refclk0_from_diffclkio;
-wire    refclk1_from_diffclkio;
-wire    clk_from_tx_buf;
-wire    clk_from_rx_buf;
-wire    clk_from_vid_buf;
+wire                            clk_from_sys_pll;
+wire                            lock_from_sys_pll;
+wire                            refclk0_from_diffclkio;
+wire                            refclk1_from_diffclkio;
+wire                            clk_from_tx_buf;
+wire                            clk_from_vid_buf;
 
 // APP
 wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
@@ -156,23 +166,21 @@ wire                            dprx_rst_from_app;
 wire                            phy_all_rst_from_app;
 wire                            phy_tx_rst_from_app;
 wire                            phy_rx_rst_from_app;
+wire                            vid_mux_sel_from_app;
+
+// RPI DPI
+wire                            cke_from_rpi_dpi;
+wire                            vs_from_rpi_dpi;
+wire                            hs_from_rpi_dpi;
+wire [(P_PPC*P_BPC)-1:0]        r_from_rpi_dpi;
+wire [(P_PPC*P_BPC)-1:0]        g_from_rpi_dpi;
+wire [(P_PPC*P_BPC)-1:0]        b_from_rpi_dpi;
+wire                            de_from_rpi_dpi;
 
 // DPTX
 wire                            irq_from_dptx;
 wire [(P_LANES*P_SPL*11)-1:0]   lnk_dat_from_dptx;
 wire                            hb_from_dptx;
-
-// DPRX
-wire                            irq_from_dprx;
-wire [(P_LANES*P_SPL*9)-1:0]    lnk_dat_to_dprx;
-wire                            hb_from_dprx;
-wire                            hpd_from_dprx;
-wire                            lnk_sync_from_dprx;
-
-wire                            vid_sof_from_dprx;   // Start of frame
-wire                            vid_eol_from_dprx;   // End of line
-wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
-wire                            vid_vld_from_dprx;   // Valid
 
 // VTB
 wire                            vs_from_vtb;
@@ -191,10 +199,14 @@ wire [(P_PPC*P_BPC)-1:0]        g_from_scaler;
 wire [(P_PPC*P_BPC)-1:0]        b_from_scaler;
 wire                            de_from_scaler;
 
-// DIA
-wire                            dia_rdy_from_app;
-wire [31:0]                     dia_dat_from_vtb;
-wire                            dia_vld_from_vtb;
+// Video mux
+wire                            sel_to_vid_mux;
+logic                           vs_from_vid_mux;
+logic                           hs_from_vid_mux;
+logic [(P_PPC*P_BPC)-1:0]       r_from_vid_mux;
+logic [(P_PPC*P_BPC)-1:0]       g_from_vid_mux;
+logic [(P_PPC*P_BPC)-1:0]       b_from_vid_mux;
+logic                           de_from_vid_mux;
 
 // LMMI
 wire [3:0]                      req_from_lmmi;
@@ -204,7 +216,6 @@ wire [(4*8)-1:0]                dat_from_lmmi;
 
 // PHY
 wire                            tx_clk_from_phy;
-wire                            rx_clk_from_phy;
 wire [79:0]                     tx_dat_to_phy[0:3];
 wire [79:0]                     rx_dat_from_phy[0:3];
 wire [3:0]                      rdy_from_phy;
@@ -215,10 +226,8 @@ wire [3:0]                      lmmi_rdy_from_phy;
 
 // Heartbeat
 wire                            led_from_sys_hb;
-wire                            led_from_phytx_hb;
-wire                            led_from_phyrx_hb;
+wire                            led_from_sdtx_hb;
 wire                            led_from_vid_hb;
-
 
 /*
     Logic
@@ -281,7 +290,7 @@ wire                            led_from_vid_hb;
     IB
     VID_BUF_INST
     (
-        .I (TENTIVA_VID_CLK_IN),  // I
+        .I (RPI_DPI_CLK_IN),    // I
         .O (clk_from_vid_buf)   // O
     );
 
@@ -323,8 +332,9 @@ wire                            led_from_vid_hb;
         .DPTX_IRQ_IN        (irq_from_dptx),
 
         // DPRX interface
-        .DPRX_IF            (dprx_if),
-        .DPRX_IRQ_IN        (irq_from_dprx),
+        // IN this application used by the Raspberry PI DPI peripheral
+        .DPRX_IF            (rpi_if),
+        .DPRX_IRQ_IN        (1'b0),
 
         // VTB interface
         .VTB_IF             (vtb_if),
@@ -336,16 +346,18 @@ wire                            led_from_vid_hb;
         .SCALER_IF          (scaler_if),
 
         // Aqua 
-        .AQUA_SEL_IN        (1'b0),
-        .AQUA_CTL_IN        (1'b0),
-        .AQUA_CLK_IN        (1'b0),
-        .AQUA_DAT_IN        (1'b0)
+        .AQUA_SEL_IN        (AQUA_SEL_IN),
+        .AQUA_CTL_IN        (AQUA_CTL_IN),
+        .AQUA_CLK_IN        (AQUA_CLK_IN),
+        .AQUA_DAT_IN        (AQUA_DAT_IN)
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]        = TENTIVA_PHY_CLK_LOCK_IN; 
+    assign pio_dat_to_app[0]        = TENTIVA_GT_CLK_LOCK_IN; 
     assign pio_dat_to_app[1]        = TENTIVA_VID_CLK_LOCK_IN;
     assign pio_dat_to_app[2]        = &rdy_from_phy;
+    assign pio_dat_to_app[3]        = ~SW_IN[0];
+    assign pio_dat_to_app[4]        = ~SW_IN[1];
 
     // PIO out mapping
     assign TENTIVA_CLK_SEL_OUT      = pio_dat_from_app[0];
@@ -354,6 +366,164 @@ wire                            led_from_vid_hb;
     assign phy_all_rst_from_app     = pio_dat_from_app[3];
     assign phy_tx_rst_from_app      = pio_dat_from_app[4];
     assign phy_rx_rst_from_app      = pio_dat_from_app[5];
+    assign vid_mux_sel_from_app     = pio_dat_from_app[6];
+
+// Raspberry PI DPI
+    rpi_dpi
+    RPI_DPI_INST
+    (
+         // System
+        .SYS_RST_IN             (dptx_rst_from_app),
+        .SYS_CLK_IN             (clk_from_sys_pll),
+
+        // Local bus interface
+        .LB_IF                  (rpi_if),
+        
+        // DPI input
+        .DPI_CLK_IN             (clk_from_vid_buf),   
+        .DPI_VS_IN              (RPI_DPI_VS_IN),
+        .DPI_HS_IN              (RPI_DPI_HS_IN),
+        .DPI_DEN_IN             (RPI_DPI_DEN_IN),
+
+        .DPI_R_IN               (RPI_DPI_R_IN),
+        .DPI_G_IN               (RPI_DPI_G_IN),
+        .DPI_B_IN               (RPI_DPI_B_IN),
+
+        // Video output
+        .VID_CKE_OUT            (cke_from_rpi_dpi),
+        .VID_VS_OUT             (vs_from_rpi_dpi),
+        .VID_HS_OUT             (hs_from_rpi_dpi),
+        .VID_R_OUT              (r_from_rpi_dpi),
+        .VID_G_OUT              (g_from_rpi_dpi),
+        .VID_B_OUT              (b_from_rpi_dpi),
+        .VID_DE_OUT             (de_from_rpi_dpi)
+    );
+
+// Scaler
+    prt_scaler_top
+    #(
+        // System
+        .P_VENDOR               (P_VENDOR),
+        
+        // Video
+        .P_PPC                  (4),          // Pixels per clock
+        .P_BPC                  (8)           // Bits per component
+    )
+    SCALER_INST
+    (
+         // System
+        .SYS_RST_IN             (dptx_rst_from_app),
+        .SYS_CLK_IN             (clk_from_sys_pll),
+
+        // Local bus interface
+        .LB_IF                  (scaler_if),
+
+        // Video
+        .VID_CLK_IN             (clk_from_vid_buf),
+
+         // Video in
+        .VID_CKE_IN             (cke_from_rpi_dpi),     // Clock enable
+        .VID_VS_IN              (vs_from_rpi_dpi),      // Vertical sync
+        .VID_HS_IN              (hs_from_rpi_dpi),      // Horizontal sync    
+        .VID_R_IN               (r_from_rpi_dpi),       // Red
+        .VID_G_IN               (g_from_rpi_dpi),       // Green
+        .VID_B_IN               (b_from_rpi_dpi),       // Blue
+        .VID_DE_IN              (de_from_rpi_dpi),      // Data enable
+
+         // Video out
+        .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
+        .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
+        .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
+        .VID_R_OUT              (r_from_scaler),        // Red
+        .VID_G_OUT              (g_from_scaler),        // Green
+        .VID_B_OUT              (b_from_scaler),        // Blue
+        .VID_DE_OUT             (de_from_scaler)        // Data enable
+    );
+
+// Video toolbox
+    prt_vtb_top
+    #(
+        .P_VENDOR               (P_VENDOR),
+        .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
+        .P_PPC                  (P_PPC),        // Pixels per clock
+        .P_BPC                  (P_BPC),        // Bits per component
+        .P_AXIS_DAT             (P_AXI_WIDTH)
+    )
+    VTB_INST
+    (
+        // System
+        .SYS_RST_IN             (dptx_rst_from_app),
+        .SYS_CLK_IN             (clk_from_sys_pll),
+
+        // Local bus
+        .LB_IF                  (vtb_if),
+
+        // Direct I2C Access
+        .DIA_RDY_IN             (1'b1),
+        .DIA_DAT_OUT            (),
+        .DIA_VLD_OUT            (),
+
+        // Link
+        .TX_LNK_CLK_IN          (clk_from_tx_buf),      // TX link clock
+        .RX_LNK_CLK_IN          (1'b0),                 // RX link clock
+        .LNK_SYNC_IN            (1'b0),
+
+        // Axi-stream Video
+        .AXIS_SOF_IN            (1'b0),         // Start of frame
+        .AXIS_EOL_IN            (1'b0),         // End of line
+        .AXIS_DAT_IN            (0),            // Data
+        .AXIS_VLD_IN            (1'b0),         // Valid       
+
+        // Native video
+        .VID_CLK_IN             (clk_from_vid_buf),
+        .VID_CKE_IN             (1'b1),
+        .VID_VS_OUT             (vs_from_vtb),
+        .VID_HS_OUT             (hs_from_vtb),
+        .VID_R_OUT              (r_from_vtb),
+        .VID_G_OUT              (g_from_vtb),
+        .VID_B_OUT              (b_from_vtb),
+        .VID_DE_OUT             (de_from_vtb),
+
+        // Debug
+        .DBG_CR_SYNC_END_OUT    (),                         // Sync end out
+        .DBG_CR_PIX_END_OUT     ()                          // Pixel end out
+    );
+
+// Video mux select CDC
+    prt_dp_lib_cdc_bit
+    VID_MUX_SEL_INST
+    (
+        .SRC_CLK_IN     (clk_from_sys_pll),         // Clock
+        .SRC_DAT_IN     (vid_mux_sel_from_app),     // Data
+        .DST_CLK_IN     (clk_from_vid_buf),         // Clock
+        .DST_DAT_OUT    (sel_to_vid_mux)            // Data
+    );
+
+// Video mux
+    always_ff @ (posedge clk_from_vid_buf)
+    begin
+        // Raspberry PI
+        if (sel_to_vid_mux)
+        begin
+            vs_from_vid_mux <= vs_from_scaler;
+            hs_from_vid_mux <= hs_from_scaler;
+            r_from_vid_mux <= r_from_scaler;
+            g_from_vid_mux <= g_from_scaler;
+            b_from_vid_mux <= b_from_scaler;
+            de_from_vid_mux <= de_from_scaler;
+        end
+
+        // Colorbar
+        else
+        begin
+            vs_from_vid_mux <= vs_from_vtb;
+            hs_from_vid_mux <= hs_from_vtb;
+            r_from_vid_mux <= r_from_vtb;
+            g_from_vid_mux <= g_from_vtb;
+            b_from_vid_mux <= b_from_vtb;
+            de_from_vid_mux <= de_from_vtb;
+        end
+    end
 
 // Displayport TX
     prt_dptx_top
@@ -392,167 +562,17 @@ wire                            led_from_vid_hb;
         // Video
         .VID_CLK_IN         (clk_from_vid_buf),
         .VID_CKE_IN         (1'b1),
-        .VID_VS_IN          (vs_from_scaler),           // Vsync
-        .VID_HS_IN          (hs_from_scaler),           // Hsync
-        .VID_R_IN           (r_from_scaler),            // Red
-        .VID_G_IN           (g_from_scaler),            // Green
-        .VID_B_IN           (b_from_scaler),            // Blue
-        .VID_DE_IN          (de_from_scaler),           // Data enable
+        .VID_VS_IN          (vs_from_vid_mux),           // Vsync
+        .VID_HS_IN          (hs_from_vid_mux),           // Hsync
+        .VID_R_IN           (r_from_vid_mux),            // Red
+        .VID_G_IN           (g_from_vid_mux),            // Green
+        .VID_B_IN           (b_from_vid_mux),            // Blue
+        .VID_DE_IN          (de_from_vid_mux),           // Data enable
 
         // Link
         .LNK_CLK_IN         (clk_from_tx_buf),
         .LNK_DAT_OUT        (lnk_dat_from_dptx)
     );
-
-// Displayport RX
-    prt_dprx_top
-    #(
-        // System
-        .P_VENDOR           (P_VENDOR),   // Vendor
-        .P_BEAT             (P_BEAT),     // Beat value. The system clock is 125 MHz
-
-        // Link
-        .P_LANES            (P_LANES),    // Lanes
-        .P_SPL              (P_SPL),      // Symbols per lane
-
-        // Video
-        .P_PPC              (P_PPC),      // Pixels per clock
-        .P_BPC              (P_BPC),      // Bits per component
-        .P_VID_DAT          (P_AXI_WIDTH)
-    )
-    DPRX_INST
-    (
-        // Reset and Clock
-        .SYS_RST_IN         (dprx_rst_from_app),
-        .SYS_CLK_IN         (clk_from_sys_pll),
-
-        // Host interface
-        .HOST_IF            (dprx_if),
-        .HOST_IRQ_OUT       (irq_from_dprx),
-
-        // AUX
-        .AUX_EN_OUT         (DPRX_AUX_EN_OUT),
-        .AUX_TX_OUT         (DPRX_AUX_TX_OUT),
-        .AUX_RX_IN          (DPRX_AUX_RX_IN),
-
-        // Misc
-        .HPD_OUT            (DPRX_HPD_OUT),
-        .HB_OUT             (hb_from_dprx),
-
-        // Link
-        .LNK_CLK_IN         (clk_from_rx_buf),      // Clock
-        .LNK_DAT_IN         (lnk_dat_to_dprx),      // Data
-        .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
-
-        // Video
-        .VID_CLK_IN         (clk_from_vid_buf),     // Clock
-        .VID_RDY_IN         (1'b1),                 // Ready
-        .VID_SOF_OUT        (vid_sof_from_dprx),    // Start of frame
-        .VID_EOL_OUT        (vid_eol_from_dprx),    // End of line
-        .VID_DAT_OUT        (vid_dat_from_dprx),    // Data
-        .VID_VLD_OUT        (vid_vld_from_dprx)     // Valid
-    );
-
-// Video toolbox
-    prt_vtb_top
-    #(
-        .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
-        .P_PPC                  (P_PPC),        // Pixels per clock
-        .P_BPC                  (P_BPC),        // Bits per component
-        .P_AXIS_DAT             (P_AXI_WIDTH)
-    )
-    VTB_INST
-    (
-        // System
-        .SYS_RST_IN             (dptx_rst_from_app),
-        .SYS_CLK_IN             (clk_from_sys_pll),
-
-        // Local bus
-        .LB_IF                  (vtb_if),
-
-        // Direct I2C Access
-        .DIA_RDY_IN             (dia_rdy_from_app),
-        .DIA_DAT_OUT            (dia_dat_from_vtb),
-        .DIA_VLD_OUT            (dia_vld_from_vtb),
-
-        // Link
-        .TX_LNK_CLK_IN          (clk_from_tx_buf),     // TX link clock
-        .RX_LNK_CLK_IN          (clk_from_rx_buf),     // RX link clock
-        .LNK_SYNC_IN            (lnk_sync_from_dprx),
-
-        // Axi-stream Video
-        .AXIS_SOF_IN            (vid_sof_from_dprx),      // Start of frame
-        .AXIS_EOL_IN            (vid_eol_from_dprx),      // End of line
-        .AXIS_DAT_IN            (vid_dat_from_dprx),      // Data
-        .AXIS_VLD_IN            (vid_vld_from_dprx),      // Valid       
-
-        // Native video
-        .VID_CLK_IN             (clk_from_vid_buf),
-        .VID_CKE_IN             (cke_from_scaler),
-        .VID_VS_OUT             (vs_from_vtb),
-        .VID_HS_OUT             (hs_from_vtb),
-        .VID_R_OUT              (r_from_vtb),
-        .VID_G_OUT              (g_from_vtb),
-        .VID_B_OUT              (b_from_vtb),
-        .VID_DE_OUT             (de_from_vtb),
-
-        // Debug
-        .DBG_CR_SYNC_END_OUT    (),                         // Sync end out
-        .DBG_CR_PIX_END_OUT     ()                          // Pixel end out
-    );
-
-// Scaler
-generate
-    if (P_SCALER == 1)
-    begin : gen_scaler
-        prt_scaler_top
-        #(
-            .P_PPC (4),          // Pixels per clock
-            .P_BPC (8)           // Bits per component
-        )
-        SCALER_INST
-        (
-             // System
-            .SYS_RST_IN             (dptx_rst_from_app),
-            .SYS_CLK_IN             (clk_from_sys_pll),
-
-            // Local bus interface
-            .LB_IF                  (scaler_if),
-
-            // Video
-            .VID_CLK_IN             (clk_from_vid_buf),
-
-            // Video in
-            .VID_CKE_IN             (cke_from_scaler),      // Clock enable
-            .VID_VS_IN              (vs_from_vtb),          // Vertical sync
-            .VID_HS_IN              (hs_from_vtb),          // Horizontal sync    
-            .VID_R_IN               (r_from_vtb),           // Red
-            .VID_G_IN               (g_from_vtb),           // Green
-            .VID_B_IN               (b_from_vtb),           // Blue
-            .VID_DE_IN              (de_from_vtb),          // Data enable
-
-             // Video out
-            .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
-            .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
-            .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
-            .VID_R_OUT              (r_from_scaler),        // Red
-            .VID_G_OUT              (g_from_scaler),        // Green
-            .VID_B_OUT              (b_from_scaler),        // Blue
-            .VID_DE_OUT             (de_from_scaler)        // Data enable
-        );
-    end
-
-    else
-    begin : gen_no_scaler
-        assign cke_from_scaler = 1;
-        assign vs_from_scaler = vs_from_vtb;
-        assign hs_from_scaler = hs_from_vtb;
-        assign r_from_scaler = r_from_vtb;
-        assign g_from_scaler = g_from_vtb;
-        assign b_from_scaler = b_from_vtb;
-        assign de_from_scaler = de_from_vtb;
-    end
-endgenerate
 
 // LMMI bridge
     prt_lat_lmmi
@@ -588,16 +608,8 @@ endgenerate
         .Z (clk_from_tx_buf)    // O
     );
 
-// PHY RX clock buffer
-    BUF
-    BUF_RX_INST
-    (
-        .A (rx_clk_from_phy),   // I
-        .Z (clk_from_rx_buf)    // O
-    );
-
 // PHY
-    phy
+    phy_tx 
     PHY_INST
     (
         // PMA serial
@@ -605,26 +617,18 @@ endgenerate
         .sdq_refclkn_q0_i           (1'b0), 
         .sdq_refclkp_q1_i           (1'b0), 
         .sdq_refclkn_q1_i           (1'b0), 
-        .sd0rxp_i                   (DPRX_ML_IN_P[0]), 
-        .sd0rxn_i                   (DPRX_ML_IN_N[0]), 
         .sd0txp_o                   (DPTX_ML_OUT_P[0]), 
         .sd0txn_o                   (DPTX_ML_OUT_N[0]), 
         .sd0_rext_i                 (SD_REXT_IN[0]), 
         .sd0_refret_i               (SD_REFRET_IN[0]), 
-        .sd1rxp_i                   (DPRX_ML_IN_P[1]), 
-        .sd1rxn_i                   (DPRX_ML_IN_N[1]), 
         .sd1txp_o                   (DPTX_ML_OUT_P[1]), 
         .sd1txn_o                   (DPTX_ML_OUT_N[1]), 
         .sd1_rext_i                 (SD_REXT_IN[1]), 
         .sd1_refret_i               (SD_REFRET_IN[1]), 
-        .sd2rxp_i                   (DPRX_ML_IN_P[2]), 
-        .sd2rxn_i                   (DPRX_ML_IN_N[2]), 
         .sd2txp_o                   (DPTX_ML_OUT_P[2]), 
         .sd2txn_o                   (DPTX_ML_OUT_N[2]), 
         .sd2_rext_i                 (SD_REXT_IN[2]), 
         .sd2_refret_i               (SD_REFRET_IN[2]), 
-        .sd3rxp_i                   (DPRX_ML_IN_P[3]), 
-        .sd3rxn_i                   (DPRX_ML_IN_N[3]), 
         .sd3txp_o                   (DPTX_ML_OUT_P[3]), 
         .sd3txn_o                   (DPTX_ML_OUT_N[3]), 
         .sd3_rext_i                 (SD_REXT_IN[3]), 
@@ -717,28 +721,16 @@ endgenerate
         .mpcs_tx_pcs_rstn_i_2       (~phy_tx_rst_from_app), 
         .mpcs_tx_pcs_rstn_i_1       (~phy_tx_rst_from_app), 
         .mpcs_tx_pcs_rstn_i_0       (~phy_tx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_3       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_2       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_1       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_0       (~phy_rx_rst_from_app), 
 
         // MPCS Clocks
         .mpcs_clkin_i_3             (clk_from_sys_pll), 
         .mpcs_clkin_i_2             (clk_from_sys_pll), 
         .mpcs_clkin_i_1             (clk_from_sys_pll), 
         .mpcs_clkin_i_0             (clk_from_sys_pll), 
-        .mpcs_rx_usr_clk_i_3        (clk_from_rx_buf), 
-        .mpcs_rx_usr_clk_i_2        (clk_from_rx_buf), 
-        .mpcs_rx_usr_clk_i_1        (clk_from_rx_buf), 
-        .mpcs_rx_usr_clk_i_0        (clk_from_rx_buf), 
         .mpcs_tx_usr_clk_i_3        (clk_from_tx_buf), 
         .mpcs_tx_usr_clk_i_2        (clk_from_tx_buf), 
         .mpcs_tx_usr_clk_i_1        (clk_from_tx_buf), 
         .mpcs_tx_usr_clk_i_0        (clk_from_tx_buf), 
-        .mpcs_rx_out_clk_o_3        (rx_clk_from_phy),  // The first DP lane is mapped on the last PHY channel. This is the master lane.
-        .mpcs_rx_out_clk_o_2        (), 
-        .mpcs_rx_out_clk_o_1        (), 
-        .mpcs_rx_out_clk_o_0        (), 
         .mpcs_tx_out_clk_o_3        (), 
         .mpcs_tx_out_clk_o_2        (), 
         .mpcs_tx_out_clk_o_1        (), 
@@ -753,10 +745,6 @@ endgenerate
         .mpcs_txhiz_i_2             (1'b0), 
         .mpcs_txhiz_i_1             (1'b0), 
         .mpcs_txhiz_i_0             (1'b0), 
-        .mpcs_rxidle_o_3            (), 
-        .mpcs_rxidle_o_2            (), 
-        .mpcs_rxidle_o_1            (), 
-        .mpcs_rxidle_o_0            (), 
         .mpcs_fomreq_i_3            (1'b0), 
         .mpcs_fomreq_i_2            (1'b0), 
         .mpcs_fomreq_i_1            (1'b0), 
@@ -769,10 +757,6 @@ endgenerate
         .mpcs_fomrslt_o_2           (), 
         .mpcs_fomrslt_o_1           (), 
         .mpcs_fomrslt_o_0           (), 
-        .mpcs_rxerr_i_3             (1'b0), 
-        .mpcs_rxerr_i_2             (1'b0), 
-        .mpcs_rxerr_i_1             (1'b0), 
-        .mpcs_rxerr_i_0             (1'b0), 
         .mpcs_rate_i_3              (2'b00), 
         .mpcs_rate_i_2              (2'b00), 
         .mpcs_rate_i_1              (2'b00), 
@@ -785,10 +769,6 @@ endgenerate
         .mpcs_txval_i_2             (1'b1), 
         .mpcs_txval_i_1             (1'b1), 
         .mpcs_txval_i_0             (1'b1), 
-        .mpcs_rxval_o_3             (), 
-        .mpcs_rxval_o_2             (), 
-        .mpcs_rxval_o_1             (), 
-        .mpcs_rxval_o_0             (),
         .mpcs_phyrdy_o_3            (), 
         .mpcs_phyrdy_o_2            (), 
         .mpcs_phyrdy_o_1            (), 
@@ -797,10 +777,6 @@ endgenerate
         .mpcs_ready_o_2             (rdy_from_phy[2]), 
         .mpcs_ready_o_1             (rdy_from_phy[1]), 
         .mpcs_ready_o_0             (rdy_from_phy[0]), 
-        .mpcs_rxoob_i_3             (1'b0), 
-        .mpcs_rxoob_i_2             (1'b0), 
-        .mpcs_rxoob_i_1             (1'b0), 
-        .mpcs_rxoob_i_0             (1'b0), 
         .mpcs_txdeemp_i_3           (1'b0), 
         .mpcs_txdeemp_i_2           (1'b0), 
         .mpcs_txdeemp_i_1           (1'b0), 
@@ -823,17 +799,7 @@ endgenerate
         .mpcs_tx_fifo_st_o_2        (), 
         .mpcs_tx_fifo_st_o_1        (), 
         .mpcs_tx_fifo_st_o_0        (), 
-        
-        // RX
-        .mpcs_rx_ch_dout_o_3        (rx_dat_from_phy[3]), 
-        .mpcs_rx_ch_dout_o_2        (rx_dat_from_phy[2]), 
-        .mpcs_rx_ch_dout_o_1        (rx_dat_from_phy[1]), 
-        .mpcs_rx_ch_dout_o_0        (rx_dat_from_phy[0]), 
-        .mpcs_rx_fifo_st_o_3        (), 
-        .mpcs_rx_fifo_st_o_2        (), 
-        .mpcs_rx_fifo_st_o_1        (), 
-        .mpcs_rx_fifo_st_o_0        (), 
-        
+            
         // Elastic buffer
         .mpcs_ebuf_empty_o_3        (), 
         .mpcs_ebuf_empty_o_2        (), 
@@ -856,19 +822,8 @@ endgenerate
         .mpcs_get_lsync_o_3         (), 
         .mpcs_get_lsync_o_2         (), 
         .mpcs_get_lsync_o_1         (), 
-        .mpcs_get_lsync_o_0         (), 
-        
-        // Lane-to-lane deskew
-        .mpcs_rx_get_lalign_o_3     (), 
-        .mpcs_rx_get_lalign_o_2     (), 
-        .mpcs_rx_get_lalign_o_1     (), 
-        .mpcs_rx_get_lalign_o_0     (), 
-        .mpcs_rx_deskew_en_i_3      (1'b0), 
-        .mpcs_rx_deskew_en_i_2      (1'b0), 
-        .mpcs_rx_deskew_en_i_1      (1'b0), 
-        .mpcs_rx_deskew_en_i_0      (1'b0) 
+        .mpcs_get_lsync_o_0         ()     
     );
-
 
 // TX mapping
 // DP lane 0 
@@ -907,19 +862,6 @@ endgenerate
     assign tx_dat_to_phy[3][43:40] = {lnk_dat_from_dptx[(15*11)+10], lnk_dat_from_dptx[(14*11)+10], lnk_dat_from_dptx[(13*11)+10], lnk_dat_from_dptx[(12*11)+10]};     // Disparity control (0-automatic / 1-force)
     assign tx_dat_to_phy[3][79:48] = 0;
 
-// RX mapping
-    // Lane 0
-    assign {lnk_dat_to_dprx[(3*9)+:9], lnk_dat_to_dprx[(2*9)+:9], lnk_dat_to_dprx[(1*9)+:9], lnk_dat_to_dprx[(0*9)+:9]} = {rx_dat_from_phy[3][(3*10)+:9], rx_dat_from_phy[3][(2*10)+:9], rx_dat_from_phy[3][(1*10)+:9], rx_dat_from_phy[3][(0*10)+:9]}; 
-
-    // Lane 1
-    assign {lnk_dat_to_dprx[(7*9)+:9], lnk_dat_to_dprx[(6*9)+:9], lnk_dat_to_dprx[(5*9)+:9], lnk_dat_to_dprx[(4*9)+:9]} = {rx_dat_from_phy[2][(3*10)+:9], rx_dat_from_phy[2][(2*10)+:9], rx_dat_from_phy[2][(1*10)+:9], rx_dat_from_phy[2][(0*10)+:9]}; 
-
-    // Lane 2
-    assign {lnk_dat_to_dprx[(11*9)+:9], lnk_dat_to_dprx[(10*9)+:9], lnk_dat_to_dprx[(9*9)+:9], lnk_dat_to_dprx[(8*9)+:9]} = {rx_dat_from_phy[0][(3*10)+:9], rx_dat_from_phy[0][(2*10)+:9], rx_dat_from_phy[0][(1*10)+:9], rx_dat_from_phy[0][(0*10)+:9]}; 
-
-    // Lane 3
-    assign {lnk_dat_to_dprx[(15*9)+:9], lnk_dat_to_dprx[(14*9)+:9], lnk_dat_to_dprx[(13*9)+:9], lnk_dat_to_dprx[(12*9)+:9]} = {rx_dat_from_phy[1][(3*10)+:9], rx_dat_from_phy[1][(2*10)+:9], rx_dat_from_phy[1][(1*10)+:9], rx_dat_from_phy[1][(0*10)+:9]}; 
-
 // System clock heartbeat
     prt_hb
     #(
@@ -931,26 +873,15 @@ endgenerate
         .LED_OUT    (led_from_sys_hb)
     );
 
-// PHY TX clock heartbeat
+// Serdes TX clock heartbeat
     prt_hb
     #(
         .P_BEAT ('d67_500_000)
     )
-    PHYTX_HB_INST
+    SDTX_HB_INST
     (
         .CLK_IN     (clk_from_tx_buf),
-        .LED_OUT    (led_from_phytx_hb)
-    );
-
-// PHY RX clock heartbeat
-    prt_hb
-    #(
-        .P_BEAT ('d67_500_000)
-    )
-    PHYRX_HB_INST
-    (
-        .CLK_IN     (clk_from_rx_buf),
-        .LED_OUT    (led_from_phyrx_hb)
+        .LED_OUT    (led_from_sdtx_hb)
     );
 
 // Video clock heartbeat
@@ -969,13 +900,23 @@ endgenerate
     // LED
     assign LED_OUT[0]   = led_from_sys_hb;
     assign LED_OUT[1]   = hb_from_dptx;
-    assign LED_OUT[2]   = hb_from_dprx;
-    assign LED_OUT[3]   = led_from_phytx_hb; 
-    assign LED_OUT[4]   = led_from_phyrx_hb;
+    assign LED_OUT[2]   = 0;
+    assign LED_OUT[3]   = led_from_sdtx_hb; 
+    assign LED_OUT[4]   = 0;
     assign LED_OUT[5]   = led_from_vid_hb;
     assign LED_OUT[6]   = 0; 
     assign LED_OUT[7]   = 0;
 
+    // Debug
+    assign DEBUG_OUT[0] = phy_all_rst_from_app;
+    assign DEBUG_OUT[1] = phy_tx_rst_from_app;
+    assign DEBUG_OUT[2] = phy_rx_rst_from_app;
+    assign DEBUG_OUT[3] = &rdy_from_phy;
+    assign DEBUG_OUT[4] = 0;
+    assign DEBUG_OUT[5] = 0;
+    assign DEBUG_OUT[6] = 0;
+    assign DEBUG_OUT[7] = 0;
+
 endmodule
 
-//`default_nettype wire
+`default_nettype wire

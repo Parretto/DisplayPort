@@ -32,7 +32,7 @@
 module prt_dp_pm_top
 #
 (
-    parameter                           P_VENDOR        = "xilinx",  // Vendor "xilinx" or "lattice"
+    parameter                           P_VENDOR        = "none",  // Vendor "xilinx" or "lattice"
     parameter                           P_BEAT          = 'd125,     // Beat value
     parameter                           P_HW_VER_MAJOR  = 1,         // Hardware version major
     parameter                           P_HW_VER_MINOR  = 0,         // Hardware version minor
@@ -423,6 +423,9 @@ mutex_lb();
 
 // Exchange
     prt_dp_pm_exch
+    #(
+        .P_VENDOR           (P_VENDOR)         // Vendor
+    )
     EXCH_INST
     (
     	// Reset and clock
@@ -518,6 +521,9 @@ endgenerate
 
 // AUX
     prt_dp_pm_aux
+    #(
+        .P_VENDOR               (P_VENDOR)         // Vendor
+    )
     AUX_INST
     (
         // Reset and clock
@@ -547,6 +553,9 @@ endgenerate
 
 // Message
     prt_dp_pm_msg
+    #(
+        .P_VENDOR          (P_VENDOR)         // Vendor
+    )
     MSG_INST
     (
         // Clock and reset

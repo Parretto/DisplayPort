@@ -29,8 +29,12 @@
 
 module prt_scaler_top
 #(
-     parameter P_PPC = 4,          // Pixels per clock
-     parameter P_BPC = 8           // Bits per component
+	// System
+	parameter 						P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+
+	// Video
+     parameter 						P_PPC = 4,          // Pixels per clock
+     parameter 						P_BPC = 8           // Bits per component
 )
 (
      // System
@@ -44,6 +48,7 @@ module prt_scaler_top
      input wire                              VID_CLK_IN,
 
      // Video in
+     input wire						VID_CKE_IN,	 // Clock enable
      input wire						VID_VS_IN,      // Vertical sync
 	input wire                              VID_HS_IN,      // Horizontal sync    
      input wire     [(P_PPC * P_BPC)-1:0]    VID_R_IN,       // Red
@@ -52,11 +57,11 @@ module prt_scaler_top
      input wire                              VID_DE_IN,      // Data enable
 
      // Video out
-     output wire 						VID_CKE_OUT,	 // Clock enable
-     output wire                             VID_VS_OUT,     // Vertical sync    
-     output wire                             VID_HS_OUT,     // Horizontal sync    
+	output wire 						VID_CKE_OUT,	 // Clock enable
+	output wire                             VID_VS_OUT,     // Vertical sync    
+	output wire                             VID_HS_OUT,     // Horizontal sync    
 	output wire     [(P_PPC * P_BPC)-1:0]  	VID_R_OUT,      // Red
-     output wire     [(P_PPC * P_BPC)-1:0]   VID_G_OUT,      // Green
+	output wire     [(P_PPC * P_BPC)-1:0]   VID_G_OUT,      // Green
      output wire     [(P_PPC * P_BPC)-1:0]   VID_B_OUT,      // Blue
      output wire                             VID_DE_OUT      // Data enable
 );
@@ -104,16 +109,23 @@ genvar i;
 // Input registers
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		vclk_vs_in <= VID_VS_IN;
-		vclk_hs_in <= VID_HS_IN;
-		vclk_r_in <= VID_R_IN;
-		vclk_g_in <= VID_G_IN;
-		vclk_b_in <= VID_B_IN;
-		vclk_de_in <= VID_DE_IN;
+		// Clock enable
+		if (VID_CKE_IN)
+		begin
+			vclk_vs_in <= VID_VS_IN;
+			vclk_hs_in <= VID_HS_IN;
+			vclk_r_in <= VID_R_IN;
+			vclk_g_in <= VID_G_IN;
+			vclk_b_in <= VID_B_IN;
+			vclk_de_in <= VID_DE_IN;
+		end
 	end
 
 // Control 
 	prt_scaler_ctl
+	#(
+		.P_VENDOR				(P_VENDOR)
+	)
 	CTL_INST
 	(
 		// System
@@ -170,6 +182,7 @@ generate
 	begin : gen_vbs
 		prt_scaler_vbs
 		#(
+		    .P_VENDOR			(P_VENDOR),
 		    .P_PPC 			(P_PPC),       		// Pixels per clock
 		    .P_BPC 			(P_BPC)        		// Bits per component
 		)
@@ -177,7 +190,7 @@ generate
 		(
 		     // Reset and clock
 		    .CLK_IN			(VID_CLK_IN),
-		    .CKE_IN			(vclk_cke),
+		    .CKE_IN			(VID_CKE_IN),
 
 			// Control
 			.CTL_RUN_IN		(run_from_ctl),		// Run
@@ -213,8 +226,8 @@ generate
 		)
 		HBS_INST
 		(
-		    // Reset and clock
-		    .CLK_IN			(VID_CLK_IN),
+			// Reset and clock
+		    	.CLK_IN			(VID_CLK_IN),
 
 			// Control
 			.CTL_RUN_IN		(run_from_ctl),		// Run

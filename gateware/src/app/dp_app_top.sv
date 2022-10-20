@@ -30,7 +30,7 @@
 
 module dp_app_top
 #(
-    parameter P_VENDOR          = "xilinx",
+    parameter P_VENDOR          = "none",
     parameter P_HW_VER_MAJOR    = 1,   // Reference design version major
     parameter P_HW_VER_MINOR    = 0,   // Reference design minor
     parameter P_PIO_IN_WIDTH    = 32,
@@ -328,6 +328,7 @@ wire tx_from_uart;
 // UART
     prt_uart
     #(
+        .P_VENDOR           (P_VENDOR),
         .P_SIM              (P_SIM),
         .P_BEAT             (P_UART_BEAT)
     )

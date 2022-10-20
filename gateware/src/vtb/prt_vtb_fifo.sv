@@ -29,14 +29,13 @@
 
 module prt_vtb_fifo
 #(
+    parameter P_VENDOR = "none",  				// Vendor "xilinx" or "lattice"
 	parameter P_PPC = 2,						// Pixels per clock
 	parameter P_BPC = 8,						// Bits per component
     parameter P_AXIS_DAT = 48					// AXIS data width
 )
 (
 	// Reset and clocks
- 	input wire 								LNK_RST_IN,			// Reset
-	input wire 								LNK_CLK_IN,			// Clock
 	input wire 								VID_RST_IN,			// Reset
 	input wire 								VID_CLK_IN,			// Clock
 	input wire 								VID_CKE_IN,			// Clock enable
@@ -50,7 +49,8 @@ module prt_vtb_fifo
 	output wire [9:0]						STA_MIN_WRDS_OUT,	// Minimum words	
 
 	// Timing
-	output wire 							TG_SYNC_OUT,		// Synchronization
+	output wire 							TG_RUN_OUT,			// Run
+	
 	// AXIS
 	input wire          					AXIS_SOF_IN,        // Start of frame
 	input wire          					AXIS_EOL_IN,        // End of line
@@ -77,21 +77,23 @@ localparam P_FIFO_MID 		= P_FIFO_WRDS / 2; 	// Midpoint
 
 // State machine
 typedef enum {
-	sm_idle, sm_sof, sm_ep, sm_mid, sm_vs, sm_lock
+	sm_idle, sm_sof, sm_mid, sm_vs, sm_lock
 } sm_state;
 
 // Structures
 typedef struct {
 	logic 							sof;
-	logic 							sof_re;
-	logic 							sof_tg;
 	logic							eol;
 	logic							vld;
-	logic [P_FIFO_DAT-1:0]			din;
-	logic 							wr;
+	logic [P_FIFO_DAT-1:0]			dat;
 } axis_struct;
 
 typedef struct {
+	logic							clr;
+	logic [4:0]						clr_cnt;
+	logic							clr_cnt_end;
+	logic							wr_en;
+	logic							wr;
 	logic							rd;
 	logic [P_FIFO_DAT-1:0]			dout;
 	logic 							de;
@@ -101,21 +103,16 @@ typedef struct {
 	logic 							fl;
 	logic 							ep;
 	logic							mid;
-	logic							rd_en;
-	logic							rd_en_clr;
-	logic							rd_en_set;
 } fifo_struct;
 
 typedef struct {
 	sm_state						sm_cur;
 	sm_state						sm_nxt;
 	logic							run;
-	logic							sof_in;
-	logic							sof_re;
-	logic							sof_fe;
 	logic							sof;
-	logic							tg_sync_set;
-	logic							tg_sync;
+	logic							tg_run_set;
+	logic							tg_run_clr;
+	logic							tg_run;
 	logic [2:0]						vs;
 	logic							vs_re;
 	logic [2:0]						hs;
@@ -125,10 +122,11 @@ typedef struct {
 	logic							en_set;
 	logic							en_clr;
 	logic							lock;
+	logic							lock_fe;
 } vid_struct;
 
 // Signals
-axis_struct 	lclk_axis;
+axis_struct 	vclk_axis;
 fifo_struct 	vclk_fifo;
 vid_struct 		vclk_vid;
 
@@ -137,59 +135,85 @@ genvar i;
 // Logic
 
 /*
-	Link domain
+	Video sink domain
 */
 
 // Inputs
-	always_ff @ (posedge LNK_CLK_IN)
+	always_ff @ (posedge VID_CLK_IN)
 	begin
-		lclk_axis.sof <= AXIS_SOF_IN;
-		lclk_axis.eol <= AXIS_EOL_IN;
-		lclk_axis.vld <= AXIS_VLD_IN;
+		vclk_axis.sof <= AXIS_SOF_IN;
+		vclk_axis.eol <= AXIS_EOL_IN;
+		vclk_axis.dat <= AXIS_DAT_IN[0+:P_FIFO_DAT];
+		vclk_axis.vld <= AXIS_VLD_IN;
 	end
 
-// SOF edge detector
-    prt_dp_lib_edge
-    AXIS_SOF_EDGE_INST
-    (
-        .CLK_IN    (LNK_CLK_IN),      	// Clock
-        .CKE_IN    (1'b1),            	// Clock enable
-        .A_IN      (lclk_axis.sof),		// Input
-        .RE_OUT    (lclk_axis.sof_re),  // Rising edge
-        .FE_OUT    ()   				// Falling edge
-    );
-
-// Toggle
-// The single pulse might be too fast to be captured in the video domain
-// So this register will toggle when the BS signal is asserted
-	always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
+// FIFO write enable
+	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Reset
-		if (LNK_RST_IN)
-			lclk_axis.sof_tg <= 0;
+		// Run
+		if (vclk_vid.run)
+		begin
+			// Clear
+			if (vclk_vid.lock_fe)
+				vclk_fifo.wr_en <= 0;
 
+			// Set 
+			else if (vclk_axis.sof)
+				vclk_fifo.wr_en <= 1;
+		end
+
+		// Idle
+		else
+			vclk_fifo.wr_en <= 0;
+	end
+
+// FIFO write
+	assign vclk_fifo.wr = (vclk_fifo.wr_en) ? vclk_axis.vld : 1'b0;
+
+// FIFO Clear
+	always_ff @ (posedge VID_CLK_IN)
+	begin
+		// Run
+		if (vclk_vid.run)
+		begin
+			// Default
+			vclk_fifo.clr <= 0;
+			
+			// Clear the fifo at loss of lock and at every vsync.
+			if (vclk_vid.lock_fe || vclk_vid.vs_re)
+			begin
+				vclk_fifo.clr <= 1;
+				vclk_fifo.clr_cnt <= '1;
+			end
+
+			else if (!vclk_fifo.clr_cnt_end)
+			begin
+				vclk_fifo.clr <= 1;
+				vclk_fifo.clr_cnt <= vclk_fifo.clr_cnt - 'd1;
+			end
+		end
+
+		// Idle
 		else
 		begin
-			if (lclk_axis.sof_re)
-				lclk_axis.sof_tg <= ~lclk_axis.sof_tg;
+			vclk_fifo.clr <= 1;
+			vclk_fifo.clr_cnt <= 0;
 		end
 	end
 
-// Write
+// FIFO clear counter end
 	always_comb
 	begin
-		if (AXIS_VLD_IN)
-			lclk_axis.wr = 1;
+		if (vclk_fifo.clr_cnt == 0)
+			vclk_fifo.clr_cnt_end = 1;
 		else
-			lclk_axis.wr = 0;
-	end
-
-// Data
-	assign lclk_axis.din = AXIS_DAT_IN[0+:P_FIFO_DAT];
+			vclk_fifo.clr_cnt_end = 0;
+	end	
 
 // FIFO
     prt_dp_lib_fifo_dc
     #(
+    	.P_VENDOR		(P_VENDOR),				// Vendor
     	.P_MODE         ("burst"),		        // "single" or "burst"
     	.P_RAM_STYLE	("block"),	   			// "distributed" or "block"
     	.P_ADR_WIDTH	(P_FIFO_ADR),
@@ -197,18 +221,20 @@ genvar i;
     )
     FIFO_INST
     (
-    	.A_RST_IN      (lclk_axis.sof_re),    	// Reset
-    	.B_RST_IN      (vclk_vid.sof),
-    	.A_CLK_IN      (LNK_CLK_IN),		    // Clock
+    	.A_RST_IN      (VID_RST_IN),  			// Reset
+    	.B_RST_IN      (VID_RST_IN),
+    	.A_CLK_IN      (VID_CLK_IN),		    // Clock
     	.B_CLK_IN      (VID_CLK_IN),
     	.A_CKE_IN      (1'b1),		    		// Clock enable
     	.B_CKE_IN      (VID_CKE_IN),
 
     	// Input (A)
-    	.A_WR_IN       (lclk_axis.wr),	    	// Write
-    	.A_DAT_IN      (lclk_axis.din),			// Write data
+    	.A_CLR_IN	   (vclk_fifo.clr),			// Clear
+    	.A_WR_IN       (vclk_fifo.wr),	    	// Write
+    	.A_DAT_IN      (vclk_axis.dat),			// Write data
 
     	// Output (B)
+    	.B_CLR_IN	   (vclk_fifo.clr),			// Clear
     	.B_RD_IN       (vclk_fifo.rd),		    // Read
     	.B_DAT_OUT     (vclk_fifo.dout),		// Read data
     	.B_DE_OUT      (vclk_fifo.de),			// Data enable
@@ -225,36 +251,21 @@ genvar i;
     );
 
 /*
-	Video domain
+	Video source domain
 */
-
-// SOF clock domain crossing
-    prt_dp_lib_cdc_bit
-    VID_SOF_CDC_INST
-    (
-        .SRC_CLK_IN     (LNK_CLK_IN),   	// Clock
-        .SRC_DAT_IN     (lclk_axis.sof_tg), // Data
-        .DST_CLK_IN     (VID_CLK_IN),       // Clock
-        .DST_DAT_OUT	(vclk_vid.sof_in)  	// Data
-    );
-
-// SOF edge detector
-    prt_dp_lib_edge
-    VID_SOF_EDGE_INST
-    (
-        .CLK_IN    (VID_CLK_IN),      	// Clock
-        .CKE_IN    (VID_CKE_IN), 	   	// Clock enable
-        .A_IN      (vclk_vid.sof_in),	// Input
-        .RE_OUT    (vclk_vid.sof_re),   // Rising edge
-        .FE_OUT    (vclk_vid.sof_fe)   	// Falling edge
-    );
-
-    assign vclk_vid.sof = vclk_vid.sof_re || vclk_vid.sof_fe;
 
 // Run
 	always_ff @ (posedge VID_CLK_IN)
 	begin
 		vclk_vid.run <= CTL_RUN_IN;
+	end
+
+// SOF
+	always_ff @ (posedge VID_CLK_IN)
+	begin
+		// Enable
+		if (VID_CKE_IN)
+			vclk_vid.sof <= vclk_axis.sof;
 	end
 
 // Data enable
@@ -277,30 +288,8 @@ genvar i;
         .FE_OUT    () 				  	// Falling edge
     );
 
-// FIFO read enable
-	always_ff @ (posedge VID_CLK_IN)
-	begin
-		// Enable
-		if (VID_CKE_IN)
-		begin
-			if (vclk_vid.run)
-			begin	
-				// Clear
-				if (vclk_fifo.rd_en_clr)
-					vclk_fifo.rd_en <= 0;
-
-				// Set
-				else if (vclk_fifo.rd_en_set)
-					vclk_fifo.rd_en <= 1;
-			end
-
-			else
-				vclk_fifo.rd_en <= 0;
-		end
-	end
-
 // FIFO read
-	assign vclk_fifo.rd = (vclk_fifo.rd_en) ? vclk_vid.de : 1'b0;
+	assign vclk_fifo.rd = vclk_vid.de;
 
 // Midpoint
 	always_ff @ (posedge VID_CLK_IN)
@@ -380,16 +369,16 @@ genvar i;
 	always_comb
 	begin
 		// Default
-		vclk_vid.tg_sync_set = 0;
+		vclk_vid.tg_run_set = 0;
+		vclk_vid.tg_run_clr = 0;
 		vclk_vid.en_set = 0;
 		vclk_vid.en_clr = 0;
-		vclk_fifo.rd_en_set = 0;
-		vclk_fifo.rd_en_clr = 0;
 
 		case (vclk_vid.sm_cur)
 
 			sm_idle :
 			begin
+				vclk_vid.tg_run_clr = 1;
 				vclk_vid.sm_nxt = sm_idle;
 			end
 
@@ -402,22 +391,9 @@ genvar i;
 
 				else
 				begin
-					vclk_fifo.rd_en_clr = 1;
-					vclk_vid.sm_nxt = sm_ep;
-				end
-			end
-
-			// Empty
-			// The SOF will reset the fifo
-			// This may take some clocks 
-			sm_ep :
-			begin
-				// Wait for start of frame
-				if (vclk_fifo.ep)
+					vclk_vid.tg_run_clr = 1;
 					vclk_vid.sm_nxt = sm_mid;
-
-				else
-					vclk_vid.sm_nxt = sm_ep;
+				end
 			end
 
 			// Midpoint
@@ -426,8 +402,7 @@ genvar i;
 				// Wait till the FIFO has reached the midpoint
 				if (vclk_fifo.mid)
 				begin
-					vclk_vid.tg_sync_set = 1;
-					vclk_fifo.rd_en_set = 1;
+					vclk_vid.tg_run_set = 1;
 					vclk_vid.sm_nxt = sm_vs;
 				end
 
@@ -464,19 +439,16 @@ genvar i;
 		endcase
 	end
 
-// Timing generator sync
+// Timing generator run
 	always_ff @ (posedge VID_CLK_IN)
 	begin
-		// Enable
-		if (VID_CKE_IN)
-		begin
-			// Default
-			vclk_vid.tg_sync <= 0;
-
-			// Set
-			if (vclk_vid.tg_sync_set)
-				vclk_vid.tg_sync <= 1;
-		end
+		// Clear
+		if (vclk_vid.tg_run_clr || vclk_vid.lock_fe)
+			vclk_vid.tg_run <= 0;
+		
+		// Set
+		else if (vclk_vid.tg_run_set)
+			vclk_vid.tg_run <= 1;
 	end
 
 // The video data path has three clocks latency.
@@ -548,8 +520,19 @@ genvar i;
 		end
 	end
 
+// Lock edge detector
+    prt_dp_lib_edge
+    VID_LOCK_EDGE_INST
+    (
+        .CLK_IN    (VID_CLK_IN),      	// Clock
+        .CKE_IN    (1'b1),       		// Clock enable
+        .A_IN      (vclk_vid.lock),		// Input
+        .RE_OUT    (),    				// Rising edge
+        .FE_OUT    (vclk_vid.lock_fe) 	// Falling edge
+    );
+
 // Outputs
-	assign TG_SYNC_OUT 	= vclk_vid.tg_sync;
+	assign TG_RUN_OUT 	= vclk_vid.tg_run;
 
 	generate
 		for (i = 0; i < P_PPC; i++)

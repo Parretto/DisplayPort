@@ -1001,7 +1001,8 @@ generate
 endgenerate
 
 // Start of line
-    assign clk_pars.sol = clk_pars.be_det;
+// Must be combinatorial
+    assign clk_pars.sol = (clk_lnk.lock) ? clk_pars.be_det : 1'b0;
 
 // End of line
 // This bit is asserted during the last active pixel

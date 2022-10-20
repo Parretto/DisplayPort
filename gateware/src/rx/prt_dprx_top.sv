@@ -30,7 +30,7 @@
 module prt_dprx_top
 #(
     // System
-    parameter                                   P_VENDOR    = "xilinx",     // Vendor "xilinx" or "lattice"
+    parameter                                   P_VENDOR    = "none",     // Vendor "xilinx", "lattice" or "intel"
     parameter                                   P_BEAT      = 'd125,        // Beat value
 
     // Link
@@ -66,6 +66,7 @@ module prt_dprx_top
     output wire                                 LNK_SYNC_OUT,       // Sync
 
     // Video
+    input wire                                  VID_CLK_IN,         // Clock
     input wire                                  VID_RDY_IN,         // Ready
     output wire                                 VID_SOF_OUT,        // Start of frame
     output wire                                 VID_EOL_OUT,        // End of line
@@ -84,8 +85,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_SIM) ? "/home/marco/SandBox/bitbucket/displayport/software/dp_rx_rom.mem" : "none";
-localparam P_RAM_INIT = (P_SIM) ? "/home/marco/SandBox/bitbucket/displayport/software/dp_rx_ram.mem" : "none";
+localparam P_ROM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dprx_rom.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dprx_rom.hex") : "none";
+localparam P_RAM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dprx_ram.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dprx_ram.hex") : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -93,7 +94,7 @@ localparam P_HW_VER_MINOR = 0;
 
 // PIO
 localparam P_PIO_IN_WIDTH = 4;
-localparam P_PIO_OUT_WIDTH = 3;
+localparam P_PIO_OUT_WIDTH = 4;
 
 // Message
 localparam P_MSG_IDX    = 5;        // Index width
@@ -119,6 +120,7 @@ prt_dp_msg_if
 // Reset
 wire                            rst_from_sys_rst;
 wire                            rst_from_lnk_rst;
+wire                            rst_from_vid_rst;
 
 // Policy maker
 wire [1:0]                      irq_to_pm;
@@ -171,6 +173,15 @@ genvar i, j;
         .SRC_CLK_IN     (SYS_CLK_IN),
         .DST_CLK_IN     (LNK_CLK_IN),
         .DST_RST_OUT    (rst_from_lnk_rst)
+    );
+
+    prt_dp_lib_rst
+    VID_RST_INST
+    (
+        .SRC_RST_IN     (~pio_from_pm[3]),
+        .SRC_CLK_IN     (SYS_CLK_IN),
+        .DST_CLK_IN     (VID_CLK_IN),
+        .DST_RST_OUT    (rst_from_vid_rst)
     );
 
 // Policy maker
@@ -233,6 +244,8 @@ genvar i, j;
 // Link
     prt_dprx_lnk
     #(
+        // System
+        .P_VENDOR           (P_VENDOR),         // Vendor
         .P_SIM              (P_SIM),            // Simulation
 
         // Link
@@ -277,6 +290,8 @@ genvar i, j;
         .LNK_SYNC_OUT       (LNK_SYNC_OUT),
         
         // Video source
+        .VID_RST_IN         (rst_from_vid_rst),     // Reset
+        .VID_CLK_IN         (VID_CLK_IN),           // Clock
         .VID_SRC_IF         (vid_if)                // Interface
     );
 

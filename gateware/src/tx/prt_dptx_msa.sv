@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for 1 and 2 lanes
 
     License
     =======
@@ -29,7 +30,8 @@
 
 module prt_dptx_msa
 #(
-    // Simulation
+    // System
+    parameter               P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
     parameter               P_SIM         = 0,      // Simulation
 
     // Link
@@ -49,7 +51,7 @@ module prt_dptx_msa
     input wire              VID_CKE_IN,     // Video clock enable
 
     // Control
-    input wire              CTL_LANES_IN,   // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+    input wire [1:0]        CTL_LANES_IN,   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     input wire              CTL_VID_EN_IN,  // Video enable
     input wire              CTL_EFM_IN,     // Enhanced framing mode
 
@@ -72,7 +74,7 @@ import prt_dp_pkg::*;
 
 // Localparam
 localparam P_IDLE_CNT_MAX = 8192 - P_SPL;
-localparam P_RAM_WRDS = (P_SPL == 4) ? 8 : 16;
+localparam P_RAM_WRDS = (P_SPL == 4) ? 16 : 32;
 localparam P_RAM_ADR = $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT = 9;
 localparam P_MVID_CNT = P_SIM ? 255 : 32767;
@@ -104,7 +106,7 @@ typedef struct {
 } ram_struct;
 
 typedef struct {
-    logic                           lanes;
+    logic   [1:0]                   lanes;
     logic                           efm;
     logic   [12:0]                  idle_cnt;
     logic   [1:0]                   bs_cnt;
@@ -220,6 +222,7 @@ generate
     begin : gen_ram
         prt_dp_lib_sdp_ram_sc
         #(
+            .P_VENDOR       (P_VENDOR),
             .P_RAM_STYLE    ("distributed"),    // "distributed", "block" or "ultra"
             .P_ADR_WIDTH    (P_RAM_ADR),
             .P_DAT_WIDTH    (P_RAM_DAT)
@@ -260,11 +263,15 @@ endgenerate
                 lclk_ram.wp <= 0;
 
             // 4 lanes; Increment when the upper ram have been written
-            else if (lclk_lnk.lanes && lclk_ram.wr[$size(lclk_ram.wr)-1])
+            else if ((lclk_lnk.lanes == 'd3) && lclk_ram.wr[$size(lclk_ram.wr)-1])
                 lclk_ram.wp <= lclk_ram.wp + 'd1;
 
             // 2 lanes; Increment when the upper ram have been written
-            else if (!lclk_lnk.lanes && lclk_ram.wr[($size(lclk_ram.wr)/2)-1])
+            else if ((lclk_lnk.lanes == 'd2) && lclk_ram.wr[($size(lclk_ram.wr)/2)-1])
+                lclk_ram.wp <= lclk_ram.wp + 'd1;
+
+            // 1 lanes; Increment when the upper ram have been written
+            else if ((lclk_lnk.lanes == 'd1) && lclk_ram.wr[($size(lclk_ram.wr)/4)-1])
                 lclk_ram.wp <= lclk_ram.wp + 'd1;
         end
     end
@@ -274,7 +281,7 @@ endgenerate
     always_comb
     begin
         // 4 lanes
-        if (lclk_lnk.lanes)
+        if (lclk_lnk.lanes == 'd3)
         begin
             case (lclk_msg.idx)
                 // Mvid 23:16
@@ -301,7 +308,7 @@ endgenerate
         end
 
         // 2 lanes
-        else
+        else if (lclk_lnk.lanes == 'd2)
         begin
             case (lclk_msg.idx)
                 // Mvid 23:16
@@ -332,6 +339,52 @@ endgenerate
                 default : lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
             endcase
         end        
+
+        // 1 lane
+        else 
+        begin
+            case (lclk_msg.idx)
+                // Mvid 23:16
+                'd2  : lclk_ram.din = lclk_mvid.val[23:16];
+
+                // Mvid 15:8
+                'd3  : lclk_ram.din = lclk_mvid.val[15:8];
+
+                // Mvid 7:0
+                'd4  : lclk_ram.din = lclk_mvid.val[7:0];
+
+                // Mvid 23:16
+                'd11 : lclk_ram.din = lclk_mvid.val[23:16];
+
+                // Mvid 15:8
+                'd12 : lclk_ram.din = lclk_mvid.val[15:8];
+
+                // Mvid 7:0
+                'd13 : lclk_ram.din = lclk_mvid.val[7:0];
+
+                // Mvid 23:16
+                'd20 : lclk_ram.din = lclk_mvid.val[23:16];
+
+                // Mvid 15:8
+                'd21 : lclk_ram.din = lclk_mvid.val[15:8];
+
+                // Mvid 7:0
+                'd22 : lclk_ram.din = lclk_mvid.val[7:0];
+
+                // Mvid 23:16
+                'd29 : lclk_ram.din = lclk_mvid.val[23:16];
+
+                // Mvid 15:8
+                'd30 : lclk_ram.din = lclk_mvid.val[15:8];
+
+                // Mvid 7:0
+                'd31 : lclk_ram.din = lclk_mvid.val[7:0];
+
+                // Data from policy maker
+                default : lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
+            endcase
+        end        
+
     end
 
 // Write
@@ -355,7 +408,7 @@ generate
             if (lclk_msg.vld)
             begin
                 // 4 lanes
-                if (lclk_lnk.lanes)
+                if (lclk_lnk.lanes == 'd3)
                 begin
                     case (lclk_msg.idx[3:0])
                         'd1     : lclk_ram.wr[(1*4)]    = 1; // Lane 1 sublane 0
@@ -378,7 +431,7 @@ generate
                 end
 
                 // 2 lanes
-                else
+                else if (lclk_lnk.lanes == 'd2)
                 begin
                     case (lclk_msg.idx[2:0])
                         'd1     : lclk_ram.wr[(1*4)]    = 1; // Lane 1 sublane 0
@@ -386,11 +439,23 @@ generate
                         'd3     : lclk_ram.wr[(1*4)+1]  = 1; // Lane 1 sublane 1
                         'd4     : lclk_ram.wr[(0*4)+2]  = 1; // Lane 0 sublane 2
                         'd5     : lclk_ram.wr[(1*4)+2]  = 1; // Lane 1 sublane 2
-                        'd6     : lclk_ram.wr[(0*4)+2]  = 1; // Lane 0 sublane 3
+                        'd6     : lclk_ram.wr[(0*4)+3]  = 1; // Lane 0 sublane 3
                         'd7     : lclk_ram.wr[(1*4)+3]  = 1; // Lane 1 sublane 3
                         default : lclk_ram.wr[(0*4)]    = 1; // Lane 0 sublane 0
                     endcase
                 end           
+
+                // 1 lane
+                else 
+                begin
+                    case (lclk_msg.idx[1:0])
+                        'd1     : lclk_ram.wr[(0*4)+1]  = 1; // Lane 0 sublane 1
+                        'd2     : lclk_ram.wr[(0*4)+2]  = 1; // Lane 0 sublane 2
+                        'd3     : lclk_ram.wr[(0*4)+3]  = 1; // Lane 0 sublane 3
+                        default : lclk_ram.wr[(0*4)]    = 1; // Lane 0 sublane 0
+                    endcase
+                end           
+
             end
         end
     end
@@ -406,7 +471,7 @@ generate
             if (lclk_msg.vld)
             begin
                 // 4 lanes
-                if (lclk_lnk.lanes)
+                if (lclk_lnk.lanes == 'd3)
                 begin
                     case (lclk_msg.idx[2:0])
                         'd1     : lclk_ram.wr[(1*2)]    = 1; // Lane 1 sublane 0
@@ -421,7 +486,7 @@ generate
                 end
 
                 // 2 lanes
-                else
+                else if (lclk_lnk.lanes == 'd2)
                 begin
                     case (lclk_msg.idx[1:0])
                         'd1     : lclk_ram.wr[(1*2)]    = 1; // Lane 1 sublane 0
@@ -429,6 +494,15 @@ generate
                         'd3     : lclk_ram.wr[(1*2)+1]  = 1; // Lane 1 sublane 1
                         default : lclk_ram.wr[(0*2)]    = 1; // Lane 0 sublane 0
                     endcase
+                end           
+
+                // 1 lane
+                else 
+                begin
+                    if (lclk_msg.idx[0])
+                        lclk_ram.wr[(0*2)+1]  = 1; // Lane 0 sublane 1
+                    else
+                        lclk_ram.wr[(0*2)]    = 1; // Lane 0 sublane 0
                 end           
             end
         end
@@ -469,12 +543,16 @@ endgenerate
             if (lclk_vid.vs_re)
             begin
                 // 4 lanes
-                if (lclk_lnk.lanes)
+                if (lclk_lnk.lanes == 'd3)
                    lclk_ram.rd_cnt <= (P_SPL == 4) ? 'd3 : 'd6; 
 
                 // 2 lanes
-                else
+                else if (lclk_lnk.lanes == 'd2)
                    lclk_ram.rd_cnt <= (P_SPL == 4) ? 'd6 : 'd11; 
+
+                // 1 lane
+                else 
+                   lclk_ram.rd_cnt <= (P_SPL == 4) ? 'd10 : 'd20; 
             end
 
             // Decrement

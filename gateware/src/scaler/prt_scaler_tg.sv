@@ -232,7 +232,7 @@ vid_struct 		clk_vid;
      VS_EDGE_INST
      (
           .CLK_IN   (CLK_IN),           // Clock
-          .CKE_IN   (1'b1),             // Clock enable
+          .CKE_IN   (CKE_IN),           // Clock enable
           .A_IN     (VID_VS_IN),        // Input
           .RE_OUT   (clk_vid.vs_in_re), // Rising edge
           .FE_OUT   ()              	// Falling edge

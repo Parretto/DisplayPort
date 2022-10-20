@@ -86,7 +86,7 @@ module prt_scaler_lib_cdc_bit
 	input wire		SRC_CLK_IN,		// Clock
 	input wire 		SRC_DAT_IN,		// Data
 	input wire		DST_CLK_IN,		// Clock
-	output wire 	DST_DAT_OUT		// Data
+	output wire 		DST_DAT_OUT		// Data
 );
 
 // Parameters
@@ -123,9 +123,9 @@ endmodule
 */
 module prt_scaler_lib_fifo_sc
 #(
+	parameter                          	P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
 	parameter							P_MODE         = "single",		// "single" or "burst"
 	parameter 						P_RAM_STYLE	= "distributed",	// "distributed" or "block"
-	parameter							P_WRDS 		= 128,
 	parameter 						P_ADR_WIDTH 	= 7,
 	parameter							P_DAT_WIDTH 	= 512
 )
@@ -152,13 +152,12 @@ module prt_scaler_lib_fifo_sc
 	output wire						FL_OUT		// Full
 );
 
-// Signals
-(* ram_style = P_RAM_STYLE *) logic	[P_DAT_WIDTH-1:0]	clk_ram[0:P_WRDS-1];
+// Parameters
+localparam P_WRDS = 2**P_ADR_WIDTH;
 
+// Signals
 logic	[P_ADR_WIDTH-1:0]		clk_wp;			// Write pointer
 logic 	[P_ADR_WIDTH-1:0]		clk_rp;			// Read pointer
-logic	[P_DAT_WIDTH-1:0]		prt_scaler_lib_dout;
-logic	[P_DAT_WIDTH-1:0]		prt_scaler_lib_dout_reg;
 logic	[1:0]				clk_da;
 logic	[1:0]				clk_de;
 logic	[P_ADR_WIDTH-1:0]		clk_wrds;
@@ -167,37 +166,92 @@ logic						clk_fl;
 
 // Logic
 
-// Write memory
-// Registered
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Write enable
-		if (WR_EN_IN)
-		begin
-			// Write
-			if (WR_IN)
-				clk_ram[clk_wp] <= DAT_IN;
-		end
-	end
-
-// Read memory
+// RAM instantiation
 generate
-	if (P_RAM_STYLE == "block")
-	begin : gen_dout_block
-		always_ff @ (posedge CLK_IN)
-		begin
-			// Read enable
-			if (RD_EN_IN)
-			begin
-				prt_scaler_lib_dout <= clk_ram[clk_rp];
-				prt_scaler_lib_dout_reg <= prt_scaler_lib_dout;
-			end
-		end
+	if (P_VENDOR == "xilinx")
+	begin : gen_ram_xlx
+		xpm_memory_sdpram 
+		#(
+			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME		(0),   
+			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT		(0),            
+			.CLOCKING_MODE			("common_clock"), 
+			.ECC_MODE				("no_ecc"), 
+			.MEMORY_INIT_FILE		("none"),   
+			.MEMORY_INIT_PARAM		("0"),      
+			.MEMORY_OPTIMIZATION	("true"),   
+			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
+			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL		(0),           
+			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
+			.READ_LATENCY_B		(2),      
+			.READ_RESET_VALUE_B		("0"),    
+			.RST_MODE_A			("SYNC"), 
+			.RST_MODE_B			("SYNC"), 
+			.SIM_ASSERT_CHK		(0),             
+			.USE_EMBEDDED_CONSTRAINT	(0),    
+			.USE_MEM_INIT			(1),              
+			.WAKEUP_TIME			("disable_sleep"),
+			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
+			.WRITE_MODE_B			("read_first") 
+		)
+		RAM_INST 
+		(
+			.clka				(CLK_IN),       
+			.addra				(clk_wp), 
+			.dina				(DAT_IN),
+			.ena					(WR_EN_IN), 
+			.wea					(WR_IN),
+
+			.clkb				(CLK_IN),  
+			.addrb				(clk_rp),  
+			.enb					(RD_EN_IN),    
+			.doutb				(DAT_OUT), 
+
+			.injectdbiterra		(1'b0),
+			.injectsbiterra		(1'b0),
+			.regceb				(RD_EN_IN),             
+			.rstb				(1'b0),        
+			.sleep				(1'b0),             
+			.dbiterrb				(), 
+			.sbiterrb				()    
+		);
 	end
 
-	else
-	begin : gen_dout_distributed
-		assign prt_scaler_lib_dout_reg = clk_ram[clk_rp];
+	else if (P_VENDOR == "lattice")
+	begin : gen_ram_lat
+		pmi_ram_dp
+		#(
+			.pmi_wr_addr_depth    (P_WRDS), 		// integer
+			.pmi_wr_addr_width    (P_ADR_WIDTH), 	// integer
+			.pmi_wr_data_width    (P_DAT_WIDTH), 	// integer
+			.pmi_rd_addr_depth    (P_WRDS), 		// integer
+			.pmi_rd_addr_width    (P_ADR_WIDTH), 	// integer
+			.pmi_rd_data_width    (P_DAT_WIDTH), 	// integer
+			.pmi_regmode          ("reg"), 		// "reg"|"noreg"
+			.pmi_resetmode        ("async"), 		// "async"|"sync"
+			.pmi_init_file        ("none"), 		// string
+			.pmi_init_file_format ("hex"), 		// "binary"|"hex"
+			.pmi_family           ("common")  		// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+		) 
+		RAM_INST
+		(
+			.Reset     (RST_IN),  
+
+			.WrClock   (CLK_IN),  
+			.WrClockEn (WR_EN_IN),
+			.WrAddress (clk_wp),  
+			.WE        (WR_IN),  
+			.Data      (DAT_IN), 
+
+			.RdClock   (CLK_IN), 
+			.RdClockEn (RD_EN_IN),
+			.RdAddress (clk_rp),  
+
+			.Q         (DAT_OUT)  
+		);
 	end
 endgenerate
 
@@ -349,7 +403,6 @@ endgenerate
 	end
 
 // Outputs
-	assign DAT_OUT 	= prt_scaler_lib_dout_reg;
 	assign DE_OUT 		= (P_MODE == "burst") ? ((P_RAM_STYLE == "block") ? clk_de[$size(clk_de)-1] : clk_de[0]) : ((P_RAM_STYLE == "block") ? clk_da[$size(clk_da)-1] : clk_da[0]);
 	assign WRDS_OUT 	= clk_wrds;
 	assign EP_OUT 		= clk_ep;
@@ -362,6 +415,9 @@ endmodule
 */
 module prt_scaler_lib_sdp_ram_dc
 #(
+     // System
+	parameter                          P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
+
 	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 					P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
@@ -387,47 +443,112 @@ module prt_scaler_lib_sdp_ram_dc
 localparam P_WRDS = 2**P_ADR_WIDTH;
 
 // Signals
-// The dpram signals must have an unique name,
-// so they can be found by the set_false_path constraint
-(* ram_style = P_RAM_STYLE *) logic	[P_DAT_WIDTH-1:0]	prt_scaler_lib_mem_aclk_ram[0:P_WRDS-1];
-(* dont_touch = "yes" *) logic [P_DAT_WIDTH-1:0]		prt_scaler_lib_mem_bclk_dout;
-(* dont_touch = "yes" *) logic 		 			prt_scaler_lib_mem_bclk_vld;
+logic	bclk_vld;
 
 // Logic
 
-	// Clear memory during simulation
-	// synthesis translate_off
-	initial
-	begin
-		for (int i = 0; i < P_WRDS; i++)
-			prt_scaler_lib_mem_aclk_ram[i] <= 0;
-	end
-	// synthesis translate_on
+// RAM instantiation
+generate
+	if (P_VENDOR == "xilinx")
+	begin : gen_ram_xlx
 
-	// Write
-	always_ff @ (posedge A_CLK_IN)
-	begin
-		if (A_WR_IN)
-			prt_scaler_lib_mem_aclk_ram[A_ADR_IN] <= A_DAT_IN;
+		// The parameter USE_EMBEDDED_CONSTRAINT must be used for distributed memory with independent clocks
+		// to set automatically timing constraints.
+		localparam P_USE_CONSTRAINT = (P_RAM_STYLE == "distributed") ? 1 : 0;
+
+		xpm_memory_sdpram 
+		#(
+			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME		(0),   
+			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT		(0),            
+			.CLOCKING_MODE			("independent_clock"), 
+			.ECC_MODE				("no_ecc"), 
+			.MEMORY_INIT_FILE		("none"),   
+			.MEMORY_INIT_PARAM		("0"),      
+			.MEMORY_OPTIMIZATION	("true"),   
+			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
+			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL		(0),           
+			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
+			.READ_LATENCY_B		(1),      
+			.READ_RESET_VALUE_B		("0"),    
+			.RST_MODE_A			("SYNC"), 
+			.RST_MODE_B			("SYNC"), 
+			.SIM_ASSERT_CHK		(0),             
+			.USE_EMBEDDED_CONSTRAINT	(P_USE_CONSTRAINT),    
+			.USE_MEM_INIT			(1),              
+			.WAKEUP_TIME			("disable_sleep"),
+			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
+			.WRITE_MODE_B			("read_first") 
+		)
+		RAM_INST 
+		(
+			.clka				(A_CLK_IN),       
+			.addra				(A_ADR_IN), 
+			.dina				(A_DAT_IN),
+			.ena					(1'b1), 
+			.wea					(A_WR_IN),
+
+			.clkb				(B_CLK_IN),  
+			.addrb				(B_ADR_IN),  
+			.enb					(1'b1),    
+			.doutb				(B_DAT_OUT), 
+
+			.injectdbiterra		(1'b0),
+			.injectsbiterra		(1'b0),
+			.regceb				(1'b1),             
+			.rstb				(1'b0),        
+			.sleep				(1'b0),             
+			.dbiterrb				(), 
+			.sbiterrb				()    
+		);
 	end
 
-	// Read output registers
-	always_ff @ (posedge B_CLK_IN)
-	begin
-		prt_scaler_lib_mem_bclk_dout <= prt_scaler_lib_mem_aclk_ram[B_ADR_IN];
+	else if (P_VENDOR == "lattice")
+	begin : gen_ram_lat
+
+		// One single clock read latency is assumed.
+		// The distributed read path is asynchronous.
+		// Therefore the output register is enabled.
+		pmi_distributed_dpram
+		#(
+		  .pmi_addr_depth       	(P_WRDS), 	// integer      
+		  .pmi_addr_width       	(P_ADR_WIDTH), // integer      
+		  .pmi_data_width       	(P_DAT_WIDTH), // integer      
+		  .pmi_regmode          	("reg"), 	// "reg"|"noreg"    
+		  .pmi_init_file        	("none"), 	// string       
+		  .pmi_init_file_format 	("hex"), 		// "binary"|"hex"     
+		  .pmi_family           	("common")  	// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"    
+		) 
+		RAM_INST
+		(        
+		  .Reset     			(1'b0),  		
+		  
+		  .WrClock   			(A_CLK_IN),  	
+		  .WrClockEn 			(1'b1),  		
+		  .WrAddress 			(A_ADR_IN),  
+		  .WE        			(A_WR_IN),  
+		  .Data      			(A_DAT_IN), 
+
+		  .RdClock   			(B_CLK_IN), 
+		  .RdClockEn 			(1'b1),  
+		  .RdAddress 			(B_ADR_IN), 
+		  .Q         			(B_DAT_OUT) 
+		);
 	end
+endgenerate
 
 	// Valid
    	always_ff @ (posedge B_CLK_IN)
    	begin
-   		prt_scaler_lib_mem_bclk_vld <= B_RD_IN;
+   		bclk_vld <= B_RD_IN;
 	end
 
    	// Outputs
-   	assign B_DAT_OUT = prt_scaler_lib_mem_bclk_dout;
-   	assign B_VLD_OUT = prt_scaler_lib_mem_bclk_vld;
+   	assign B_VLD_OUT = bclk_vld;
 
 endmodule
-
 
 `default_nettype wire

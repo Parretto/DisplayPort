@@ -28,6 +28,10 @@
 `default_nettype none
 
 module prt_scaler_ctl
+#(
+	// System
+	parameter 						P_VENDOR = "none"  // Vendor "xilinx" or "lattice"
+)
 (
 	// System
 	input wire 						SYS_RST_IN,			// Reset
@@ -180,6 +184,7 @@ logic			vclk_run;
 // This is used to cross the video parameters into the video clock domain
 	prt_scaler_lib_sdp_ram_dc
 	#(
+		.P_VENDOR		(P_VENDOR),
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_RAM_ADR),
 		.P_DAT_WIDTH 	(P_RAM_DAT)

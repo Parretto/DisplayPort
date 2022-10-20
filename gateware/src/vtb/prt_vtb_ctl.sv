@@ -29,6 +29,7 @@
 
 module prt_vtb_ctl
 #(
+	parameter P_VENDOR = "none",	// Vendor
 	parameter P_IG_PORTS = 8,	// Ingress Ports
 	parameter P_OG_PORTS = 8		// Outgress Ports
 )
@@ -261,6 +262,7 @@ genvar i;
 // This is used to cross the video parameters into the video clock domain
 	prt_dp_lib_sdp_ram_dc
 	#(
+		.P_VENDOR		(P_VENDOR),
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_RAM_ADR),
 		.P_DAT_WIDTH 	(P_RAM_DAT)

@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for single lane
 
     License
     =======
@@ -45,15 +46,15 @@ module prt_dprx_ctl
 
     // Control output
     output wire         CTL_LNK_EN_OUT,         // Link enable 
-    output wire         CTL_LANES_OUT,          // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+    output wire [1:0]   CTL_LANES_OUT,          // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     output wire         CTL_SCRM_EN_OUT         // Scrambler enable
 );
 
 // Parameters
-localparam P_CTL_WIDTH          = 3;
+localparam P_CTL_WIDTH          = 4;
 localparam P_CTL_LNK_EN         = 0;
 localparam P_CTL_LANES          = 1;
-localparam P_CTL_SCRM_EN        = 2;
+localparam P_CTL_SCRM_EN        = 3;
 
 // Structures
 typedef struct {
@@ -135,7 +136,7 @@ logic [P_CTL_WIDTH-1:0]     clk_ctl;    // Control register
 
 // Outputs
     assign CTL_LNK_EN_OUT       = clk_ctl[P_CTL_LNK_EN];
-    assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES];
+    assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES+:2];
     assign CTL_SCRM_EN_OUT      = clk_ctl[P_CTL_SCRM_EN];
 
 endmodule

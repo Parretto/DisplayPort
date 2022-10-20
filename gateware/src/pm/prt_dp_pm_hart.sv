@@ -1422,20 +1422,21 @@ module prt_dp_pm_hart_reg
 	input wire 					CLK_IN,			// Clock
 
 	// Destination register
-	input wire [P_INDEX-1:0]	RD_INDEX_IN,	// Index
-	input wire [31:0]			RD_DAT_IN,		// Data
+	input wire [P_INDEX-1:0]			RD_INDEX_IN,	// Index
+	input wire [31:0]				RD_DAT_IN,	// Data
 	input wire 					RD_WR_IN,		// Write
-	// Source register 1
-	input wire [P_INDEX-1:0]	RS1_INDEX_IN,
-	output wire [31:0]			RS1_DAT_OUT,
 
 	// Source register 1
-	input wire [P_INDEX-1:0]	RS2_INDEX_IN,
-	output wire [31:0]			RS2_DAT_OUT
+	input wire [P_INDEX-1:0]			RS1_INDEX_IN,
+	output wire [31:0]				RS1_DAT_OUT,
+
+	// Source register 2
+	input wire [P_INDEX-1:0]			RS2_INDEX_IN,
+	output wire [31:0]				RS2_DAT_OUT
 );
 
 // Signals
-logic [31:0]	clk_reg[0:P_REGS-1];
+(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
 logic [31:0]	clk_rs1_dat;
 logic [31:0]	clk_rs2_dat;
 

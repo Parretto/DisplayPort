@@ -57,7 +57,7 @@ localparam P_CTL_RUN 		= 0;
 localparam P_CTL_IE 		= 1;
 localparam P_CTL_RE_STR		= 2;
 localparam P_CTL_FE_STR		= P_CTL_RE_STR + 8;
-localparam P_CTL_WIDTH 		= P_CTL_FE_STR + 8;
+localparam P_CTL_WIDTH 		= 32;
 
 // Status register bit locations
 localparam P_STA_IRQ 		= 0;

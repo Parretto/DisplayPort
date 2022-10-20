@@ -29,6 +29,9 @@
 
 module prt_dptx_trn
 #(
+    // System
+    parameter P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
+
     // PHY
     parameter P_LANES       = 2,           // Lanes
     parameter P_SPL         = 2,           // Symbols per lane
@@ -44,7 +47,7 @@ module prt_dptx_trn
     input wire              CLK_IN,
 
     // Control
-    input wire              CTL_LANES_IN,   // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+    input wire [1:0]        CTL_LANES_IN,   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     input wire              CTL_SEL_IN,     // Select 0 - main link / 1 - training 
 
     // Message
@@ -82,7 +85,7 @@ typedef struct {
 } ram_struct;   
 
 typedef struct {
-    logic                   lanes;                              // Active lanes
+    logic   [1:0]           lanes;                              // Active lanes
     logic                   sel;                                // Select (0 - pass trough / 1 - training)
     logic   [P_SPL-1:0]     disp_ctl[0:P_LANES-1];              // Disparity control (0-automatic / 1-force)
     logic   [P_SPL-1:0]     disp_val[0:P_LANES-1];              // Disparity value (0-negative / 1-postive) 
@@ -141,7 +144,8 @@ generate
     begin : gen_ram
     	prt_dp_lib_sdp_ram_sc
     	#(
-    		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
+    		.P_VENDOR       (P_VENDOR),
+            .P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
     		.P_ADR_WIDTH 	(P_RAM_ADR),
     		.P_DAT_WIDTH 	(P_RAM_DAT)
     	)
@@ -270,8 +274,17 @@ generate
     begin : gen_output
         always_ff @ (posedge CLK_IN)
         begin
+            // Disable two upper lanes when only one lane is active
+            if (((i == 1) || (i == 2) || (i == 3)) && (clk_lnk.lanes == 'd1))
+            begin
+                clk_lnk.disp_ctl_reg[i] <= 0;
+                clk_lnk.disp_val_reg[i] <= 0;
+                clk_lnk.k_reg[i]        <= 0;
+                clk_lnk.dat_reg[i]      <= '{P_SPL{0}};
+            end
+
             // Disable two upper lanes when only two lanes are active
-            if (((i == 2) || (i == 3)) && !clk_lnk.lanes)
+            else if (((i == 2) || (i == 3)) && (clk_lnk.lanes == 'd2))
             begin
                 clk_lnk.disp_ctl_reg[i] <= 0;
                 clk_lnk.disp_val_reg[i] <= 0;

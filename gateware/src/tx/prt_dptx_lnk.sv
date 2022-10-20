@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Restructured modules
 
     License
     =======
@@ -29,6 +30,8 @@
 
 module prt_dptx_lnk
 #(
+    // System
+    parameter           P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
     parameter           P_SIM         = 0,       // Simulation
 
     // Link
@@ -73,7 +76,7 @@ module prt_dptx_lnk
 // Signals
 
 // Control
-wire        lanes_from_ctl;
+wire [1:0]  lanes_from_ctl;
 wire        trn_sel_from_ctl;
 wire        vid_en_from_ctl;
 wire        efm_from_ctl;
@@ -113,6 +116,14 @@ prt_dp_tx_lnk_if
   .P_SPL    (P_SPL)
 )
 lnk_from_msa();
+
+// Training
+prt_dp_tx_lnk_if
+#(
+  .P_LANES  (P_LANES),
+  .P_SPL    (P_SPL)
+)
+lnk_from_trn();
 
 // Skew
 prt_dp_tx_lnk_if
@@ -157,6 +168,7 @@ genvar i;
 // Link message Clock domain converter
     prt_dp_msg_cdc
     #(
+        .P_VENDOR           (P_VENDOR),
         .P_DAT_WIDTH        (P_MSG_DAT)
     )
     LNK_MSG_CDC_INST
@@ -177,6 +189,7 @@ genvar i;
 // Video message Clock domain converter
     prt_dp_msg_cdc
     #(
+        .P_VENDOR           (P_VENDOR),
         .P_DAT_WIDTH        (P_MSG_DAT)
     )
     VID_MSG_CDC_INST
@@ -245,7 +258,7 @@ genvar i;
         .MSG_SRC_IF         (lnk_msg_if[1]),        // Source
 
         // Control output
-        .CTL_LANES_OUT      (lanes_from_ctl),       // Lanes
+        .CTL_LANES_OUT      (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
         .CTL_TRN_SEL_OUT    (trn_sel_from_ctl),     // Training select
         .CTL_VID_EN_OUT     (vid_en_from_ctl),      // Video enable
         .CTL_EFM_OUT        (efm_from_ctl),         // Enhanced framing mode
@@ -255,6 +268,9 @@ genvar i;
 // Video
     prt_dptx_vid
     #(
+        // System
+        .P_VENDOR           (P_VENDOR),             // Vendor
+        
         // Link
         .P_LANES            (P_LANES),              // Lanes
         .P_SPL              (P_SPL),                // Symbols per lane
@@ -271,7 +287,7 @@ genvar i;
     VID_INST
     (
         // Control
-        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
         .CTL_EN_IN          (vid_en_from_ctl),      // Enable
        
         // Video message
@@ -296,7 +312,8 @@ genvar i;
 // MSA
     prt_dptx_msa
     #(
-        // Simulation
+        // System
+        .P_VENDOR           (P_VENDOR),
         .P_SIM              (P_SIM),                // Simulation
         
         // Link
@@ -335,20 +352,54 @@ genvar i;
         .LNK_SRC_IF         (lnk_from_msa)          // Source
     );
 
+// Training
+    prt_dptx_trn
+    #(
+        // System
+        .P_VENDOR           (P_VENDOR),
+
+        // Link
+        .P_LANES            (P_LANES),              // Lanes
+        .P_SPL              (P_SPL),                // Symbols per lane
+
+        // Message
+        .P_MSG_IDX          (P_MSG_IDX),            // Index width
+        .P_MSG_DAT          (P_MSG_DAT),            // Data width
+        .P_MSG_ID_TPS       (P_MSG_ID_TPS)          // Message ID Training Pattern Sequence
+    )
+    TRN_INST
+    (
+        // Reset and clock
+        .RST_IN             (LNK_RST_IN),           // Reset
+        .CLK_IN             (LNK_CLK_IN),           // Clock
+
+        // Control
+        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+        .CTL_SEL_IN         (trn_sel_from_ctl),     // Select 0 - main link / 1 - training 
+
+        // Message
+        .MSG_SNK_IF         (lnk_msg_if[1]),        // Sink
+        .MSG_SRC_IF         (lnk_msg_if[2]),        // Source
+
+        // Link
+        .LNK_SNK_IF         (lnk_from_msa),         // Sink
+        .LNK_SRC_IF         (lnk_from_trn)          // Source
+    );
+
 // Skew
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_skew
 
-        assign lnk_to_skew_lane[i].disp_ctl[0]  = lnk_from_msa.disp_ctl[i];
-        assign lnk_to_skew_lane[i].disp_val[0]  = lnk_from_msa.disp_val[i];
-        assign lnk_to_skew_lane[i].k[0]         = lnk_from_msa.k[i];
-        assign lnk_to_skew_lane[i].dat[0]       = lnk_from_msa.dat[i];
+        assign lnk_to_skew_lane[i].disp_ctl[0]  = lnk_from_trn.disp_ctl[i];
+        assign lnk_to_skew_lane[i].disp_val[0]  = lnk_from_trn.disp_val[i];
+        assign lnk_to_skew_lane[i].k[0]         = lnk_from_trn.k[i];
+        assign lnk_to_skew_lane[i].dat[0]       = lnk_from_trn.dat[i];
         
         prt_dptx_skew
         #(
             // Link
-            .P_SKEW         (i),                      // Skew
+            .P_LANE         (i),                      // Lane
             .P_SPL          (P_SPL)                   // Symbols per lane
         )
         SKEW_INST
@@ -394,36 +445,16 @@ generate
     end
 endgenerate
 
-// Training
-    prt_dptx_trn
-    #(
-        // Link
-        .P_LANES            (P_LANES),              // Lanes
-        .P_SPL              (P_SPL),                // Symbols per lane
-
-        // Message
-        .P_MSG_IDX          (P_MSG_IDX),            // Index width
-        .P_MSG_DAT          (P_MSG_DAT),            // Data width
-        .P_MSG_ID_TPS       (P_MSG_ID_TPS)          // Message ID Training Pattern Sequence
-    )
-    TRN_INST
-    (
-        // Reset and clock
-        .RST_IN             (LNK_RST_IN),           // Reset
-        .CLK_IN             (LNK_CLK_IN),           // Clock
-
-        // Control
-        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
-        .CTL_SEL_IN         (trn_sel_from_ctl),     // Select 0 - main link / 1 - training 
-
-        // Message
-        .MSG_SNK_IF         (lnk_msg_if[1]),        // Sink
-        .MSG_SRC_IF         (lnk_msg_if[2]),        // Source
-
-        // Link
-        .LNK_SNK_IF         (lnk_from_scrm),        // Sink
-        .LNK_SRC_IF         (LNK_SRC_IF)            // Source
-    );
+// Output
+generate
+    for (i = 0; i < P_LANES; i++)
+    begin : gen_lnk_src
+        assign LNK_SRC_IF.disp_ctl[i]   = lnk_from_scrm.disp_ctl[i];
+        assign LNK_SRC_IF.disp_val[i]   = lnk_from_scrm.disp_val[i];
+        assign LNK_SRC_IF.k[i]          = lnk_from_scrm.k[i];
+        assign LNK_SRC_IF.dat[i]        = lnk_from_scrm.dat[i];
+    end
+endgenerate
 
 endmodule
 

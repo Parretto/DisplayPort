@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for Intel FPGA
 
     License
     =======
@@ -29,7 +30,7 @@
 
 module prt_dp_pm_rom
 #(
-    parameter P_VENDOR      = "xilinx",     // Vendor "xilinx" or "lattice"
+    parameter P_VENDOR      = "none",       // Vendor "xilinx", "lattice" or "intel"
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -47,8 +48,9 @@ module prt_dp_pm_rom
 );
 
 // Parameters
-localparam P_DAT         = 32;                      // Data bits
-localparam P_MEMORY_SIZE = (2**P_ADR) * P_DAT;      // Memory size in bits
+localparam P_DAT         = 32;                  // Data bits
+localparam P_WRDS        = 2**P_ADR;            // Words
+localparam P_MEMORY_SIZE = P_WRDS * P_DAT;      // Memory size in bits
 
 // Signals
 wire [P_ADR-1:0]    clk_addra;
@@ -121,21 +123,91 @@ generate
         );
     end
 
-    else
+    else if (P_VENDOR == "lattice")
     begin : gen_lattice
-        // Fixed 16384 bytes
-        prt_dp_pm_rom_lat
+        pmi_ram_dq
+        #(
+            .pmi_addr_depth       (P_WRDS),         // integer
+            .pmi_addr_width       (P_ADR),          // integer
+            .pmi_data_width       (P_DAT),          // integer
+            .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+            .pmi_resetmode        ("async"),        // "async"|"sync"
+            .pmi_init_file        (P_INIT_FILE),    // string
+            .pmi_init_file_format ("hex"),          // "binary"|"hex"
+            .pmi_family           ("LFCPNX")        // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+        ) 
         ROM_INST
         (
-            .rst_i          (1'b0),             // Reset  
-            .clk_i          (CLK_IN),           // Clock
-            .clk_en_i       (1'b1),             // Clock enable
-            .addr_i         (clk_addra),        // Address
-            .wr_en_i        (clk_wea),          // Write enable
-            .wr_data_i      (clk_dina),         // Write data
-            .rd_data_o      (ROM_IF.dat)        // Read data
+            .Reset      (1'b0),  
+            .Clock      (CLK_IN),  
+            .ClockEn    (1'b1),
+            .Address    (clk_addra),  
+            .WE         (clk_wea),  
+            .Data       (clk_dina), 
+            .Q          (ROM_IF.dat)  
+        );
+
+    end
+
+    else if (P_VENDOR == "intel")
+    begin : gen_intel
+        altera_syncram
+        #( 
+            .outdata_reg_a                      ("UNREGISTERED"),
+            .clock_enable_input_a               ("BYPASS"),
+            .clock_enable_input_b               ("BYPASS"),
+            .enable_force_to_zero               ("FALSE"),
+            .intended_device_family             ("Cyclone 10 GX"),
+            .lpm_type                           ("altera_syncram"),
+            .numwords_a                         (P_WRDS),
+            .operation_mode                     ("SINGLE_PORT"),
+            .outdata_aclr_a                     ("NONE"),
+            .outdata_sclr_a                     ("NONE"),
+            .power_up_uninitialized             ("FALSE"),
+            .read_during_write_mode_port_a      ("DONT_CARE"),
+            .widthad_a                          (P_ADR),
+            .widthad_b                          (P_ADR),
+            .width_a                            (P_DAT),
+            .width_b                            (P_DAT),
+            .width_byteena_a                    (1)
+        )
+        ROM_INST
+        (
+            .address_a                          (clk_addra),
+            .clock0                             (CLK_IN),
+            .data_a                             (clk_dina),
+            .wren_a                             (clk_wea),
+            .q_b                                (),
+            .aclr0                              (1'b0),
+            .aclr1                              (1'b0),
+            .address2_a                         (1'b1),
+            .address2_b                         (1'b1),
+            .addressstall_a                     (1'b0),
+            .addressstall_b                     (1'b0),
+            .byteena_a                          (1'b1),
+            .byteena_b                          (1'b1),
+            .clock1                             (1'b1),
+            .clocken0                           (1'b1),
+            .clocken1                           (1'b1),
+            .clocken2                           (1'b1),
+            .clocken3                           (1'b1),
+            .data_b                             ({P_DAT{1'b1}}),
+            .eccencbypass                       (1'b0),
+            .eccencparity                       (8'b0),
+            .eccstatus                          (),
+            .q_a                                (ROM_IF.dat),
+            .rden_a                             (1'b1),
+            .rden_b                             (1'b1),
+            .sclr                               (1'b0),
+            .wren_b                             (1'b0)
         );
     end
+
+    else
+    begin
+        $error ("No Vendor specified!");
+    end
+
 endgenerate
 
 endmodule

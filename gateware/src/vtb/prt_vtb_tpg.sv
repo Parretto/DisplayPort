@@ -41,6 +41,7 @@ module prt_vtb_tpg
 
 	// Control
 	input wire 								CTL_RUN_IN,		// Run
+	input wire 								CTL_RAMP_IN,	// Ramp. When this bit is set, only the ramp is outputted
 
 	// Video parameter set
 	input wire [3:0]						VPS_IDX_IN,		// Index
@@ -62,6 +63,7 @@ module prt_vtb_tpg
 
 // Signals
 logic 							clk_run;
+logic 							clk_ramp;
 logic [15:0]					clk_hwidth;	
 logic [15:0]					clk_vheight;
 wire  [12:0]					clk_bar_width;
@@ -79,14 +81,11 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 
 // Logic
 
-// Run
-	always_ff @ (posedge RST_IN, posedge CLK_IN)
+// Config
+	always_ff @ (posedge CLK_IN)
 	begin
-		// Reset
-		if (RST_IN)
-			clk_run <= 0;
-		else
-			clk_run <= CTL_RUN_IN;
+		clk_run <= CTL_RUN_IN;
+		clk_ramp <= CTL_RAMP_IN;
 	end
 
 // Video Inputs
@@ -231,8 +230,9 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 		// Clock enable
 		if (CKE_IN)
 		begin
+
 			// Ramp
-			if (clk_lcnt > clk_vheight[15:1])
+			if (clk_ramp || (clk_lcnt > clk_vheight[15:1]))
 			begin
 				// Four pixels per clock
 				if (P_PPC == 4)

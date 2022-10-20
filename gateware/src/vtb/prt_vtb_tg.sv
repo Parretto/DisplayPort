@@ -36,7 +36,7 @@ module prt_vtb_tg
 	// Reset and clock
 	input wire 			RST_IN,			// Reset
 	input wire 			CLK_IN,			// Clock
-	input wire 			CKE_IN,			// Clock enable
+ 	input wire 			CKE_IN,			// Clock enable
 
 	// Control
  	input wire 			CTL_RUN_IN,		// Run
@@ -46,9 +46,6 @@ module prt_vtb_tg
 	input wire [3:0]	VPS_IDX_IN,		// Index
 	input wire [15:0]	VPS_DAT_IN,		// Data
 	input wire 			VPS_VLD_IN,		// Valid	
-
-	// Synchronization
-	input wire			TG_SYNC_IN,		// Synchronization
 
 	// Native video
  	output wire 		VID_VS_OUT,		// Vsync
@@ -61,6 +58,7 @@ module prt_vtb_tg
 // Structures
 typedef struct {
 	logic						run;		// Run
+	logic						run_re;		// Run
 	logic						mode;		// Mode
 } ctl_struct;
 
@@ -70,8 +68,6 @@ typedef struct {
 } reg_struct;
 
 typedef struct {
-	logic						sync;		// Synchronization
-	logic						run;		// Run
 	logic [15:0]				hblk;		// Horizontal blanking period
 	logic [15:0]				vblk;		// Vertical blanking period
 	logic [15:0]				hs_str;		// Horizontal sync start
@@ -107,8 +103,19 @@ vid_struct 		clk_vid;
 	begin
 		clk_ctl.run 	<= CTL_RUN_IN;
 		clk_ctl.mode 	<= CTL_MODE_IN;
-		clk_vid.sync 	<= TG_SYNC_IN;
 	end
+
+// run edge detector
+// This is used to set the counter when in sync mode
+    prt_dp_lib_edge
+    RUN_EDGE_INST
+    (
+        .CLK_IN    (CLK_IN), 		       	// Clock
+        .CKE_IN    (CKE_IN),           	 	// Clock enable
+        .A_IN      (clk_ctl.run), 	     	// Input
+        .RE_OUT    (clk_ctl.run_re),  		// Rising edge
+        .FE_OUT    ()   					// Falling edge
+    );
 
 // Register select
 	always_comb
@@ -229,36 +236,15 @@ vid_struct 		clk_vid;
 		clk_vid.vde_str <= clk_vid.vblk;
 	end
 
-// Video Run
-	always_ff @ (posedge CLK_IN)
-	begin
-		if (clk_ctl.run)
-		begin
-			// Sync mode
-			if (clk_ctl.mode)
-			begin
-				if (clk_vid.sync)
-					clk_vid.run <= 1;
-			end
-
-			// Free running mode
-			else
-				clk_vid.run <= 1;
-		end
-
-		else
-			clk_vid.run <= 0;
-	end
-
 // Horizontal counter
 	always_ff @ (posedge CLK_IN)
 	begin
-		// Sync
-		if (clk_vid.sync)
+		// Preset counter in sync mode
+		if (clk_ctl.run_re && clk_ctl.mode)
 			clk_vid.hcnt <= clk_vid.hde_str;
 
 		// Run
-		else if (clk_vid.run)
+		else if (clk_ctl.run)
 		begin
 			// Clock enable
 			if (CKE_IN)
@@ -281,12 +267,12 @@ vid_struct 		clk_vid;
 // Vertical counter
 	always_ff @ (posedge CLK_IN)
 	begin
-		// Sync
-		if (clk_vid.sync)
+		// Preset counter in sync mode
+		if (clk_ctl.run_re && clk_ctl.mode)
 			clk_vid.vcnt <= clk_vid.vde_str;
 
 		// Run
-		else if (clk_vid.run)
+		else if (clk_ctl.run)
 		begin
 			// Clock enable
 			if (CKE_IN)
@@ -312,7 +298,7 @@ vid_struct 		clk_vid;
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Run
-		if (clk_vid.run)
+		if (clk_ctl.run)
 		begin
 			// Clock enable
 			if (CKE_IN)
@@ -349,7 +335,7 @@ vid_struct 		clk_vid;
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Run
-		if (clk_vid.run)
+		if (clk_ctl.run)
 		begin
 			// Clock enable
 			if (CKE_IN)
@@ -370,7 +356,7 @@ vid_struct 		clk_vid;
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Run
-		if (clk_vid.run)
+		if (clk_ctl.run)
 		begin
 			// Clock enable
 			if (CKE_IN)

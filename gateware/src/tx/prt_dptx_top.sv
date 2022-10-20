@@ -30,7 +30,7 @@
 module prt_dptx_top
 #(
     // System
-    parameter                                   P_VENDOR    = "xilinx",  // Vendor "xilinx" or "lattice"
+    parameter                                   P_VENDOR    = "none",  // Vendor "xilinx", "lattice" or "intel"
     parameter                                   P_BEAT      = 'd125,     // Beat value
 
     // Link
@@ -87,8 +87,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_SIM) ? "/home/marco/SandBox/bitbucket/displayport/software/dp_tx_rom.mem" : "none";
-localparam P_RAM_INIT = (P_SIM) ? "/home/marco/SandBox/bitbucket/displayport/software/dp_tx_ram.mem" : "none";
+localparam P_ROM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_rom.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_rom.hex") : "none";
+localparam P_RAM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_ram.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_ram.hex") : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -248,6 +248,8 @@ genvar i, j;
 // Link
     prt_dptx_lnk
     #(
+        // System
+        .P_VENDOR               (P_VENDOR),         // Vendor
         .P_SIM                  (P_SIM),            // Simulation
 
         // Link

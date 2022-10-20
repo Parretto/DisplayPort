@@ -29,8 +29,12 @@
 
 module prt_scaler_vbs
 #(
-     parameter P_PPC = 4,          // Pixels per clock
-     parameter P_BPC = 8           // Bits per component
+     // System
+     parameter                               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+
+     // Video
+     parameter                               P_PPC = 4,          // Pixels per clock
+     parameter                               P_BPC = 8           // Bits per component
 )
 (
      // Reset and clock
@@ -167,9 +171,9 @@ generate
      begin : gen_fifo
           prt_scaler_lib_fifo_sc
           #(
+               .P_VENDOR      (P_VENDOR),
                .P_MODE        ("burst"),          // "single" or "burst"
                .P_RAM_STYLE   ("block"),          // "distributed" or "block"
-               .P_WRDS        (P_FIFO_WRDS),
                .P_ADR_WIDTH   (P_FIFO_ADR),
                .P_DAT_WIDTH   (P_FIFO_DAT)
           )

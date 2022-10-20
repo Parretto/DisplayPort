@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for 4 symbols per lane
 
     License
     =======
@@ -30,7 +31,7 @@
 module prt_dptx_skew
 #(
     // Link
-    parameter               P_SKEW = 0,    // Skew
+    parameter               P_LANE = 0,    // Lane
     parameter               P_SPL = 2      // Symbols per lane
 )
 (
@@ -42,33 +43,125 @@ module prt_dptx_skew
 );
 
 generate
-    // No skew. Just wires
-    if (P_SKEW == 0)
+    if (P_LANE == 0)
     begin : gen_no_skew
-        assign LNK_SRC_IF.disp_ctl[0]    = 0; // Not used
-        assign LNK_SRC_IF.disp_val[0]    = 0; // Not used
+        assign LNK_SRC_IF.disp_ctl[0]    = LNK_SNK_IF.disp_ctl[0]; 
+        assign LNK_SRC_IF.disp_val[0]    = LNK_SNK_IF.disp_val[0];
         assign LNK_SRC_IF.k[0]           = LNK_SNK_IF.k[0];
         assign LNK_SRC_IF.dat[0]         = LNK_SNK_IF.dat[0]; 
     end
 
+    // Four symbols per lane
+    else if (P_SPL == 4)
+    begin : gen_4_spl
+        if (P_LANE == 1)
+        begin : gen_lane_1
+            // Signals
+            logic   [1:0]     clk_disp_ctl_del; // Disparity control
+            logic   [1:0]     clk_disp_val_del; // Disparity value
+            logic   [1:0]     clk_k_del;        // k character
+            logic   [7:0]     clk_dat_del[0:1]; // Data
+
+            // Skew
+            always_ff @ (posedge CLK_IN) 
+            begin
+                clk_disp_ctl_del <= LNK_SNK_IF.disp_ctl[0][3:2];   
+                clk_disp_val_del <= LNK_SNK_IF.disp_val[0][3:2];   
+                clk_k_del        <= LNK_SNK_IF.k[0][3:2];   
+                clk_dat_del      <= LNK_SNK_IF.dat[0][2:3];  
+            end
+
+            // Outputs
+            assign LNK_SRC_IF.disp_ctl[0]    = {LNK_SNK_IF.disp_ctl[0][1:0], clk_disp_ctl_del};
+            assign LNK_SRC_IF.disp_val[0]    = {LNK_SNK_IF.disp_val[0][1:0], clk_disp_val_del};
+            assign LNK_SRC_IF.k[0]           = {LNK_SNK_IF.k[0][1:0], clk_k_del};
+            assign LNK_SRC_IF.dat[0]         = {clk_dat_del[0], clk_dat_del[1], LNK_SNK_IF.dat[0][0], LNK_SNK_IF.dat[0][1]}; 
+        end
+
+        else if (P_LANE == 2)
+        begin : gen_lane_2
+            // Signals
+            logic   [P_SPL-1:0]     clk_disp_ctl_skew;       // Disparity control
+            logic   [P_SPL-1:0]     clk_disp_val_skew;       // Disparity value
+            logic   [P_SPL-1:0]     clk_k_skew;              // k character
+            logic   [7:0]           clk_dat_skew[0:P_SPL-1]; // Data
+
+            // Skew
+            always_ff @ (posedge CLK_IN) 
+            begin
+                clk_disp_ctl_skew <= LNK_SNK_IF.disp_ctl[0];   
+                clk_disp_val_skew <= LNK_SNK_IF.disp_val[0];   
+                clk_k_skew        <= LNK_SNK_IF.k[0];   
+                clk_dat_skew      <= LNK_SNK_IF.dat[0];  
+            end
+
+            // Outputs
+            assign LNK_SRC_IF.disp_ctl[0]    = clk_disp_ctl_skew;
+            assign LNK_SRC_IF.disp_val[0]    = clk_disp_val_skew;
+            assign LNK_SRC_IF.k[0]           = clk_k_skew;
+            assign LNK_SRC_IF.dat[0]         = clk_dat_skew; 
+        end
+
+        else 
+        begin : gen_lane_3
+            // Signals
+            logic   [1:0]           clk_disp_ctl_del;           // Disparity control
+            logic   [1:0]           clk_disp_val_del;           // Disparity value
+            logic   [1:0]           clk_k_del;                  // k character
+            logic   [7:0]           clk_dat_del[0:1];           // Data
+            logic   [P_SPL-1:0]     clk_disp_ctl_skew;          // Disparity control
+            logic   [P_SPL-1:0]     clk_disp_val_skew;          // Disparity value
+            logic   [P_SPL-1:0]     clk_k_skew;                 // k character
+            logic   [7:0]           clk_dat_skew[0:P_SPL-1];    // Data
+
+            // Skew
+            always_ff @ (posedge CLK_IN) 
+            begin
+                clk_disp_ctl_skew <= LNK_SNK_IF.disp_ctl[0];   
+                clk_disp_val_skew <= LNK_SNK_IF.disp_val[0];   
+                clk_k_skew        <= LNK_SNK_IF.k[0];   
+                clk_dat_skew      <= LNK_SNK_IF.dat[0];  
+
+                clk_disp_ctl_del <= clk_disp_ctl_skew[3:2];   
+                clk_disp_val_del <= clk_disp_val_skew[3:2];   
+                clk_k_del        <= clk_k_skew[3:2];   
+                clk_dat_del      <= clk_dat_skew[2:3];  
+            end
+
+            // Outputs
+            assign LNK_SRC_IF.disp_ctl[0]    = {clk_disp_ctl_skew[1:0], clk_disp_ctl_del};
+            assign LNK_SRC_IF.disp_val[0]    = {clk_disp_val_skew[1:0], clk_disp_val_del};
+            assign LNK_SRC_IF.k[0]           = {clk_k_skew[1:0], clk_k_del};
+            assign LNK_SRC_IF.dat[0]         = {clk_dat_del[0], clk_dat_del[1], clk_dat_skew[0], clk_dat_skew[1]}; 
+        end
+    end
+
+    // Two symbols per lanes
     else
-    begin : gen_skew
+    begin : gen_2_spl
+
         // Signals
-        logic   [P_SPL-1:0]     clk_k[0:P_SKEW-1];              // k character
-        logic   [7:0]           clk_dat[0:P_SKEW-1][0:P_SPL-1]; // Data
+        logic   [P_SPL-1:0]     clk_disp_ctl[0:P_LANE-1];       // Disparity control
+        logic   [P_SPL-1:0]     clk_disp_val[0:P_LANE-1];       // Disparity value
+        logic   [P_SPL-1:0]     clk_k[0:P_LANE-1];              // k character
+        logic   [7:0]           clk_dat[0:P_LANE-1][0:P_SPL-1]; // Data
 
         // Skew
         always_ff @ (posedge CLK_IN) 
         begin
-            for (int i = 0; i < P_SKEW; i++)
+            for (int i = 0; i < P_LANE; i++)
             begin 
                 if (i == 0)
                 begin
+                    clk_disp_ctl[0] <= LNK_SNK_IF.disp_ctl[0];   
+                    clk_disp_val[0] <= LNK_SNK_IF.disp_val[0];   
                     clk_k[0]        <= LNK_SNK_IF.k[0];   
                     clk_dat[0]      <= LNK_SNK_IF.dat[0];  
                 end
                 else
                 begin
+                    clk_disp_ctl[i] <= clk_disp_ctl[i-1];
+                    clk_disp_val[i] <= clk_disp_val[i-1];
                     clk_k[i]        <= clk_k[i-1];
                     clk_dat[i]      <= clk_dat[i-1];
                 end
@@ -76,11 +169,12 @@ generate
         end
 
         // Outputs
-        assign LNK_SRC_IF.disp_ctl[0]    = 0;   // Not used
-        assign LNK_SRC_IF.disp_val[0]    = 0;   // Not used
-        assign LNK_SRC_IF.k[0]           = clk_k[P_SKEW-1];
-        assign LNK_SRC_IF.dat[0]         = clk_dat[P_SKEW-1]; 
+        assign LNK_SRC_IF.disp_ctl[0]    = clk_disp_ctl[P_LANE-1];
+        assign LNK_SRC_IF.disp_val[0]    = clk_disp_val[P_LANE-1];
+        assign LNK_SRC_IF.k[0]           = clk_k[P_LANE-1];
+        assign LNK_SRC_IF.dat[0]         = clk_dat[P_LANE-1]; 
     end
+
 endgenerate
 
 endmodule

@@ -2,6 +2,37 @@
 # Timing
 ###
 
+# PRT_DP_LIB_RST
+#set_false_path -to [get_pins -hierarchical *prt_dp_lib_dclk_rst_i*.ff_inst/LSR]
+
+# PRT_DP_LIB_CDC_VEC
+#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_sclk_hs_i0.ff_inst/DF]
+#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_dclk_hs_i0.ff_inst/DF]
+#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_dclk_cap\[0\]_i*.ff_inst/DF]
+
+# PRT_DP_LIB_CDC_BIT
+#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
+
+# PRT_DP_LIB_CDC_GRAY
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_cdc_gray_sclk_enc_i*.ff_inst/Q] -to [get_pins -hierarchical *prt_dp_lib_cdc_gray_dclk_cap1_i*.ff_inst/DF] -datapath_only 1
+
+# PRT_DP_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
+#set_false_path -from [get_pins *prt_dp_lib_mem_aclk_ram_*.ramw_inst/DO] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout*.ff_inst/DF]
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.dpram_inst_*/DO0] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_i*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO0] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO1] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO2] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO3] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+
+# PRT_SCALER_LIB_CDC_BIT
+#set_false_path -to [get_pins -hierarchical *prt_scaler_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
+
+# PRT_SCALER_LIB_MEM_RAM_DC / PRT_SCALER_LIB_MEM_FIFO
+#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO0] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO1] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO2] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO3] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+
 ###
 # False path
 ###
@@ -24,9 +55,11 @@ set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks vid_clk]
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll]
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks vid_clk]
 
+
 ###
 # Pins
 ###
+
 # Bank VCCIO
 ldc_set_vcc -bank 1 3.3
 ldc_set_vcc -bank 3 1.8

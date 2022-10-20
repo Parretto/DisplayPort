@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for Intel FPGA
 
     License
     =======
@@ -29,7 +30,7 @@
 
 module dp_app_ram
 #(
-    parameter P_VENDOR      = "xilinx",     // Vendor "xilinx" or "lattice"
+    parameter P_VENDOR      = "none",       // Vendor "xilinx", "lattice" or "intel"
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -49,7 +50,8 @@ module dp_app_ram
 // Parameters
 localparam P_ADR_WRDS    = P_ADR - 2;
 localparam P_DAT         = 32;                      // Data bits
-localparam P_MEMORY_SIZE = (2**P_ADR_WRDS) * P_DAT;      // Memory size in bits
+localparam P_WRDS        = 2**P_ADR_WRDS;           // Words
+localparam P_MEMORY_SIZE = P_WRDS * P_DAT; // Memory size in bits
 
 // Signals
 wire [P_ADR_WRDS-1:0]       clk_addra;
@@ -137,8 +139,10 @@ generate
         );
     end
 
-    else
+    else if (P_VENDOR == "lattice")
     begin : gen_lattice
+
+    
         dp_app_ram_lat
         RAM_INST
         (
@@ -155,6 +159,106 @@ generate
             .rd_addr_i      (RAM_IF.adr[2+:P_ADR_WRDS]), 
             .rd_data_o      (RAM_IF.dout)
         );
+
+/*
+        pmi_ram_dp_be
+        #(
+            .pmi_wr_addr_depth    (P_WRDS),         // integer
+            .pmi_wr_addr_width    (P_ADR_WRDS),     // integer
+            .pmi_wr_data_width    (P_DAT),          // integer
+            .pmi_rd_addr_depth    (P_WRDS),         // integer
+            .pmi_rd_addr_width    (P_ADR_WRDS),     // integer
+            .pmi_rd_data_width    (P_DAT),          // integer
+            .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+            .pmi_resetmode        ("async"),        // "async"|"sync"
+            .pmi_init_file        (P_INIT_FILE),    // string
+            .pmi_init_file_format ("binary"),       // "binary"|"hex"
+            .pmi_family           ("LFCPNX"),       // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+            .pmi_byte_size        (8),              // integer
+            .pmi_gsr              ("disable")
+        ) 
+        RAM_INST
+        (
+            .Reset     (1'b0),  
+
+            .WrClock   (CLK_IN),  
+            .WrClockEn (1'b1),
+            .WrAddress (clk_addra),  
+            .WE        (clk_ena),  
+            .Data      (clk_dina), 
+            .ByteEn    (clk_wea),  
+
+            .RdClock   (CLK_IN), 
+            .RdClockEn (1'b1),
+            .RdAddress (RAM_IF.adr[2+:P_ADR_WRDS]),  
+
+            .Q         (RAM_IF.dout)  
+        );
+*/
+    end
+
+    else if (P_VENDOR == "intel")
+    begin : gen_int
+        altera_syncram
+        #( 
+            .address_aclr_b                     ("NONE"),
+            .address_reg_b                      ("CLOCK0"),
+            .outdata_reg_b                      ("UNREGISTERED"),
+            .clock_enable_input_a               ("BYPASS"),
+            .clock_enable_input_b               ("BYPASS"),
+            .enable_force_to_zero               ("FALSE"),
+            .intended_device_family             ("Cyclone 10 GX"),
+            .lpm_type                           ("altera_syncram"),
+            .numwords_a                         (P_WRDS),
+            .numwords_b                         (P_WRDS),
+            .operation_mode                     ("DUAL_PORT"),
+            .outdata_aclr_b                     ("NONE"),
+            .outdata_sclr_b                     ("NONE"),
+            .power_up_uninitialized             ("FALSE"),
+            .read_during_write_mode_mixed_ports ("DONT_CARE"),
+            .widthad_a                          (P_ADR_WRDS),
+            .widthad_b                          (P_ADR_WRDS),
+            .width_a                            (P_DAT),
+            .width_b                            (P_DAT),
+            .width_byteena_a                    (4),
+            .byte_size                          (8)
+        )
+        RAM_INST
+        (
+            .address_a                          (clk_addra),
+            .address_b                          (RAM_IF.adr[2+:P_ADR_WRDS]),
+            .clock0                             (CLK_IN),
+            .data_a                             (clk_dina),
+            .wren_a                             (clk_ena),
+            .q_b                                (RAM_IF.dout),
+            .aclr0                              (1'b0),
+            .aclr1                              (1'b0),
+            .address2_a                         (1'b1),
+            .address2_b                         (1'b1),
+            .addressstall_a                     (1'b0),
+            .addressstall_b                     (1'b0),
+            .byteena_a                          (clk_wea),
+            .byteena_b                          (1'b1),
+            .clock1                             (1'b1),
+            .clocken0                           (1'b1),
+            .clocken1                           (1'b1),
+            .clocken2                           (1'b1),
+            .clocken3                           (1'b1),
+            .data_b                             ({P_DAT{1'b1}}),
+            .eccencbypass                       (1'b0),
+            .eccencparity                       (8'b0),
+            .eccstatus                          (),
+            .q_a                                (),
+            .rden_a                             (1'b1),
+            .rden_b                             (1'b1),
+            .sclr                               (1'b0),
+            .wren_b                             (1'b0)
+        );
+    end
+
+    else
+    begin
+        $error ("No Vendor specified!");
     end
 endgenerate
 

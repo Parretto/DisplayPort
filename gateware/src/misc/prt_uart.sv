@@ -30,6 +30,7 @@
 // Module
 module prt_uart
 #(
+    parameter   P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
     parameter   P_SIM = 0,                  // Simulation
     parameter   P_BEAT = 'd1085
 )
@@ -263,9 +264,9 @@ fifo_struct         clk_rx_fifo;
     // FIFO
     prt_dp_lib_fifo_sc
     #(
+        .P_VENDOR       (P_VENDOR),         // Vendor
         .P_MODE         ("single"),         // "single" or "burst"
         .P_RAM_STYLE    ("distributed"),    // "distributed", "block" or "ultra"
-        .P_WRDS         (P_FIFO_WRDS),
         .P_ADR_WIDTH    (P_FIFO_ADR),
         .P_DAT_WIDTH    (8)
     )
@@ -492,6 +493,7 @@ endgenerate
     // FIFO
     prt_dp_lib_fifo_sc
     #(
+        .P_VENDOR       (P_VENDOR),         // Vendor
         .P_MODE         ("single"),         // "single" or "burst"
         .P_RAM_STYLE    ("distributed"),    // "distributed", "block" or "ultra"
         .P_ADR_WIDTH    (P_FIFO_ADR),

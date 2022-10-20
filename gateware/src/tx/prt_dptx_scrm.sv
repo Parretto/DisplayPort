@@ -10,6 +10,9 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Fixed issue with BS detector and scrambler reset. 
+           Dropped support for non enhanced framing mode
+
 
     License
     =======
@@ -76,12 +79,15 @@ endfunction
 // Signals
 logic                  clk_en;
 logic                  clk_efm;
+logic [P_SPL-1:0]      clk_disp_ctl;
+logic [P_SPL-1:0]      clk_disp_val;
 logic [8:0]            clk_din[0:P_SPL-1];
 logic [8:0]            clk_dat[0:P_SPL-1];
 logic [P_SPL-1:0]      clk_bs_det;
+logic [P_SPL-1:0]      clk_bs_det_del[0:1];
+logic                  clk_bs_cnt_inc;
 logic [9:0]            clk_bs_cnt;
 logic                  clk_bs_cnt_end;
-logic                  clk_bs_cnt_inc;
 logic [P_SPL-1:0]      clk_ins_sr;
 logic [P_SPL-1:0]      clk_lfsr_rst;
 logic [15:0]           clk_lfsr_in[0:P_SPL-1];
@@ -108,6 +114,18 @@ generate
     end
 endgenerate
 
+// Disparity registers
+// The scrambler has one clock latency. 
+// These registers compensate for the scrambler latency
+    always_ff @ (posedge CLK_IN)
+    begin
+        for (int i = 0; i < P_SPL; i++)
+        begin
+            clk_disp_ctl[i] <= LNK_SNK_IF.disp_ctl[0][i];
+            clk_disp_val[i] <= LNK_SNK_IF.disp_val[0][i];
+        end
+    end 
+
 // BS detector
     always_comb
     begin
@@ -121,26 +139,58 @@ endgenerate
         end
     end
 
-// BS counter increment
+// BS detector delayed
     always_ff @ (posedge CLK_IN)
     begin
-        // Default
-        clk_bs_cnt_inc <= 0;
+        clk_bs_det_del[0] <= clk_bs_det;
+        clk_bs_det_del[1] <= clk_bs_det_del[0];
+    end
 
-        // Enhanced framing mode
-        if (clk_efm)
+generate
+    // 4 symbols per lane
+    if (P_SPL == 4)
+    begin : gen_bs_cnt_inc_4spl
+        always_ff @ (posedge CLK_IN)
         begin
-            if (clk_bs_det[P_SPL-1])
+            // Default
+            clk_bs_cnt_inc <= 0;
+
+            // Phase 0
+            if (clk_bs_det[0] && clk_bs_det[3])
                 clk_bs_cnt_inc <= 1;
-        end
 
-        // Normal
-        else
-        begin
-            if (clk_bs_det[0])
+            // Phase 1
+            else if (clk_bs_det_del[0][1] && clk_bs_det[0])
+                clk_bs_cnt_inc <= 1;
+
+            // Phase 2
+            else if (clk_bs_det_del[0][2] && clk_bs_det[1])
+                clk_bs_cnt_inc <= 1;
+
+            // Phase 3
+            else if (clk_bs_det_del[0][3] && clk_bs_det[2])
                 clk_bs_cnt_inc <= 1;
         end
     end
+
+    // 2 symbols per lane
+    else
+    begin : gen_bs_seq_2spl
+        always_ff @ (posedge CLK_IN)
+        begin
+            // Default
+            clk_bs_cnt_inc <= 0;
+
+            // Phase 0
+            if (clk_bs_det_del[0][0] && clk_bs_det[1])
+                clk_bs_cnt_inc <= 1;
+
+            // Phase 1
+            else if (clk_bs_det_del[1][1] && clk_bs_det[0])
+                clk_bs_cnt_inc <= 1;
+        end
+    end
+endgenerate
 
 // BS counter 
     always_ff @ (posedge RST_IN, posedge CLK_IN)
@@ -203,7 +253,6 @@ endgenerate
         end
     end
 
-
 // LFSR reset sublane 0
 // Must be registered
     always_ff @ (posedge CLK_IN)
@@ -215,7 +264,7 @@ endgenerate
             clk_lfsr_rst[0] <= 1;
     end
 
-// LFSR reset sublane 1
+// LFSR reset other sublanes
 // Must be combinatorial
     always_comb
     begin
@@ -297,7 +346,7 @@ endgenerate
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_src
-        assign {LNK_SRC_IF.disp_ctl[0][i], LNK_SRC_IF.disp_val[0][i], LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = {1'b0, 1'b0, clk_dout[i]};
+        assign {LNK_SRC_IF.disp_ctl[0][i], LNK_SRC_IF.disp_val[0][i], LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = {clk_disp_ctl[i], clk_disp_val[i], clk_dout[i]};
     end
 endgenerate
 

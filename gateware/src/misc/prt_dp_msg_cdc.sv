@@ -30,6 +30,7 @@
 // Module
 module prt_dp_msg_cdc
 #(
+    parameter P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
     parameter P_DAT_WIDTH = 16
 )
 (
@@ -113,6 +114,7 @@ bclk_fifo_struct    bclk_fifo;
 // FIFO
     prt_dp_lib_fifo_dc
     #(
+        .P_VENDOR           (P_VENDOR),
         .P_MODE             ("burst"),      // "single" or "burst"
         .P_RAM_STYLE        ("distributed"),    // "distributed" or "block"
         .P_ADR_WIDTH        (P_FIFO_ADR),
@@ -120,18 +122,20 @@ bclk_fifo_struct    bclk_fifo;
     )
     FIFO_INST
     (
-        .A_RST_IN      (aclk_fifo.rst),      // Reset
+        .A_RST_IN      (aclk_fifo.rst),        // Reset
         .B_RST_IN      (B_RST_IN),
-        .A_CLK_IN      (A_CLK_IN),      // Clock
+        .A_CLK_IN      (A_CLK_IN),             // Clock
         .B_CLK_IN      (B_CLK_IN),
-        .A_CKE_IN      (1'b1),      // Clock enable
+        .A_CKE_IN      (1'b1),                 // Clock enable
         .B_CKE_IN      (1'b1),
 
         // Input (A)
+        .A_CLR_IN      (1'b0),                 // Clear
         .A_WR_IN       (aclk_fifo.wr),         // Write
         .A_DAT_IN      (aclk_fifo.din),        // Write data
 
         // Output (B)
+        .B_CLR_IN      (1'b0),                 // Clear
         .B_RD_IN       (bclk_fifo.rd),         // Read
         .B_DAT_OUT     (bclk_fifo.dout),       // Read data
         .B_DE_OUT      (bclk_fifo.de),         // Data enable

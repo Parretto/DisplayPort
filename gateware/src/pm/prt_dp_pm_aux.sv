@@ -29,6 +29,10 @@
 
 // Module
 module prt_dp_pm_aux
+#(
+     // System
+     parameter              P_VENDOR = "none"  // Vendor "xilinx" or "lattice"
+)
 (
 	// Reset and clock
 	input wire 				RST_IN,
@@ -180,7 +184,7 @@ typedef struct {
 	logic						rx_re;		// RX rising edge
 	logic						rx_fe;		// RX falling edge
     logic                   	wd_ld;
-    logic [4:0]             	wd_cnt;
+    logic [5:0]             	wd_cnt;
     logic                   	wd_end;
     logic                   	wd_end_re;
 	logic						rx_ph1;
@@ -518,6 +522,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 */
 	prt_dp_lib_fifo_sc
 	#(
+		.P_VENDOR		(P_VENDOR),			// Vendor
 		.P_MODE         ("single"),			// "single" or "burst"
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_FIFO_ADR),
@@ -891,6 +896,7 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 */
 	prt_dp_lib_fifo_sc
 	#(
+		.P_VENDOR		(P_VENDOR),			// Vendor
 		.P_MODE         ("single"),			// "single" or "burst"
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_FIFO_ADR),

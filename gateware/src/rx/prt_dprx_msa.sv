@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for single lane
 
     License
     =======
@@ -29,6 +30,9 @@
 
 module prt_dprx_msa
 #(
+    // System
+    parameter               P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
+
     // Link
     parameter               P_LANES       = 4,      // Lanes
     parameter               P_SPL         = 2,      // Symbols per lane
@@ -44,7 +48,7 @@ module prt_dprx_msa
     input wire              CLK_IN,         // Clock
 
     // Control
-    input wire              CTL_LANES_IN,   // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+    input wire  [1:0]       CTL_LANES_IN,   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
 
     // Message
     prt_dp_msg_if.snk       MSG_SNK_IF,     // Sink
@@ -62,7 +66,7 @@ module prt_dprx_msa
 import prt_dp_pkg::*;
 
 // Localparam
-localparam P_RAM_WRDS = (P_SPL == 4) ? 4 : 8;
+localparam P_RAM_WRDS = (P_SPL == 4) ? 16 : 32;
 localparam P_RAM_ADR = $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT = 8;
 localparam P_LOG_LANES = $clog2(P_LANES * P_SPL);
@@ -86,7 +90,7 @@ typedef struct {
 } ram_struct;
 
 typedef struct {
-    logic                   lanes;                          // Active lanes
+    logic   [1:0]           lanes;                          // Active lanes
     logic                   lock;                           // Lock
     logic   [P_SPL-1:0]     sol[0:P_LANES-1];               // Start of line
     logic   [P_SPL-1:0]     eol[0:P_LANES-1];               // End of line
@@ -175,6 +179,7 @@ generate
         begin
             prt_dp_lib_sdp_ram_sc
             #(
+                .P_VENDOR       (P_VENDOR),         // Vendor
                 .P_RAM_STYLE    ("distributed"),    // "distributed", "block" or "ultra"
                 .P_ADR_WIDTH    (P_RAM_ADR),
                 .P_DAT_WIDTH    (P_RAM_DAT)
@@ -208,16 +213,40 @@ generate
     begin : gen_msg_dat_4spl
         always_comb
         begin
-            case (clk_msg.idx[2:0])
-                'd1     : clk_msg.dat = {clk_msa.dat[2][0], clk_msa.dat[3][0]}; // Lane 2 Sublane 0 / Lane 3 Sublane 0
-                'd2     : clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
-                'd3     : clk_msg.dat = {clk_msa.dat[2][1], clk_msa.dat[3][1]}; // Lane 2 Sublane 1 / Lane 3 Sublane 1
-                'd4     : clk_msg.dat = {clk_msa.dat[0][2], clk_msa.dat[1][2]}; // Lane 0 Sublane 2 / Lane 1 Sublane 2
-                'd5     : clk_msg.dat = {clk_msa.dat[2][2], clk_msa.dat[3][2]}; // Lane 2 Sublane 2 / Lane 3 Sublane 2
-                'd6     : clk_msg.dat = {clk_msa.dat[0][3], clk_msa.dat[1][3]}; // Lane 0 Sublane 3 / Lane 1 Sublane 3
-                'd7     : clk_msg.dat = {clk_msa.dat[2][3], clk_msa.dat[3][3]}; // Lane 2 Sublane 3 / Lane 3 Sublane 3
-                default : clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
-            endcase
+            // 4 lanes
+            if (clk_lnk.lanes == 'd3)
+            begin
+                case (clk_msg.idx[2:0])
+                    'd1     : clk_msg.dat = {clk_msa.dat[2][0], clk_msa.dat[3][0]}; // Lane 2 Sublane 0 / Lane 3 Sublane 0
+                    'd2     : clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
+                    'd3     : clk_msg.dat = {clk_msa.dat[2][1], clk_msa.dat[3][1]}; // Lane 2 Sublane 1 / Lane 3 Sublane 1
+                    'd4     : clk_msg.dat = {clk_msa.dat[0][2], clk_msa.dat[1][2]}; // Lane 0 Sublane 2 / Lane 1 Sublane 2
+                    'd5     : clk_msg.dat = {clk_msa.dat[2][2], clk_msa.dat[3][2]}; // Lane 2 Sublane 2 / Lane 3 Sublane 2
+                    'd6     : clk_msg.dat = {clk_msa.dat[0][3], clk_msa.dat[1][3]}; // Lane 0 Sublane 3 / Lane 1 Sublane 3
+                    'd7     : clk_msg.dat = {clk_msa.dat[2][3], clk_msa.dat[3][3]}; // Lane 2 Sublane 3 / Lane 3 Sublane 3
+                    default : clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
+                endcase
+            end
+
+            // 2 lanes
+            else if (clk_lnk.lanes == 'd2)
+            begin
+                case (clk_msg.idx[1:0])
+                    'd1     : clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
+                    'd2     : clk_msg.dat = {clk_msa.dat[0][2], clk_msa.dat[1][2]}; // Lane 0 Sublane 2 / Lane 1 Sublane 2
+                    'd3     : clk_msg.dat = {clk_msa.dat[0][3], clk_msa.dat[1][3]}; // Lane 0 Sublane 3 / Lane 1 Sublane 3
+                    default : clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
+                endcase
+            end
+
+            // 1 lane
+            else
+            begin
+                if (clk_msg.idx[0])
+                    clk_msg.dat = {clk_msa.dat[0][2], clk_msa.dat[0][3]}; // Lane 0 Sublane 2 / Lane 0 Sublane 3
+                else
+                    clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[0][1]}; // Lane 0 Sublane 0 / Lane 0 Sublane 1
+            end
         end
     end
 
@@ -226,12 +255,31 @@ generate
     begin : gen_msg_dat_2spl
         always_comb
         begin
-            case (clk_msg.idx[1:0])
-                'd1     : clk_msg.dat = {clk_msa.dat[2][0], clk_msa.dat[3][0]}; // Lane 2 Sublane 0 / Lane 3 Sublane 0
-                'd2     : clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
-                'd3     : clk_msg.dat = {clk_msa.dat[2][1], clk_msa.dat[3][1]}; // Lane 2 Sublane 1 / Lane 3 Sublane 1
-                default : clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
-            endcase
+            // 4 lanes
+            if (clk_lnk.lanes == 'd3)
+            begin
+                case (clk_msg.idx[1:0])
+                    'd1     : clk_msg.dat = {clk_msa.dat[2][0], clk_msa.dat[3][0]}; // Lane 2 Sublane 0 / Lane 3 Sublane 0
+                    'd2     : clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
+                    'd3     : clk_msg.dat = {clk_msa.dat[2][1], clk_msa.dat[3][1]}; // Lane 2 Sublane 1 / Lane 3 Sublane 1
+                    default : clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
+                endcase
+            end
+
+            // 2 lanes
+            else if (clk_lnk.lanes == 'd2)
+            begin
+                if (clk_msg.idx[0])
+                    clk_msg.dat = {clk_msa.dat[0][1], clk_msa.dat[1][1]}; // Lane 0 Sublane 1 / Lane 1 Sublane 1
+                else
+                    clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[1][0]}; // Lane 0 Sublane 0 / Lane 1 Sublane 0
+            end
+
+            // 1 lane
+            else
+            begin
+                clk_msg.dat = {clk_msa.dat[0][0], clk_msa.dat[0][1]}; // Lane 0 Sublane 0 / Lane 0 Sublane 1
+            end
         end
     end
 endgenerate
@@ -250,58 +298,111 @@ generate
                     clk_msa.rd[i][j] <= 0;
             end
 
+            // Wait for acknowledge
             if (clk_msg.ack)
             begin
-                case (clk_msg.idx[2:0])
+                // 4 lanes
+                if (clk_lnk.lanes == 'd3)
+                begin
 
-                    'd1 : 
-                    begin
-                        clk_msa.rd[2][0] <= 1; // Lane 2 Sublane 0
-                        clk_msa.rd[3][0] <= 1; // Lane 3 Sublane 0
-                    end
+                    case (clk_msg.idx[2:0])
 
-                    'd2 : 
-                    begin
-                        clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1 
-                        clk_msa.rd[1][1] <= 1; // Lane 1 Sublane 1
-                    end
+                        'd1 : 
+                        begin
+                            clk_msa.rd[2][0] <= 1; // Lane 2 Sublane 0
+                            clk_msa.rd[3][0] <= 1; // Lane 3 Sublane 0
+                        end
 
-                    'd3 : 
-                    begin
-                        clk_msa.rd[2][1] <= 1; // Lane 2 Sublane 1
-                        clk_msa.rd[3][1] <= 1; // Lane 3 Sublane 1
-                    end
+                        'd2 : 
+                        begin
+                            clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1 
+                            clk_msa.rd[1][1] <= 1; // Lane 1 Sublane 1
+                        end
 
-                    'd4 :
+                        'd3 : 
+                        begin
+                            clk_msa.rd[2][1] <= 1; // Lane 2 Sublane 1
+                            clk_msa.rd[3][1] <= 1; // Lane 3 Sublane 1
+                        end
+
+                        'd4 :
+                        begin
+                            clk_msa.rd[0][2] <= 1; // Lane 0 Sublane 2 
+                            clk_msa.rd[1][2] <= 1; // Lane 1 Sublane 2
+                        end
+
+                        'd5 :
+                        begin
+                            clk_msa.rd[2][2] <= 1; // Lane 2 Sublane 2
+                            clk_msa.rd[3][2] <= 1; // Lane 3 Sublane 2
+                        end
+
+                        'd6 : 
+                        begin
+                            clk_msa.rd[0][3] <= 1; // Lane 0 Sublane 3 
+                            clk_msa.rd[1][3] <= 1; // Lane 1 Sublane 3 
+                        end
+
+                        'd7 :
+                        begin
+                            clk_msa.rd[2][3] <= 1; // Lane 2 Sublane 3 
+                            clk_msa.rd[3][3] <= 1; // Lane 3 Sublane 3 
+                        end
+
+                        default : 
+                        begin
+                            clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
+                            clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0 
+                        end
+                    endcase
+                end
+
+                // 2 lanes
+                else if (clk_lnk.lanes == 'd2)
+                begin
+
+                    case (clk_msg.idx[1:0])
+
+                        'd1 : 
+                        begin
+                            clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1 
+                            clk_msa.rd[1][1] <= 1; // Lane 1 Sublane 1
+                        end
+
+                        'd2 :
+                        begin
+                            clk_msa.rd[0][2] <= 1; // Lane 0 Sublane 2 
+                            clk_msa.rd[1][2] <= 1; // Lane 1 Sublane 2
+                        end
+
+                        'd3 : 
+                        begin
+                            clk_msa.rd[0][3] <= 1; // Lane 0 Sublane 3 
+                            clk_msa.rd[1][3] <= 1; // Lane 1 Sublane 3 
+                        end
+
+                        default : 
+                        begin
+                            clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
+                            clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0 
+                        end
+                    endcase
+                end
+
+                // 1 lane
+                else
+                begin
+                    if (clk_msg.idx[0])
                     begin
                         clk_msa.rd[0][2] <= 1; // Lane 0 Sublane 2 
-                        clk_msa.rd[1][2] <= 1; // Lane 1 Sublane 2
+                        clk_msa.rd[0][3] <= 1; // Lane 0 Sublane 3
                     end
-
-                    'd5 :
-                    begin
-                        clk_msa.rd[2][2] <= 1; // Lane 2 Sublane 2
-                        clk_msa.rd[3][2] <= 1; // Lane 3 Sublane 2
-                    end
-
-                    'd6 : 
-                    begin
-                        clk_msa.rd[0][3] <= 1; // Lane 0 Sublane 3 
-                        clk_msa.rd[1][3] <= 1; // Lane 1 Sublane 3 
-                    end
-
-                    'd7 :
-                    begin
-                        clk_msa.rd[2][3] <= 1; // Lane 2 Sublane 3 
-                        clk_msa.rd[3][3] <= 1; // Lane 3 Sublane 3 
-                    end
-
-                    default : 
+                    else
                     begin
                         clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
-                        clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0 
+                        clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1
                     end
-                endcase
+                end
             end
         end
     end
@@ -320,31 +421,58 @@ generate
 
             if (clk_msg.ack)
             begin
-                case (clk_msg.idx[1:0])
-                    'd1 : 
-                    begin
-                        clk_msa.rd[2][0] <= 1; // Lane 2 Sublane 0
-                        clk_msa.rd[3][0] <= 1; // Lane 3 Sublane 0
-                    end
+                // 4 lanes
+                if (clk_lnk.lanes == 'd3)
+                begin
+                    case (clk_msg.idx[1:0])
+                        'd1 : 
+                        begin
+                            clk_msa.rd[2][0] <= 1; // Lane 2 Sublane 0
+                            clk_msa.rd[3][0] <= 1; // Lane 3 Sublane 0
+                        end
 
-                    'd2 : 
+                        'd2 : 
+                        begin
+                            clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1 
+                            clk_msa.rd[1][1] <= 1; // Lane 1 Sublane 1
+                        end
+
+                        'd3 : 
+                        begin
+                            clk_msa.rd[2][1] <= 1; // Lane 2 Sublane 1
+                            clk_msa.rd[3][1] <= 1; // Lane 3 Sublane 1
+                        end
+
+                        default : 
+                        begin
+                            clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
+                            clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0 
+                        end
+                    endcase
+                end
+
+                // 2 lanes
+                else if (clk_lnk.lanes == 'd2)
+                begin
+                    if (clk_msg.idx[0])
                     begin
                         clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1 
                         clk_msa.rd[1][1] <= 1; // Lane 1 Sublane 1
                     end
 
-                    'd3 : 
-                    begin
-                        clk_msa.rd[2][1] <= 1; // Lane 2 Sublane 1
-                        clk_msa.rd[3][1] <= 1; // Lane 3 Sublane 1
-                    end
-
-                    default : 
+                    else
                     begin
                         clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
-                        clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0 
+                        clk_msa.rd[1][0] <= 1; // Lane 1 Sublane 0
                     end
-                endcase
+                end
+
+                // 1 lane
+                else
+                begin
+                    clk_msa.rd[0][0] <= 1; // Lane 0 Sublane 0 
+                    clk_msa.rd[0][1] <= 1; // Lane 0 Sublane 1
+                end
             end
         end
     end
@@ -663,7 +791,17 @@ endgenerate
 
             // Set
             // When all lanes have their interrupt asserted
-            else if ( (clk_lnk.lanes && (&clk_msa.irq_lane)) || (!clk_lnk.lanes && (&clk_msa.irq_lane[1:0])) ) 
+
+            // 4 lanes
+            else if ( (clk_lnk.lanes == 'd3) && (&clk_msa.irq_lane)) 
+                clk_msa.irq_all <= 1;
+
+            // 2 lanes
+            else if ( (clk_lnk.lanes == 'd2) && (&clk_msa.irq_lane[1:0])) 
+                clk_msa.irq_all <= 1;
+
+            // 1 lane
+            else if ( (clk_lnk.lanes == 'd1) && (clk_msa.irq_lane[0])) 
                 clk_msa.irq_all <= 1;
         end
 

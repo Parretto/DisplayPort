@@ -362,18 +362,33 @@ module prt_dp_lib_cdc_gray
 	output wire [P_WIDTH-1:0]		DST_DAT_OUT		// Data
 );
 
-// Parameters
-localparam P_STAGES = 2;
+/* 
+   xpm_cdc_gray #(
+      .DEST_SYNC_FF(2),          // DECIMAL; range: 2-10
+      .INIT_SYNC_FF(0),          // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
+      .REG_OUTPUT(0),            // DECIMAL; 0=disable registered output, 1=enable registered output
+      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .SIM_LOSSLESS_GRAY_CHK(0), // DECIMAL; 0=disable lossless check, 1=enable lossless check
+      .WIDTH(P_WIDTH)                  // DECIMAL; range: 2-32
+   )
+   XPM_CDC_GRAY_INST 
+   (
+      .src_clk		(SRC_CLK_IN),       
+      .src_in_bin	(SRC_DAT_IN), 
+      .dest_clk		(DST_CLK_IN),
+      .dest_out_bin	(DST_DAT_OUT)
+   );
+*/
 
 // Signals
 // The signals must have an unique name,
-// so they can be found by the set_false_path constraint
+// so they can be found by the XDC constraint
 logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_sclk_dat;
-logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_sclk_enc;
-
-(* dont_touch = "yes" *) logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_cap[P_STAGES-1:0];
-(* dont_touch = "yes" *) logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_dec;
-(* dont_touch = "yes" *) logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_dat;
+(* dont_touch = "yes" *) logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_sclk_enc;
+(* dont_touch = "yes" *) logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_cap1;
+logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_cap2;
+logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_dec;
+logic [P_WIDTH-1:0]	prt_dp_lib_cdc_gray_dclk_dat;
 
 genvar i;
 
@@ -389,21 +404,16 @@ genvar i;
 // Destination capture register
 	always_ff @ (posedge DST_CLK_IN)
 	begin
-		for (int i = 0; i < $size(prt_dp_lib_cdc_gray_dclk_cap); i++)
-		begin
-			if (i == 0)
-				prt_dp_lib_cdc_gray_dclk_cap[i] <= prt_dp_lib_cdc_gray_sclk_enc;
-			else
-				prt_dp_lib_cdc_gray_dclk_cap[i] <= prt_dp_lib_cdc_gray_dclk_cap[i-1];
-		end
+		prt_dp_lib_cdc_gray_dclk_cap1 <= prt_dp_lib_cdc_gray_sclk_enc;
+		prt_dp_lib_cdc_gray_dclk_cap2 <= prt_dp_lib_cdc_gray_dclk_cap1;
 	end
 
 // Decoder
 generate
 	for (i = P_WIDTH-2; i >= 0; i--)
-		assign prt_dp_lib_cdc_gray_dclk_dec[i] = prt_dp_lib_cdc_gray_dclk_dec[i + 1] ^ prt_dp_lib_cdc_gray_dclk_cap[P_STAGES-1][i];
+		assign prt_dp_lib_cdc_gray_dclk_dec[i] = prt_dp_lib_cdc_gray_dclk_dec[i + 1] ^ prt_dp_lib_cdc_gray_dclk_cap2[i];
 endgenerate
-	assign prt_dp_lib_cdc_gray_dclk_dec[P_WIDTH-1] = prt_dp_lib_cdc_gray_dclk_cap[P_STAGES-1][P_WIDTH-1];
+	assign prt_dp_lib_cdc_gray_dclk_dec[P_WIDTH-1] = prt_dp_lib_cdc_gray_dclk_cap2[P_WIDTH-1];
 
 // Data
 	always_ff @ (posedge DST_CLK_IN)

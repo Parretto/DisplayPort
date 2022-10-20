@@ -29,6 +29,9 @@
 
 // Module
 module prt_dp_pm_exch
+#(
+	parameter                P_VENDOR        = "none"  // Vendor "xilinx" or "lattice"
+)
 (
 	// Reset and clock
  	input wire 			RST_IN,		// System reset
@@ -72,7 +75,7 @@ localparam P_PM_CTL_BOX_EN	= 1;
 localparam P_PM_CTL_WIDTH 	= 4;
 
 localparam P_PM_STA_IRQ		= 0;
-localparam P_PM_STA_WIDTH 	= 7;
+localparam P_PM_STA_WIDTH 	= 8;
 
 localparam P_ADR_CTL 		= 0;
 localparam P_ADR_STA 		= 1;
@@ -362,6 +365,7 @@ generate
 	begin : gen_ram
 		prt_dp_lib_sdp_ram_sc
 		#(
+			.P_VENDOR		(P_VENDOR),
 			.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 			.P_ADR_WIDTH 	(P_RAM_ADR),
 			.P_DAT_WIDTH 	(P_RAM_DAT)

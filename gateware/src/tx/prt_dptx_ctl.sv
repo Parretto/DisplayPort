@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for single lane
 
     License
     =======
@@ -44,7 +45,7 @@ module prt_dptx_ctl
     prt_dp_msg_if.src   MSG_SRC_IF,             // Source
 
     // Control output
-    output wire         CTL_LANES_OUT,          // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+    output wire [1:0]   CTL_LANES_OUT,          // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     output wire         CTL_TRN_SEL_OUT,        // Training select
     output wire         CTL_VID_EN_OUT,         // Video enable
     output wire         CTL_EFM_OUT,            // Enhanced framing mode
@@ -52,12 +53,12 @@ module prt_dptx_ctl
 );
 
 // Parameters
-localparam P_CTL_WIDTH          = 5;
+localparam P_CTL_WIDTH          = 6;
 localparam P_CTL_LANES          = 0;
-localparam P_CTL_TRN_SEL        = 1;
-localparam P_CTL_VID_EN         = 2;
-localparam P_CTL_EFM            = 3;
-localparam P_CTL_SCRM_EN        = 4;
+localparam P_CTL_TRN_SEL        = 2;
+localparam P_CTL_VID_EN         = 3;
+localparam P_CTL_EFM            = 4;
+localparam P_CTL_SCRM_EN        = 5;
 
 // Structures
 typedef struct {
@@ -138,7 +139,7 @@ logic [P_CTL_WIDTH-1:0]     clk_ctl;    // Control register
     end
 
 // Outputs
-    assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES];
+    assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES+:2];
     assign CTL_TRN_SEL_OUT      = clk_ctl[P_CTL_TRN_SEL];
     assign CTL_VID_EN_OUT       = clk_ctl[P_CTL_VID_EN];
     assign CTL_EFM_OUT          = clk_ctl[P_CTL_EFM];
