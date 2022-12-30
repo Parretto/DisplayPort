@@ -91,7 +91,7 @@ module dp_rpi_lfcpnx
     Parameters
 */
 localparam P_VENDOR         = "lattice";
-localparam P_SYS_FREQ       = 100_000_000;      // System frequency 100 MHz
+localparam P_SYS_FREQ       = 50_000_000;      // System frequency 50 MHz
 localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
 localparam P_REF_VER_MINOR  = 0;     // Reference design minor
@@ -298,6 +298,7 @@ wire                            led_from_vid_hb;
     dp_app_top
     #(
         .P_VENDOR           (P_VENDOR),
+        .P_SYS_FREQ         (P_SYS_FREQ),
         .P_HW_VER_MAJOR     (P_REF_VER_MAJOR),   // Reference design version major
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),

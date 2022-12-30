@@ -83,8 +83,10 @@ typedef struct {
     logic                           str;                    // Start
     logic                           str_sticky;             // Start
     logic                           str_toggle;
-    logic [P_SPL-1:0]               vbid;
-    logic [P_SPL-1:0]               vbid_reg;
+    logic [P_SPL-1:0]               vbid[0:P_LANES-1];
+    logic [P_SPL-1:0]               vbid_reg[0:P_LANES-1];
+    logic [P_LANES-1:0]             nvs_lane; // No video stream flag per lane
+    logic [P_LANES-1:0]             vbf_lane; // Vertical blanking flag per
     logic                           nvs;      // No video stream flag
     logic                           vbf;      // Vertical blanking flag 
     logic [P_SPL-1:0]               k[0:P_LANES-1];
@@ -166,6 +168,7 @@ typedef struct {
     logic                           eol;      // End of line
     logic [P_VID_DAT-1:0] 			dat;      // Data
     logic                           vld;      // Valid
+    logic                           err;
 } vid_struct;
 
 // Signals
@@ -190,11 +193,10 @@ genvar i, j;
 // Link input
     always_comb
     begin
-        // Only capture lane 0
-        lclk_lnk.vbid = LNK_SNK_IF.vbid[0];
-
         for (int i = 0; i < P_LANES; i++)
         begin
+            lclk_lnk.vbid[i] = LNK_SNK_IF.vbid[i];
+
             lclk_lnk.sol[i] = LNK_SNK_IF.sol[i];
 
             // For the end of line we are only interested in the last (active) lane
@@ -226,13 +228,11 @@ genvar i, j;
     begin
         for (int i = 0; i < P_LANES; i++)
         begin
-            lclk_lnk.vid_reg[i] <= lclk_lnk.vid[i];
-            lclk_lnk.dat_reg[i] <= lclk_lnk.dat[i];
-            lclk_lnk.eol_reg[i] <= lclk_lnk.eol[i];
+            lclk_lnk.vbid_reg[i]    <= lclk_lnk.vbid[i];
+            lclk_lnk.vid_reg[i]     <= lclk_lnk.vid[i];
+            lclk_lnk.dat_reg[i]     <= lclk_lnk.dat[i];
+            lclk_lnk.eol_reg[i]     <= lclk_lnk.eol[i];
         end
-
-        // Only lane 0
-        lclk_lnk.vbid_reg <= lclk_lnk.vbid;
     end
 
 // Delayed data 
@@ -318,70 +318,112 @@ genvar i, j;
             lclk_lnk.str_toggle <= 0;
     end
 
-// VB-ID register
+// VB-ID register per lane
 // This will capture the NoVideoStream_flag and vertical blanking flag.
-// Only lane 0 is used
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        // Lock
-        if (lclk_lnk.lock)
+        for (int i = 0; i < P_LANES; i++)
         begin
-            // Four symbols per lane
-            if (P_SPL == 4)
+            // Lock
+            if (lclk_lnk.lock)
             begin
-                // Sublane 0
-                if (lclk_lnk.vbid_reg[0])
+                // Four symbols per lane
+                if (P_SPL == 4)
                 begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][0][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][0][0];
+                    // Sublane 0
+                    if (lclk_lnk.vbid_reg[i][0])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][0][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][0][0];
+                    end
+
+                    // Sublane 1
+                    else if (lclk_lnk.vbid_reg[i][1])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][1][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][1][0];
+                    end
+
+                    // Sublane 2
+                    else if (lclk_lnk.vbid_reg[i][2])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][2][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][2][0];
+                    end
+
+                    // Sublane 3
+                    else if (lclk_lnk.vbid_reg[i][3])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][3][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][3][0];
+                    end
                 end
 
-                // Sublane 1
-                else if (lclk_lnk.vbid_reg[1])
+                // Two symbols per lane
+                else
                 begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][1][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][1][0];
-                end
+                    // Sublane 0
+                    if (lclk_lnk.vbid_reg[i][0])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][0][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][0][0];
+                    end
 
-                // Sublane 2
-                else if (lclk_lnk.vbid_reg[2])
-                begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][2][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][2][0];
-                end
-
-                // Sublane 3
-                else if (lclk_lnk.vbid_reg[3])
-                begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][3][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][3][0];
-                end
+                    // Sublane 1
+                    else if (lclk_lnk.vbid_reg[i][1])
+                    begin
+                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][1][3];
+                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][1][0];
+                    end
+                end    
             end
 
-            // Two symbols per lane
+            // No lock
             else
             begin
-                // Sublane 0
-                if (lclk_lnk.vbid_reg[0])
-                begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][0][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][0][0];
-                end
+                lclk_lnk.nvs_lane[i] <= 1;
+                lclk_lnk.vbf_lane[i] <= 0;
+            end
+        end
+    end
 
-                // Sublane 1
-                else if (lclk_lnk.vbid_reg[1])
-                begin
-                    lclk_lnk.nvs <= lclk_lnk.dat_reg[0][1][3];
-                    lclk_lnk.vbf <= lclk_lnk.dat_reg[0][1][0];
-                end
-            end    
+// VB-ID register combined
+// As an extra lane integrity check all the lanes should have the same value
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Four active lanes
+        if (lclk_lnk.lanes == 'd3)
+        begin   
+            if (lclk_lnk.nvs_lane == 'b0000)
+                lclk_lnk.nvs <= 0;
+            else
+                lclk_lnk.nvs <= 1;
+
+            if (lclk_lnk.vbf_lane == 'b1111)
+                lclk_lnk.vbf <= 1;
+            else
+                lclk_lnk.vbf <= 0;
         end
 
-        // No lock
+        // Two active lanes
+        else if (lclk_lnk.lanes == 'd2)
+        begin   
+            if (lclk_lnk.nvs_lane[1:0] == 'b00)
+                lclk_lnk.nvs <= 0;
+            else
+                lclk_lnk.nvs <= 1;
+
+            if (lclk_lnk.vbf_lane[1:0] == 'b11)
+                lclk_lnk.vbf <= 1;
+            else
+                lclk_lnk.vbf <= 0;
+        end
+
+        // One active lane
         else
         begin
-            lclk_lnk.nvs <= 1;
-            lclk_lnk.vbf <= 0;
+            lclk_lnk.nvs <= lclk_lnk.nvs_lane[0];
+            lclk_lnk.vbf <= lclk_lnk.vbf_lane[0];
         end
     end
 
@@ -3991,6 +4033,26 @@ endgenerate
                     vclk_vid.eol <= 1;
             end
         end
+    end
+
+// Checker
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Lock
+        if (vclk_vid.lock)
+        begin
+            if (vclk_vid.eol)
+                vclk_vid.err <= 0;
+
+            else if (vclk_vid.vld)
+            begin
+                if (!(vclk_vid.dat == {4{24'h0000ff}}))
+                    vclk_vid.err <= 1;
+            end
+        end
+
+        else
+            vclk_vid.err <= 0;
     end
 
 // Outputs

@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added polyphase support
 
     License
     =======
@@ -71,7 +72,7 @@ module prt_scaler_top
 // Signals
 
 // Clock enable generator
-logic [1:0]				vclk_cke_cnt;
+logic [3:0]				vclk_cke_cnt;
 logic					vclk_cke;
 
 // Input registers
@@ -81,9 +82,12 @@ logic [(P_PPC * P_BPC)-1:0]  	vclk_r_in;
 logic [(P_PPC * P_BPC)-1:0]  	vclk_g_in;
 logic [(P_PPC * P_BPC)-1:0]  	vclk_b_in;
 logic					vclk_de_in;
+wire						vclk_vs_re;
 
 // Controller
 wire						run_from_ctl;
+wire	[3:0]				mode_from_ctl;
+wire	[3:0]				cr_from_ctl;
 wire [3:0]				vps_idx_from_ctl;
 wire [15:0]				vps_dat_from_ctl;
 wire 					vps_vld_from_ctl;
@@ -94,15 +98,26 @@ wire						vs_ext_from_tg;
 wire						hs_from_tg;
 wire						de_from_tg;
 
+logic [15:0]				clk_ver_len;
+logic [15:0]				clk_hor_len;
+
+// Line
+wire [(P_PPC * P_BPC)-1:0]	dat_to_line[0:2];
+wire [2:0]				rdy_from_line;
+wire [(P_PPC * P_BPC)-1:0]	dat_from_line[0:2];
+wire [3:0]				vld_from_line[0:2];
+
 // Vertical 
-wire [(P_PPC * P_BPC)-1:0]	dat_to_vbs[0:2];
-wire [(P_PPC * P_BPC)-1:0]	dat_from_vbs[0:2];
-wire [2:0]				wr_from_vbs;
+wire [2:0]				rdy_from_ver;
+wire [3:0]				rd_from_ver[0:2];
+wire [(P_PPC * P_BPC)-1:0]	dat_from_ver[0:2];
+wire [3:0]				vld_from_ver[0:2];
 
 // Horizontal
-wire [2:0]				hs_from_hbs;
-wire [(P_PPC * P_BPC)-1:0]	dat_from_hbs[0:2];
-wire [2:0]				de_from_hbs;
+wire [2:0]				rdy_from_hor;
+wire [3:0]				rd_from_hor[0:2];
+wire [(P_PPC * P_BPC)-1:0]	dat_from_hor[0:2];
+wire [2:0]				vld_from_hor;
 
 genvar i;
 
@@ -120,6 +135,17 @@ genvar i;
 			vclk_de_in <= VID_DE_IN;
 		end
 	end
+
+// Vsync edge detector
+     prt_scaler_lib_edge
+     VCLK_VS_EDGE_INST
+     (
+          .CLK_IN   (VID_CLK_IN),       // Clock
+          .CKE_IN   (1'b1),          	// Clock enable
+          .A_IN     (vclk_vs_in),       // Input
+          .RE_OUT   (vclk_vs_re), 		// Rising edge
+          .FE_OUT   ()               	// Falling edge
+     );
 
 // Control 
 	prt_scaler_ctl
@@ -140,6 +166,8 @@ genvar i;
 
 		// Control
 		.CTL_RUN_OUT			(run_from_ctl),			// Run
+		.CTL_MODE_OUT			(mode_from_ctl),			// Mode
+		.CTL_CR_OUT			(cr_from_ctl),				// Clock ratio
 
 		// Video parameter set
 		.VPS_IDX_OUT			(vps_idx_from_ctl),			// Index
@@ -176,73 +204,129 @@ genvar i;
 		.VID_DE_OUT			(de_from_tg)			// Data enable
 	);
 
-// Vertical bilinear scaler
+// Map line input
+	assign dat_to_line[0] = vclk_r_in;
+	assign dat_to_line[1] = vclk_g_in;
+	assign dat_to_line[2] = vclk_b_in;
+
+// Vertical length
+     always_ff @ (posedge VID_CLK_IN)
+     begin
+          // Video parameter Hwidth
+          if ((vps_idx_from_ctl == 'd8) && vps_vld_from_ctl)
+               clk_ver_len <= vps_dat_from_ctl[0+:$size(clk_ver_len)]; 
+     end
+
+// Horizontal length
+     always_ff @ (posedge VID_CLK_IN)
+     begin
+          // Video parameter Hwidth
+          if ((vps_idx_from_ctl == 'd9) && vps_vld_from_ctl)
+               clk_hor_len <= vps_dat_from_ctl[0+:$size(clk_hor_len)]; 
+     end
+
+// Line buffer
 generate
 	for (i = 0; i < 3; i++)
-	begin : gen_vbs
-		prt_scaler_vbs
+	begin : gen_line
+		prt_scaler_line
 		#(
 		    .P_VENDOR			(P_VENDOR),
-		    .P_PPC 			(P_PPC),       		// Pixels per clock
-		    .P_BPC 			(P_BPC)        		// Bits per component
+		    .P_PPC 			(P_PPC),          	// Pixels per clock
+		    .P_BPC 			(P_BPC)           	// Bits per component
 		)
-		VBS_INST
+		LINE_INST
 		(
-		     // Reset and clock
-		    .CLK_IN			(VID_CLK_IN),
-		    .CKE_IN			(VID_CKE_IN),
+			// Reset and clock
+		    	.CLK_IN			(VID_CLK_IN),
+		    	.CLR_IN			(vclk_vs_re),
+		    	.CKE_IN			(VID_CKE_IN),
 
 			// Control
 			.CTL_RUN_IN		(run_from_ctl),		// Run
+	    
+			// Video
+			.VID_HS_IN		(vclk_hs_in),
+			.VID_DE_IN		(vclk_de_in),
+			.VID_DAT_IN		(dat_to_line[i]),
 
-		     // Timing
-		    .VS_IN			(vs_int_from_tg),
-		    .HS_IN			(hs_from_tg),
-		    .DE_IN			(de_from_tg),
-
-		    // Video in
-		    .WR_IN			(vclk_de_in),     		// Data enable
-		    .DAT_IN			(dat_to_vbs[i]),   		// Data
-
-		     // Video out
-		    .DAT_OUT			(dat_from_vbs[i]),    	// Data
-		    .WR_OUT    		(wr_from_vbs[i])  		// Data enable
+		    	// Source
+		    	.SRC_RDY_OUT		(rdy_from_line[i]),		// Ready
+		    	.SRC_RD_IN		(rd_from_ver[i]),		// Read
+		    	.SRC_DAT_OUT		(dat_from_line[i]),    	// Data
+		    	.SRC_VLD_OUT   	(vld_from_line[i])		// Valid
 		);
 	end
 endgenerate
 
-	assign dat_to_vbs[0] = vclk_r_in;
-	assign dat_to_vbs[1] = vclk_g_in;
-	assign dat_to_vbs[2] = vclk_b_in;
-
-// Horizontal Bilinear scaler
+// Vertical scaler unit
 generate
 	for (i = 0; i < 3; i++)
-	begin : gen_hbs
-		prt_scaler_hbs
+	begin : gen_ver
+		prt_scaler_ver
 		#(
+		    .P_VENDOR			(P_VENDOR),
 		    .P_PPC 			(P_PPC),          	// Pixels per clock
 		    .P_BPC 			(P_BPC)           	// Bits per component
 		)
-		HBS_INST
+		VER_INST
 		(
 			// Reset and clock
 		    	.CLK_IN			(VID_CLK_IN),
+		    	.CLR_IN			(vclk_vs_re),
 
 			// Control
 			.CTL_RUN_IN		(run_from_ctl),		// Run
+			.CTL_MODE_IN		(mode_from_ctl),		// Mode
+	    		.CTL_LEN_IN		(clk_ver_len),			// Line length
+		    	
+		    	// Sink
+		    	.SNK_RDY_IN		(rdy_from_line[i]),		// Ready
+		    	.SNK_RD_OUT		(rd_from_ver[i]),		// Read
+		    	.SNK_DAT_IN		(dat_from_line[i]),    	// Data
+		    	.SNK_VLD_IN		(vld_from_line[i]),     	// Valid
 
-		    	// Timing
-		    	.HS_IN			(hs_from_tg),			// Hsync
-		    
-		    	// Video in
-		    	.DAT_IN			(dat_from_vbs[i]),    	// Data
-		    	.WR_IN			(wr_from_vbs[i]),     	// Write
+		    	// Source
+		    	.SRC_RDY_OUT		(rdy_from_ver[i]),		// Ready
+		    	.SRC_RD_IN		(rd_from_hor[i]),		// Read
+		    	.SRC_DAT_OUT		(dat_from_ver[i]),    	// Data
+		    	.SRC_VLD_OUT   	(vld_from_ver[i])		// Valid
+		);
+	end
+endgenerate
 
-		    	// Video out
-		    	.HS_OUT			(hs_from_hbs[i]),		// Hsync
-		    	.DAT_OUT			(dat_from_hbs[i]),    	// Data
-		    	.DE_OUT      		(de_from_hbs[i])		// Data enable
+// Horizontal scaler 
+generate
+	for (i = 0; i < 3; i++)
+	begin : gen_hor
+		prt_scaler_hor
+		#(
+		    .P_VENDOR			(P_VENDOR),
+		    .P_PPC 			(P_PPC),          	// Pixels per clock
+		    .P_BPC 			(P_BPC)           	// Bits per component
+		)
+		HOR_INST
+		(
+			// Reset and clock
+		    	.CLK_IN			(VID_CLK_IN),
+		    	.CLR_IN			(vclk_vs_re),
+
+			// Control
+			.CTL_RUN_IN		(run_from_ctl),		// Run
+			.CTL_MODE_IN		(mode_from_ctl),		// Mode
+    	    		.CTL_LEN_IN		(clk_hor_len),			// Line length
+
+		    	// Sink
+		    	.SNK_RDY_IN		(rdy_from_ver[i]),		// Ready
+		    	.SNK_RD_OUT		(rd_from_hor[i]),		// Read
+		    	.SNK_DAT_IN		(dat_from_ver[i]),    	// Data
+		    	.SNK_VLD_IN		(vld_from_ver[i]),     	// Write
+
+		    	// Source
+		    	.SRC_RDY_OUT		(rdy_from_hor[i]),		// Ready
+		    	.SRC_RD_IN		(de_from_tg),			// Read
+		    	.SRC_DAT_OUT		(dat_from_hor[i]),    	// Data
+		    	.SRC_VLD_OUT   	(vld_from_hor[i])		// Valid
 		);
 	end
 endgenerate
@@ -253,16 +337,16 @@ endgenerate
 		// Run
 		if (run_from_ctl)
 		begin
-			if (vclk_cke_cnt == 'd3)
+			if (vclk_cke_cnt == 0)
 			begin
 				vclk_cke <= 1;
-				vclk_cke_cnt <= 0;
+				vclk_cke_cnt <= cr_from_ctl - 'd1;
 			end
 
 			else
 			begin
 				vclk_cke <= 0;
-				vclk_cke_cnt <= vclk_cke_cnt + 'd1;
+				vclk_cke_cnt <= vclk_cke_cnt - 'd1;
 			end
 		end
 
@@ -277,11 +361,11 @@ endgenerate
 // Outputs
 	assign VID_CKE_OUT = vclk_cke;
 	assign VID_VS_OUT = (run_from_ctl) ? vs_ext_from_tg : vclk_vs_in;
-	assign VID_HS_OUT = (run_from_ctl) ? hs_from_hbs[0] : vclk_hs_in;
-	assign VID_R_OUT = (run_from_ctl) ? dat_from_hbs[0] : vclk_r_in;
-	assign VID_G_OUT = (run_from_ctl) ? dat_from_hbs[1] : vclk_g_in;
-	assign VID_B_OUT = (run_from_ctl) ? dat_from_hbs[2] : vclk_b_in;
-	assign VID_DE_OUT = (run_from_ctl) ? de_from_hbs[0] : vclk_de_in;
+	assign VID_HS_OUT = (run_from_ctl) ? hs_from_tg : vclk_hs_in;
+	assign VID_R_OUT = (run_from_ctl) ? dat_from_hor[0] : vclk_r_in;
+	assign VID_G_OUT = (run_from_ctl) ? dat_from_hor[1] : vclk_g_in;
+	assign VID_B_OUT = (run_from_ctl) ? dat_from_hor[2] : vclk_b_in;
+	assign VID_DE_OUT = (run_from_ctl) ? vld_from_hor[0] : vclk_de_in;
 
 endmodule
 

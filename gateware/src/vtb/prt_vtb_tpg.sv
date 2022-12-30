@@ -318,6 +318,7 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 // Outputs
 	assign VID_VS_OUT = clk_vs[1];
 	assign VID_HS_OUT = clk_hs[1];
+
 	assign VID_R_OUT  = clk_r;
 	assign VID_G_OUT  = clk_g;
 	assign VID_B_OUT  = clk_b;

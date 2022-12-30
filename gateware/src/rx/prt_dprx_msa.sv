@@ -90,16 +90,16 @@ typedef struct {
 } ram_struct;
 
 typedef struct {
-    logic   [1:0]           lanes;                          // Active lanes
-    logic                   lock;                           // Lock
-    logic   [P_SPL-1:0]     sol[0:P_LANES-1];               // Start of line
-    logic   [P_SPL-1:0]     eol[0:P_LANES-1];               // End of line
-    logic   [P_SPL-1:0]     vid[0:P_LANES-1];               // Video packet
-    logic   [P_SPL-1:0]     sec[0:P_LANES-1];               // Secondary packet
-    logic   [P_SPL-1:0]     msa[0:P_LANES-1];               // Main stream attributes (msa)
-    logic   [P_SPL-1:0]     vbid[0:P_LANES-1];              // VB-ID
-    logic   [P_SPL-1:0]     k[0:P_LANES-1];                 // k character
-    logic   [7:0]           dat[0:P_LANES-1][0:P_SPL-1];    // Data
+    logic   [1:0]               lanes;                          // Active lanes
+    logic                       lock;                           // Lock
+    logic   [P_SPL-1:0]         sol[0:P_LANES-1];               // Start of line
+    logic   [P_SPL-1:0]         eol[0:P_LANES-1];               // End of line
+    logic   [P_SPL-1:0]         vid[0:P_LANES-1];               // Video packet
+    logic   [P_SPL-1:0]         sec[0:P_LANES-1];               // Secondary packet
+    logic   [P_SPL-1:0]         msa[0:P_LANES-1];               // Main stream attributes (msa)
+    logic   [P_SPL-1:0]         vbid[0:P_LANES-1];              // VB-ID
+    logic   [P_SPL-1:0]         k[0:P_LANES-1];                 // k character
+    logic   [7:0]               dat[0:P_LANES-1][0:P_SPL-1];    // Data
 } lnk_struct;
 
 typedef struct {

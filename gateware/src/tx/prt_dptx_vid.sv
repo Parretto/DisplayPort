@@ -197,8 +197,8 @@ vid_map_struct      vclk_map;
 vid_fifo_struct     vclk_fifo;
 lnk_fifo_struct     lclk_fifo;
 lnk_vid_struct      lclk_vid;
-lnk_struct          lclk_lnk;
 lnk_map_struct      lclk_map;
+lnk_struct          lclk_lnk;
 
 genvar i, j;
 

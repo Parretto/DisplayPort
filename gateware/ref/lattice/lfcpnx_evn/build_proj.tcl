@@ -15,27 +15,15 @@ prj_add_source $SRC/lib/prt_dp_lib.sv
 prj_add_source $SRC/lib/prt_dp_lib_if.sv
 prj_add_source $SRC/lib/prt_dp_lib_mem.sv
 
-# Application
-prj_add_source $SRC/app/dp_app_if.sv
-prj_add_source $SRC/app/dp_app_ram.sv
-prj_add_source $SRC/app/dp_app_rom.sv
-prj_add_source $SRC/app/dp_app_top.sv
+# RISC-V
+prj_add_source $SRC/risc-v/prt_riscv_lib.sv
+prj_add_source $SRC/risc-v/prt_riscv_cpu_reg.sv
+prj_add_source $SRC/risc-v/prt_riscv_cpu.sv
+prj_add_source $SRC/risc-v/prt_riscv_rom.sv
+prj_add_source $SRC/risc-v/prt_riscv_ram.sv
 
-# Kronos
-set KRONOS "../../ref/kronos/rtl/core"
-prj_add_source $KRONOS/kronos_types.sv
-prj_add_source $KRONOS/kronos_csr.sv
-prj_add_source $KRONOS/kronos_EX.sv
-prj_add_source $KRONOS/kronos_agu.sv
-prj_add_source $KRONOS/kronos_branch.sv
-prj_add_source $KRONOS/kronos_hcu.sv
-prj_add_source $KRONOS/kronos_alu.sv
-prj_add_source $KRONOS/kronos_ID.sv
-prj_add_source $KRONOS/kronos_IF.sv
-prj_add_source $KRONOS/kronos_counter64.sv
-prj_add_source $KRONOS/kronos_lsu.sv
-prj_add_source $KRONOS/kronos_RF.sv
-prj_add_source $KRONOS/kronos_core.sv
+# Application
+prj_add_source $SRC/app/dp_app_top.sv
 
 # DPTX
 prj_add_source $SRC/tx/prt_dptx_ctl.sv
@@ -79,8 +67,6 @@ prj_add_source $SRC/pm/prt_dp_pm_irq.sv
 prj_add_source $SRC/pm/prt_dp_pm_msg.sv
 prj_add_source $SRC/pm/prt_dp_pm_mutex.sv
 prj_add_source $SRC/pm/prt_dp_pm_pio.sv
-prj_add_source $SRC/pm/prt_dp_pm_ram_lat.v
-prj_add_source $SRC/pm/prt_dp_pm_rom_lat.v
 prj_add_source $SRC/pm/prt_dp_pm_ram.sv
 prj_add_source $SRC/pm/prt_dp_pm_rom.sv
 prj_add_source $SRC/pm/prt_dp_pm_tmr.sv
@@ -123,19 +109,19 @@ file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.ipx ./sys_pll/.
 file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.cfg ./sys_pll/.
 prj_add_source ./sys_pll/sys_pll.ipx
 
-# Application ROM
-file mkdir ./dp_app_rom_lat
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.mem ./dp_app_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.ipx ./dp_app_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_rom_lat.cfg ./dp_app_rom_lat/.
-prj_add_source ./dp_app_rom_lat/dp_app_rom_lat.ipx
+# RISC-V ROM
+file mkdir ./prt_riscv_rom_lat
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
+prj_add_source ./prt_riscv_rom_lat/prt_riscv_rom_lat.ipx
 
-# Application RAM
-file mkdir ./dp_app_ram_lat
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.mem ./dp_app_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.ipx ./dp_app_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/dp_app_ram_lat.cfg ./dp_app_ram_lat/.
-prj_add_source ./dp_app_ram_lat/dp_app_ram_lat.ipx
+# RISC-V RAM
+file mkdir ./prt_riscv_ram_lat
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
+prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
 
 # Set top level
 prj_set_impl_opt -impl impl1 top dp_ref_lat_lfcpnx_evn

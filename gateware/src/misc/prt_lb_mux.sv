@@ -5,12 +5,13 @@
 
 
     Module: Local Bus Mux
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added downstream port 8
+    v1.2 - Fixed issue with Parretto RISC-V
 
     License
     =======
@@ -57,9 +58,7 @@ module prt_lb_mux
 typedef struct {
      logic   [21:0]      adr;
      logic               wr;
-     logic               wr_re;
      logic               rd;
-     logic               rd_re;
      logic   [31:0]      din;
      logic   [31:0]      dout;
      logic               vld;
@@ -90,27 +89,6 @@ genvar i;
           clk_up.rd <= LB_UP_IF.rd;
           clk_up.din <= LB_UP_IF.din;
      end
-
-// Rising edge detectors are used to generate pulse
-    prt_dp_lib_edge
-    UP_WR_EDGE_INST
-    (
-        .CLK_IN     (CLK_IN),       // Clock
-        .CKE_IN     (1'b1),         // Clock enable
-        .A_IN       (clk_up.wr),    // Input
-        .RE_OUT     (clk_up.wr_re), // Rising edge
-        .FE_OUT     ()              // Falling edge
-    );
-
-    prt_dp_lib_edge
-    UP_RD_EDGE_INST
-    (
-        .CLK_IN     (CLK_IN),       // Clock
-        .CKE_IN     (1'b1),         // Clock enable
-        .A_IN       (clk_up.rd),    // Input
-        .RE_OUT     (clk_up.rd_re), // Rising edge
-        .FE_OUT     ()              // Falling edge
-    );
 
 // Select
      always_comb
@@ -145,7 +123,7 @@ endgenerate
      begin
           for (int i = 0; i < P_PORTS; i++)
           begin
-               if (clk_dwn[i].sel && clk_up.wr_re)
+               if (clk_dwn[i].sel && clk_up.wr)
                     clk_dwn[i].wr = 1;
                else
                     clk_dwn[i].wr = 0;
@@ -157,7 +135,7 @@ endgenerate
      begin
           for (int i = 0; i < P_PORTS; i++)
           begin
-               if (clk_dwn[i].sel && clk_up.rd_re)
+               if (clk_dwn[i].sel && clk_up.rd)
                     clk_dwn[i].rd = 1;
                else
                     clk_dwn[i].rd = 0;
@@ -168,12 +146,15 @@ endgenerate
 // The upstream data is registered
      always_ff @ (posedge CLK_IN)
      begin
+          // Default
+          clk_up.vld <= 0;
+
           for (int i = 0; i < P_PORTS; i++)
           begin
-               if (clk_dwn[i].sel)
+               if (clk_dwn[i].vld)
                begin
                     clk_up.dout <= clk_dwn[i].din;
-                    clk_up.vld <= clk_dwn[i].vld;
+                    clk_up.vld <= 1;
                end
           end
      end     

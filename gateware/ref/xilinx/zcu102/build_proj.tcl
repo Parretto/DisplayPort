@@ -15,27 +15,15 @@ add_files $SRC/lib/prt_dp_lib.sv
 add_files $SRC/lib/prt_dp_lib_if.sv
 add_files $SRC/lib/prt_dp_lib_mem.sv
 
-# Application
-add_files $SRC/app/dp_app_if.sv
-add_files $SRC/app/dp_app_ram.sv
-add_files $SRC/app/dp_app_rom.sv
-add_files $SRC/app/dp_app_top.sv
+# RISC-V
+add_files $SRC/risc-v/prt_riscv_lib.sv
+add_files $SRC/risc-v/prt_riscv_cpu_reg.sv
+add_files $SRC/risc-v/prt_riscv_cpu.sv
+add_files $SRC/risc-v/prt_riscv_rom.sv
+add_files $SRC/risc-v/prt_riscv_ram.sv
 
-# Kronos
-set KRONOS "../../ref/kronos/rtl/core"
-add_files $KRONOS/kronos_types.sv
-add_files $KRONOS/kronos_csr.sv
-add_files $KRONOS/kronos_EX.sv
-add_files $KRONOS/kronos_agu.sv
-add_files $KRONOS/kronos_branch.sv
-add_files $KRONOS/kronos_hcu.sv
-add_files $KRONOS/kronos_alu.sv
-add_files $KRONOS/kronos_ID.sv
-add_files $KRONOS/kronos_IF.sv
-add_files $KRONOS/kronos_counter64.sv
-add_files $KRONOS/kronos_lsu.sv
-add_files $KRONOS/kronos_RF.sv
-add_files $KRONOS/kronos_core.sv
+# Application
+add_files $SRC/app/dp_app_top.sv
 
 # DPTX
 add_files $SRC/tx/prt_dptx_ctl.sv

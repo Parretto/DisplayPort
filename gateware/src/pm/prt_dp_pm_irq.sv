@@ -86,7 +86,7 @@ typedef struct {
 } lb_struct;
 
 typedef struct {
-	logic	[P_CTL_WIDTH-1:0]		r;				// Register
+	logic	[P_CTL_WIDTH-1:0]	r;				// Register
 	logic						sel_set;			// Select set
 	logic						sel_clr;			// Select clear
 	logic						run;				// Run
@@ -96,7 +96,7 @@ typedef struct {
 } ctl_struct;
 
 typedef struct {
-	logic	[P_STA_WIDTH-1:0]		r;				// Register
+	logic	[P_STA_WIDTH-1:0]	r;				// Register
 	logic						sel;				// Select
 } sta_struct;
 
@@ -120,23 +120,12 @@ genvar i;
 	Registers
 */
 // Local bus inputs
-	always_ff @ (posedge RST_IN, posedge CLK_IN)
+	always_ff @ (posedge CLK_IN)
 	begin
-		if (RST_IN)
-		begin
-			clk_lb.adr	<= 0;
-			clk_lb.wr		<= 0;
-			clk_lb.rd		<= 0;
-			clk_lb.din	<= 0;
-		end
-
-		else
-		begin
-			clk_lb.adr	<= LB_IF.adr;
-			clk_lb.rd		<= LB_IF.rd;
-			clk_lb.wr		<= LB_IF.wr;
-			clk_lb.din	<= LB_IF.din;
-		end
+		clk_lb.adr	<= LB_IF.adr;
+		clk_lb.rd	<= LB_IF.rd;
+		clk_lb.wr	<= LB_IF.wr;
+		clk_lb.din	<= LB_IF.din;
 	end
 
 // Address selector

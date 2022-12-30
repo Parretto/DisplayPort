@@ -150,7 +150,7 @@ typedef struct {
 
 // Signals
 host_struct	clk_host;				// Host
-pm_struct		clk_pm;				// Policy maker
+pm_struct	clk_pm;					// Policy maker
 ram_struct 	clk_ram[0:P_BOXES-1];	// RAM
 mem_struct 	clk_mem;				// Memory
 box_struct	clk_box[0:P_BOXES-1];	// Box
@@ -169,8 +169,8 @@ genvar i;
 	always_ff @ (posedge CLK_IN)
 	begin
 		clk_host.adr	<= HOST_IF.adr;
-		clk_host.rd	<= HOST_IF.rd;
-		clk_host.wr	<= HOST_IF.wr;
+		clk_host.rd		<= HOST_IF.rd;
+		clk_host.wr		<= HOST_IF.wr;
 		clk_host.din	<= HOST_IF.din;
 	end
 
@@ -225,12 +225,12 @@ genvar i;
 	end
 
 	assign clk_host.ctl_run 		= clk_host.ctl_r[P_HOST_CTL_RUN];			// Run
-	assign clk_host.ctl_ie 		= clk_host.ctl_r[P_HOST_CTL_IE];			// Interrupt enable
+	assign clk_host.ctl_ie 			= clk_host.ctl_r[P_HOST_CTL_IE];			// Interrupt enable
 	assign clk_host.ctl_mem_str 	= clk_host.ctl_r[P_HOST_CTL_MEM_STR];		// Memory start
 	assign clk_host.ctl_mem_sel 	= clk_host.ctl_r[P_HOST_CTL_MEM_SEL];		// Memory select (0-ROM / 1-RAM)
-	assign clk_host.ctl_box_en[0] = clk_host.ctl_r[P_HOST_CTL_BOX_EN]; 	
-	assign clk_host.ctl_box_en[1] = clk_host.ctl_r[P_HOST_CTL_BOX_EN+1]; 
-	assign clk_host.ctl_box_en[2] = clk_host.ctl_r[P_HOST_CTL_BOX_EN+2]; 
+	assign clk_host.ctl_box_en[0] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN]; 	
+	assign clk_host.ctl_box_en[1] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN+1]; 
+	assign clk_host.ctl_box_en[2] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN+2]; 
 
 // Host Status register
 	assign clk_host.sta_r[P_HOST_STA_IRQ] = clk_host.sta_irq;
@@ -244,9 +244,13 @@ genvar i;
 	assign clk_host.sta_r[1+:2] 			= {clk_box[0].of, clk_box[0].ep};
 	assign clk_host.sta_r[3+:2] 			= {clk_box[1].of, clk_box[1].ep};
 	assign clk_host.sta_r[5+:2] 			= {clk_box[2].of, clk_box[2].ep};
+	assign clk_host.sta_r[7] 				= 0; // Not used
 	assign clk_host.sta_r[8+:P_BOX_ADR] 	= clk_box[0].wrds;
+	assign clk_host.sta_r[15:13] 			= 0; // Not used
 	assign clk_host.sta_r[16+:P_BOX_ADR] 	= clk_box[1].wrds;
+	assign clk_host.sta_r[23:21] 			= 0; // Not used
 	assign clk_host.sta_r[24+:P_BOX_ADR] 	= clk_box[2].wrds;
+	assign clk_host.sta_r[31:29] 			= 0; // Not used
 
 // Host Interrupt
 	always_ff @ (posedge RST_IN, posedge CLK_IN)

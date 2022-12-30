@@ -5,12 +5,13 @@
 
 
     Module: DP Application Top
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added scaler interface
+    v1.2 - Updated RISC-V processor
 
     License
     =======
@@ -26,11 +27,12 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-`default_nettype none
+//`default_nettype none
 
 module dp_app_top
 #(
     parameter P_VENDOR          = "none",
+    parameter P_SYS_FREQ        = 100_000_000,      // System frequency
     parameter P_HW_VER_MAJOR    = 1,   // Reference design version major
     parameter P_HW_VER_MINOR    = 0,   // Reference design minor
     parameter P_PIO_IN_WIDTH    = 32,
@@ -98,22 +100,22 @@ localparam P_ROM_SIZE = 64 * 1024;                     // ROM size in bytes
 localparam P_ROM_ADR = $clog2(P_ROM_SIZE);
 localparam P_RAM_SIZE = 64 * 1024;                      // RAM size in bytes
 localparam P_RAM_ADR = $clog2(P_RAM_SIZE);
-localparam P_UART_BEAT = 'd868; // 115200 baud @ 100 MHz system clock 
-localparam P_TMR_BEAT = 'd100; // 100 MHz
+localparam P_UART_BEAT = P_SYS_FREQ / 115200; //'d868; // 115200 baud @ 100 MHz system clock 
+localparam P_TMR_BEAT = P_SYS_FREQ / 1_000_000; //'d100; // 100 MHz
 localparam P_LB_MUX_PORTS = 9;
 
 // Interfaces
-prt_dp_app_rom_if 
+prt_riscv_rom_if 
 #(
-     .P_ADR_WIDTH (32)
+     .P_ADR_WIDTH (P_ROM_ADR)
 ) rom_if();
 
-prt_dp_app_ram_if 
+prt_riscv_ram_if 
 #(
      .P_ADR_WIDTH (32)
 ) ram_if_cpu();
 
-prt_dp_app_ram_if 
+prt_riscv_ram_if 
 #(
      .P_ADR_WIDTH (P_RAM_ADR)
 ) ram_if_ram();
@@ -147,11 +149,6 @@ wire            ram_str_from_aqua;
 wire            ram_vld_from_aqua;
 wire [31:0]     dat_from_aqua;
 
-// Mux
-logic           clk_mux_wr_ack;
-
-wire tx_from_uart;
-
 // Logic
 
 // Reset
@@ -166,60 +163,43 @@ wire tx_from_uart;
     end
 	
 // CPU
-     kronos_core 
-     #(
-          .BOOT_ADDR               ('h0),
-          .FAST_BRANCH             (0),
-          .EN_COUNTERS             (0),
-          .EN_COUNTERS64B          (0),
-          .CATCH_ILLEGAL_INSTR     (0),
-          .CATCH_MISALIGNED_JMP    (0),
-          .CATCH_MISALIGNED_LDST   (0)
-     )
-     CPU_INST
-     (
-          .clk                (CLK_IN),
-          .rstz               (~clk_rst),   // Reset is low active
-     
-     // Instruction interface
-          .instr_addr         (rom_if.adr),
-          .instr_data         (rom_if.dat),
-          .instr_req          (rom_if.req),
-          .instr_ack          (rom_if.ack),
-     
-     // Data interface
-          .data_addr          (ram_if_cpu.adr),
-          .data_rd_data       (ram_if_cpu.din),
-          .data_wr_data       (ram_if_cpu.dout),
-          .data_mask          (ram_if_cpu.msk),
-          .data_wr_en         (ram_if_cpu.wr),
-          .data_req           (ram_if_cpu.req),
-          .data_ack           (ram_if_cpu.ack),
-     
-     // Interrupt sources
-          .software_interrupt (1'b0),
-          .timer_interrupt    (1'b0),
-          .external_interrupt (irq_to_cpu)
-     );
+    prt_riscv_cpu
+    CPU_INST
+    (
+        // Clocks and reset
+        .RST_IN                 (clk_rst),         // Reset
+        .CLK_IN                 (CLK_IN),         // Clock
+
+        // ROM interface
+        .ROM_IF                 (rom_if),
+
+        // RAM interface
+        .RAM_IF                 (ram_if_cpu),
+
+        // Interrupt
+        .IRQ_IN                 (irq_to_cpu),
+        
+        // Status
+        .STA_ERR_OUT            ()         // Error
+    );
 
     // Data mapping
-    assign ram_if_cpu.ack = clk_mux_wr_ack || lb_to_mux.vld || ram_if_ram.ack;
-    assign ram_if_cpu.din = (lb_to_mux.vld) ? lb_to_mux.dout : ram_if_ram.dout;
+    assign ram_if_cpu.rd_vld = lb_to_mux.vld || ram_if_ram.rd_vld;
+    assign ram_if_cpu.rd_dat = (lb_to_mux.vld) ? lb_to_mux.dout : ram_if_ram.rd_dat;
 
     // Interrupt
     assign irq_to_cpu = DPTX_IRQ_IN || DPRX_IRQ_IN;
 
-// ROM
-    dp_app_rom
+    prt_riscv_rom
     #(
-        .P_VENDOR       (P_VENDOR),    // Vendor "xilinx" or "lattice"
+        .P_VENDOR       (P_VENDOR),    // Vendor "xilinx", "intel" or "lattice"
         .P_ADR          (P_ROM_ADR),   // Address bits
         .P_INIT_FILE    (P_ROM_INIT)   // Initilization file
     )
     ROM_INST
     (
         // Reset and clock
-        .RST_IN         (clk_rst),      // Reset
+        .RST_IN         (RST_IN),      // Reset
         .CLK_IN         (CLK_IN),      // Clock
 
         // ROM interface
@@ -232,16 +212,17 @@ wire tx_from_uart;
     );
 
 // RAM
-    dp_app_ram
+    prt_riscv_ram
     #(
-        .P_VENDOR       (P_VENDOR),     // Vendor "xilinx" or "lattice"
+        .P_VENDOR       (P_VENDOR),     // Vendor "xilinx", "intel" or "lattice"
         .P_ADR          (P_RAM_ADR),    // Address bits
         .P_INIT_FILE    (P_RAM_INIT)    // Initilization file
     )
     RAM_INST
     (
-        // Clock
-        .CLK_IN         (CLK_IN),     // Clock
+        // Reset and clock
+        .RST_IN         (RST_IN),      // Reset
+        .CLK_IN         (CLK_IN),   // Clock
 
         // RAM interface
         .RAM_IF         (ram_if_ram),
@@ -252,11 +233,11 @@ wire tx_from_uart;
         .INIT_VLD_IN    (ram_vld_from_aqua)     // Valid
     );
 
-    assign ram_if_ram.adr = ram_if_cpu.adr;
-    assign ram_if_ram.din = ram_if_cpu.dout;
-    assign ram_if_ram.wr  = ~ram_if_cpu.adr[31] && ram_if_cpu.wr && ram_if_cpu.req;
-    assign ram_if_ram.msk = ram_if_cpu.msk;
-    assign ram_if_ram.req = ~ram_if_cpu.adr[31] && ram_if_cpu.req;
+    assign ram_if_ram.adr       = ram_if_cpu.adr;
+    assign ram_if_ram.wr        = ~ram_if_cpu.adr[31] && ram_if_cpu.wr;
+    assign ram_if_ram.rd        = ~ram_if_cpu.adr[31] && ram_if_cpu.rd;
+    assign ram_if_ram.wr_dat    = ram_if_cpu.wr_dat;
+    assign ram_if_ram.wr_strb   = ram_if_cpu.wr_strb;
 
 // LB MUX
     prt_lb_mux
@@ -286,19 +267,9 @@ wire tx_from_uart;
    
     // Upstream
     assign lb_to_mux.adr = ram_if_cpu.adr[2+:22];
-    assign lb_to_mux.din = ram_if_cpu.dout;
-    assign lb_to_mux.wr = ram_if_cpu.adr[31] && ram_if_cpu.wr && ram_if_cpu.req;
-    assign lb_to_mux.rd = ram_if_cpu.adr[31] && !ram_if_cpu.wr && ram_if_cpu.req;
-
-    // Write acknowledge
-    // The CPU needs a acknowledge for the write and read cycle. 
-    // The read cycle is the local bus valid. 
-    // The write cycle acknowledge is the delayed write pulse
-
-    always_ff @ (posedge CLK_IN)
-    begin
-        clk_mux_wr_ack <= lb_to_mux.wr;
-    end
+    assign lb_to_mux.din = ram_if_cpu.wr_dat;
+    assign lb_to_mux.wr = ram_if_cpu.adr[31] && ram_if_cpu.wr;
+    assign lb_to_mux.rd = ram_if_cpu.adr[31] && ram_if_cpu.rd;
 
 // PIO
     prt_dp_pm_pio

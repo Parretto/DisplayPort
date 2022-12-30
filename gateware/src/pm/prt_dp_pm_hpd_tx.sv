@@ -69,9 +69,9 @@ localparam P_PLUG_THRES         = 'd250;      // 250 us
 localparam P_PULSE_THRES        = 'd500;      // 500 us
 
 // State machine
-enum {
+typedef enum {
 	sm_rst, sm_unplug_init, sm_unplug, sm_plug_init, sm_plug, sm_pulse_init, sm_pulse
-} clk_sm_cur, clk_sm_nxt;
+} state_type;
 
 // Structure
 typedef struct {
@@ -113,6 +113,7 @@ typedef struct {
 } hpd_struct;
 
 // Signals
+state_type          clk_sm_cur, clk_sm_nxt;
 logic               clk_beat_re;
 logic               clk_hpd_in;
 lb_struct           clk_lb;         // Local bus
@@ -126,23 +127,12 @@ hpd_struct          clk_hpd;
     Registers
 */
 // Local bus inputs
-    always_ff @ (posedge RST_IN, posedge CLK_IN)
+    always_ff @ (posedge CLK_IN)
     begin
-        if (RST_IN)
-        begin
-            clk_lb.adr      <= 0;
-            clk_lb.wr       <= 0;
-            clk_lb.rd       <= 0;
-            clk_lb.din      <= 0;
-        end
-
-        else
-        begin
-            clk_lb.adr      <= LB_IF.adr;
-            clk_lb.rd       <= LB_IF.rd;
-            clk_lb.wr       <= LB_IF.wr;
-            clk_lb.din      <= LB_IF.din;
-        end
+        clk_lb.adr      <= LB_IF.adr;
+        clk_lb.rd       <= LB_IF.rd;
+        clk_lb.wr       <= LB_IF.wr;
+        clk_lb.din      <= LB_IF.din;
     end
 
 // Address selector

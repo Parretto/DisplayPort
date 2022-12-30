@@ -38,4 +38,4 @@ a physical or non-tangible product or service that has substantial commercial, i
 # Contact
 Send an email to dp@parretto.com
 
-(c) 2021, 2022 by Parretto B.V.
+(c) 2021 - 2023 by Parretto B.V.

@@ -338,6 +338,32 @@ generate
     end
 endgenerate
 
+/*
+    generate
+        for (i = 0; i < P_LANES; i++)
+        begin : gen_lnk_dbg
+            for (j = 0; j < P_SPL; j++)
+            begin
+                assign lnk_dat_to_dbg[(i*P_SPL*9)+(j*9)+:9] = {lnk_if.k[i][j], lnk_if.dat[i][j]};
+            end
+        end
+    endgenerate
+
+// Debug
+    prt_dptx_debug
+    DGB_INST
+    (
+        // Link
+        .LNK_RST_IN     (rst_from_lnk_rst),     // Reset
+        .LNK_CLK_IN     (LNK_CLK_IN),           // Clock
+        .LNK_DAT_IN     (lnk_dat_to_dbg),       // Data
+
+        // Video source
+        .VID_RST_IN     (rst_from_vid_rst),     // Reset
+        .VID_CLK_IN     (VID_CLK_IN)            // Clock
+    );
+*/
+
 endmodule
 
 `default_nettype wire

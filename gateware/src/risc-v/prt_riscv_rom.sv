@@ -4,13 +4,12 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP Application ROM
-    (c) 2021, 2022 by Parretto B.V.
+    Module: RISC-V ROM
+    (c) 2022 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-    v1.1 - Added support for Intel FPGA
 
     License
     =======
@@ -28,7 +27,7 @@
 
 `default_nettype none
 
-module dp_app_rom
+module prt_riscv_rom
 #(
     parameter P_VENDOR      = "none",       // Vendor "xilinx", "lattice" or "intel"
     parameter P_ADR         = 16,           // Address bits
@@ -40,7 +39,7 @@ module dp_app_rom
 	input wire		           CLK_IN,			// Clock
 
 	// ROM interface
-	prt_dp_app_rom_if.slv      ROM_IF,
+	prt_riscv_rom_if.slv       ROM_IF,
 
     // Initialization
     input wire                 INIT_STR_IN,    // Start
@@ -55,11 +54,15 @@ localparam P_WRDS        = 2**P_ADR_WRDS;           // Words
 localparam P_MEMORY_SIZE = P_WRDS * P_DAT; // Memory size in bits
 
 // Signals
-wire [P_ADR_WRDS-1:0]   clk_addra;
-wire [31:0]             clk_dina;
-wire                    clk_wea;
+wire                    clk_en;
+wire [P_ADR_WRDS-1:0]   clk_adr;
+wire [31:0]             clk_din;
+wire                    clk_wr;
 logic [P_ADR_WRDS-1:0]  clk_wp;
-logic                   clk_ack;
+logic [1:0]             clk_vld;
+
+// Enable
+    assign clk_en = (INIT_VLD_IN) ? 1'b1 : ROM_IF.en;
 
 // Write pointer
     always_ff @ (posedge CLK_IN)
@@ -74,22 +77,20 @@ logic                   clk_ack;
     end
 
 // Port A address
-    assign clk_addra = (INIT_VLD_IN) ? clk_wp : ROM_IF.adr[2+:P_ADR_WRDS];
+    assign clk_adr = (INIT_VLD_IN) ? clk_wp : ROM_IF.adr[2+:P_ADR_WRDS];
 
 // Port A data
-    assign clk_dina = INIT_DAT_IN;
+    assign clk_din = INIT_DAT_IN;
 
 // Port A write
-    assign clk_wea = INIT_VLD_IN;
+    assign clk_wr = INIT_VLD_IN;
 
 generate
     if (P_VENDOR == "xilinx")
     begin : gen_xilinx
-
-        // XPM memory
         xpm_memory_spram
         #(
-            .READ_LATENCY_A             (1),                // DECIMAL
+            .READ_LATENCY_A             (2),                // DECIMAL
             .ADDR_WIDTH_A               (P_ADR_WRDS),       // DECIMAL
             .AUTO_SLEEP_TIME            (0),                // DECIMAL
             .BYTE_WRITE_WIDTH_A         (P_DAT),            // DECIMAL
@@ -111,16 +112,16 @@ generate
         ROM_INST
         (
           .douta            (ROM_IF.dat),           // READ_DATA_WIDTH_A-bit output: Data output for port A read operations.
-          .addra            (clk_addra),            // ADDR_WIDTH_A-bit input: Address for port A write operations.
+          .addra            (clk_adr),              // ADDR_WIDTH_A-bit input: Address for port A write operations.
           .clka             (CLK_IN),               // 1-bit input: Clock signal for port A. Also clocks port B when parameter CLOCKING_MODE is "common_clock".
-          .dina             (clk_dina),             // WRITE_DATA_WIDTH_A-bit input: Data input for port A write operations.
-          .ena              (1'b1),                 // 1-bit input: Memory enable signal for port A. Must be high on clock cycles when write operations are initiated. Pipelined internally.
+          .dina             (clk_din),              // WRITE_DATA_WIDTH_A-bit input: Data input for port A write operations.
+          .ena              (clk_en),               // 1-bit input: Memory enable signal for port A. Must be high on clock cycles when write operations are initiated. Pipelined internally.
           .injectdbiterra   (1'b0),                 // 1-bit input: Controls double bit error injection on input data when
           .injectsbiterra   (1'b0),                 // 1-bit input: Controls single bit error injection on input data when
-          .regcea           (1'b1),                 // 1-bit input: Clock Enable for the last register stage on the output data path.
+          .regcea           (clk_en),               // 1-bit input: Clock Enable for the last register stage on the output data path.
           .rsta             (RST_IN),               // 1-bit input: Reset signal for the final port B output register stage.
           .sleep            (1'b0),                 // 1-bit input: sleep signal to enable the dynamic power saving feature.
-          .wea              (clk_wea),              // WRITE_DATA_WIDTH_A-bit input: Write enable vector for port A input
+          .wea              (clk_wr),               // WRITE_DATA_WIDTH_A-bit input: Write enable vector for port A input
           .sbiterra         (),
           .dbiterra         ()
         );
@@ -128,43 +129,21 @@ generate
 
     else if (P_VENDOR == "lattice")
     begin : gen_lattice
-
-
-        dp_app_rom_lat
+        prt_riscv_rom_lat
         ROM_INST
         (
-            .rst_i          (1'b0),           // Reset - This signal must be wired to zero. The ROM is updated through the Aqua interface while in reset
-            .clk_i          (CLK_IN),         // Clock
-            .clk_en_i       (1'b1),           // Clock enable
-            .addr_i         (clk_addra),      // Address
-            .wr_en_i        (clk_wea),        // Write enable
-            .wr_data_i      (clk_dina),       // Write data
-            .rd_data_o      (ROM_IF.dat)      // Read data
+            .rst_i              (1'b0), 
+            .dps_i              (1'b0),
+            .clk_i              (CLK_IN), 
+            .clk_en_i           (clk_en), 
+            .wr_en_i            (clk_wr), 
+            .addr_i             (clk_adr), 
+            .wr_data_i          (clk_din),
+            .rdout_clken_i      (clk_en),  
+            .rd_data_o          (ROM_IF.dat),
+            .lramready_o        (), 
+            .rd_datavalid_o     ()
         );
-/*
-
-        pmi_ram_dq
-        #(
-            .pmi_addr_depth       (P_WRDS),         // integer
-            .pmi_addr_width       (P_ADR_WRDS),     // integer
-            .pmi_data_width       (P_DAT),          // integer
-            .pmi_regmode          ("noreg"),        // "reg"|"noreg"
-            .pmi_resetmode        ("async"),        // "async"|"sync"
-            .pmi_init_file        (P_INIT_FILE),    // string
-            .pmi_init_file_format ("binary"),       // "binary"|"hex"
-            .pmi_family           ("LFCPNX")        // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
-        ) 
-        ROM_INST
-        (
-            .Reset      (1'b0),  
-            .Clock      (CLK_IN),  
-            .ClockEn    (1'b1),
-            .Address    (clk_addra),  
-            .WE         (clk_wea),  
-            .Data       (clk_dina), 
-            .Q          (ROM_IF.dat)  
-        );
-*/
     end
 
     else if (P_VENDOR == "intel")
@@ -191,10 +170,10 @@ generate
         )
         ROM_INST
         (
-            .address_a                          (clk_addra),
+            .address_a                          (clk_adr),
             .clock0                             (CLK_IN),
-            .data_a                             (clk_dina),
-            .wren_a                             (clk_wea),
+            .data_a                             (clk_din),
+            .wren_a                             (clk_wr),
             .q_b                                (),
             .aclr0                              (1'b0),
             .aclr1                              (1'b0),
@@ -228,20 +207,21 @@ generate
 
 endgenerate
 
-
-// The memory has one clock cycle latency
+// The memory has two clock cycles latency
     always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
         // Reset
         if (RST_IN)
-            clk_ack <= 0;
+            clk_vld <= 0;
 
         else
-            clk_ack <= ROM_IF.req;
+        begin
+            clk_vld <= {clk_vld[0], ROM_IF.rd};  
+        end     
     end
 
 // Outputs
-    assign ROM_IF.ack = clk_ack;
+    assign ROM_IF.vld = clk_vld[$left(clk_vld)];
 
 endmodule
 

@@ -79,14 +79,17 @@ logic clk_a_fe;
 endmodule
 
 /*
-	Bit clock domain crossing
+	Clock domain crossing
 */
-module prt_scaler_lib_cdc_bit
+module prt_scaler_lib_cdc
+#(
+	parameter P_WIDTH = 1
+)
 (
-	input wire		SRC_CLK_IN,		// Clock
-	input wire 		SRC_DAT_IN,		// Data
-	input wire		DST_CLK_IN,		// Clock
-	output wire 		DST_DAT_OUT		// Data
+	input wire				SRC_CLK_IN,		// Clock
+	input wire [P_WIDTH-1:0] 	SRC_DAT_IN,		// Data
+	input wire				DST_CLK_IN,		// Clock
+	output wire [P_WIDTH-1:0] 	DST_DAT_OUT		// Data
 );
 
 // Parameters
@@ -95,8 +98,8 @@ localparam P_STAGES = 4;
 // Signals
 // The signals must have an unique name,
 // so they can be found by the set_false_path constraint
-(* dont_touch = "yes" *) logic 					prt_scaler_lib_cdc_bit_sclk_dat;
-(* dont_touch = "yes" *) logic [P_STAGES-1:0]	prt_scaler_lib_cdc_bit_dclk_dat;
+(* dont_touch = "yes" *) logic [P_WIDTH-1:0]		prt_scaler_lib_cdc_bit_sclk_dat;
+(* dont_touch = "yes" *) logic [P_WIDTH-1:0]		prt_scaler_lib_cdc_bit_dclk_dat[P_STAGES-1:0];
 
 // Logic
 

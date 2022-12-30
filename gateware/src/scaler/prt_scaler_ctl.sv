@@ -45,6 +45,8 @@ module prt_scaler_ctl
 
 	// Control output
 	output wire 					CTL_RUN_OUT,		// Run
+	output wire [3:0]				CTL_MODE_OUT, 		// Mode
+	output wire [3:0]				CTL_CR_OUT,			// Clock ratio
 
 	// Video parameter set
 	output wire [3:0]				VPS_IDX_OUT,		// Index
@@ -54,39 +56,41 @@ module prt_scaler_ctl
 
 // Parameters
 localparam P_CTL_RUN = 0;
-localparam P_CTL_WIDTH = 5;
+localparam P_CTL_WIDTH = 32;
 localparam P_RAM_ADR = 4;
 localparam P_RAM_DAT = 16;
 
 // Structures
 typedef struct {
-	logic	[7:0]		adr;
-	logic				wr;
-	logic				rd;
-	logic	[31:0]		din;
-	logic	[31:0]		dout;
-	logic				vld;
+	logic	[7:0]			adr;
+	logic					wr;
+	logic					rd;
+	logic	[31:0]			din;
+	logic	[31:0]			dout;
+	logic					vld;
 } lb_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [P_CTL_WIDTH-1:0]	r;
-	logic				run;
-	logic [3:0]			vps;
+	logic					run;
+	logic [3:0]				mode;
+	logic [3:0]				cr;
+	logic [3:0]				vps;
 } ctl_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [P_RAM_ADR-1:0]	adr;
-	logic 				wr;
+	logic 					wr;
 	logic [P_RAM_DAT-1:0]	din;
 } vps_wr_struct;
 
 typedef struct {
 	logic [P_RAM_ADR-1:0]	adr[0:1];
-	logic 				rd;
+	logic 					rd;
 	logic [P_RAM_DAT-1:0]	dout;
-	logic 				vld;
+	logic 					vld;
 } vps_rd_struct;
 
 // Signals
@@ -94,7 +98,9 @@ lb_struct		sclk_lb;
 ctl_struct		sclk_ctl;
 vps_wr_struct 	sclk_vps;
 vps_rd_struct 	vclk_vps;
-logic			vclk_run;
+wire			vclk_run;
+wire  [3:0]		vclk_mode;
+wire  [3:0]		vclk_cr;
 
 // Logic
 
@@ -117,7 +123,7 @@ logic			vclk_run;
 
 		case (sclk_lb.adr)
 			'd1  	: sclk_vps.sel = 1;
-			default 	: sclk_ctl.sel = 1;
+			default : sclk_ctl.sel = 1;
 		endcase
 	end
 
@@ -137,8 +143,10 @@ logic			vclk_run;
 	end
 
 // Assign control bits
-	assign sclk_ctl.run	= sclk_ctl.r[P_CTL_RUN];	// Run
-	assign sclk_ctl.vps	= sclk_ctl.r[1+:4];		// Video parameters address
+	assign sclk_ctl.run		= sclk_ctl.r[P_CTL_RUN];	// Run
+	assign sclk_ctl.mode	= sclk_ctl.r[1+:4];			// Mode
+	assign sclk_ctl.cr		= sclk_ctl.r[5+:4];			// Clock ratio
+	assign sclk_ctl.vps		= sclk_ctl.r[9+:4];			// Video parameters address
 
 // Register data out
 // Must be combinatorial
@@ -161,6 +169,45 @@ logic			vclk_run;
 		else
 			sclk_lb.vld = 0;
 	end
+
+// Control run clock domain crossing
+    prt_scaler_lib_cdc
+    #(
+    	.P_WIDTH 		(1) 
+    )
+    CTL_RUN_CDC_INST
+    (
+        .SRC_CLK_IN     (SYS_CLK_IN),  	// Clock
+        .SRC_DAT_IN  	(sclk_ctl.run), // Data
+        .DST_CLK_IN     (VID_CLK_IN),   // Clock
+        .DST_DAT_OUT 	(vclk_run)   	// Data
+    );
+
+// Cross mode value
+	prt_scaler_lib_cdc
+	#(
+		.P_WIDTH		($size(sclk_ctl.mode))
+	)
+	CTL_MODE_CDC_INST
+	(
+		.SRC_CLK_IN		(SYS_CLK_IN),		// Clock
+		.SRC_DAT_IN		(sclk_ctl.mode),	// Data
+		.DST_CLK_IN		(VID_CLK_IN),		// Clock
+		.DST_DAT_OUT	(vclk_mode)			// Data
+	);
+
+// Cross clock ratio value
+	prt_scaler_lib_cdc
+	#(
+		.P_WIDTH		($size(sclk_ctl.cr))
+	)
+	CTL_CR_CDC_INST
+	(
+		.SRC_CLK_IN		(SYS_CLK_IN),		// Clock
+		.SRC_DAT_IN		(sclk_ctl.cr),		// Data
+		.DST_CLK_IN		(VID_CLK_IN),		// Clock
+		.DST_DAT_OUT	(vclk_cr)			// Data
+	);
 
 /*
 	VPS
@@ -245,22 +292,14 @@ logic			vclk_run;
 			vclk_vps.rd <= 0;
 	end
 
-    // Control run clock domain crossing
-    prt_scaler_lib_cdc_bit
-    CTL_RUN_CDC_INST
-    (
-        .SRC_CLK_IN     (SYS_CLK_IN),  	// Clock
-        .SRC_DAT_IN     (sclk_ctl.run), // Data
-        .DST_CLK_IN     (VID_CLK_IN),   // Clock
-        .DST_DAT_OUT    (vclk_run)   	// Data
-    );
-
 // Outputs
 	assign LB_IF.dout 		= sclk_lb.dout;
 	assign LB_IF.vld		= sclk_lb.vld;
 
 	// Control
 	assign CTL_RUN_OUT		= vclk_run;
+	assign CTL_MODE_OUT		= vclk_mode;
+	assign CTL_CR_OUT		= vclk_cr;
 
 	// VPS	
 	assign VPS_DAT_OUT 		= vclk_vps.dout;

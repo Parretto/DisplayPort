@@ -4,8 +4,8 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP Application Interfaces
-    (c) 2021, 2022 by Parretto B.V.
+    Module: RISC-V CPU registers
+    (c) 2022 by Parretto B.V.
 
     History
     =======
@@ -27,40 +27,69 @@
 
 `default_nettype none
 
-/*
-	ROM interface
-*/
-interface prt_dp_app_rom_if
+module prt_riscv_cpu_reg
 #(
-	parameter P_ADR_WIDTH = 16				// Address width
+	parameter P_REGS = 16,				// Number of registers
+	parameter P_IDX = 4
+)
+(
+	// Clock
+	input wire 					CLK_IN,			// Clock
+
+	// Destination register
+	input wire [P_IDX-1:0]		RD_IDX_IN,		// IDX
+	input wire [31:0]			RD_DAT_IN,		// Data
+	input wire 					RD_WR_IN,		// Write
+
+	// Source register 1
+	input wire [P_IDX-1:0]		RS1_IDX_IN,
+	output wire [31:0]			RS1_DAT_OUT,
+
+	// Source register 2
+	input wire [P_IDX-1:0]		RS2_IDX_IN,
+	output wire [31:0]			RS2_DAT_OUT
 );
-	logic	[P_ADR_WIDTH-1:0] 	adr;
-	logic	[31:0]			dat;
-	logic					req;
-	logic					ack;
-	modport mst (output adr, input dat, output req, input ack);
-	modport slv (input adr, output dat, input req, output ack);
 
-endinterface
+// Signals
+(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
+logic [31:0]	clk_rs1_dat;
+logic [31:0]	clk_rs2_dat;
 
-/*
-	RAM interface
-*/
-interface prt_dp_app_ram_if
-#(
-	parameter P_ADR_WIDTH = 16				// Address width
-);
-	logic	[P_ADR_WIDTH-1:0] 	adr;
-	logic					wr;
-	logic	[3:0]			msk;
-	logic	[31:0]			din;
-	logic	[31:0]			dout;
-	logic					req;
-	logic					ack;
+// Write
+// The destination register is always updated.
+// In case of idle the first register is written.
+// This register is hardwired to zero when read.
+	always_ff @ (posedge CLK_IN)
+	begin
+		// Write
+		if (RD_WR_IN)
+			clk_reg[RD_IDX_IN] <= RD_DAT_IN;
+	end
 
-	modport mst (output adr, output wr, output msk, output dout, input din, output req, input ack);
-	modport slv (input adr, input wr, input din, input msk, output dout, input req, output ack);
+// RS1
+	always_comb
+	begin
+		// First register is hardwired to zero
+		if (RS1_IDX_IN == 0)
+			clk_rs1_dat = 0;
+		else
+			clk_rs1_dat = clk_reg[RS1_IDX_IN];
+	end
 
-endinterface
+// RS2
+	always_comb
+	begin
+		// First register is hardwired to zero
+		if (RS2_IDX_IN == 0)
+			clk_rs2_dat = 0;
+		else
+			clk_rs2_dat = clk_reg[RS2_IDX_IN];
+	end
+
+// Outputs
+	assign RS1_DAT_OUT = clk_rs1_dat;
+	assign RS2_DAT_OUT = clk_rs2_dat;
+
+endmodule
 
 `default_nettype wire

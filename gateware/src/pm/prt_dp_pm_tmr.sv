@@ -106,7 +106,7 @@ typedef struct {
 } alrm_struct;
 
 // Signals
-lb_struct				clk_lb;		// Local bus
+lb_struct			clk_lb;		// Local bus
 ctl_struct			clk_ctl;		// Control register
 sta_struct			clk_sta;		// Status register
 tmr_struct			clk_tmr;		// Timer
@@ -123,8 +123,8 @@ genvar i;
 	always_ff @ (posedge CLK_IN)
 	begin
 		clk_lb.adr	<= LB_IF.adr;
-		clk_lb.rd		<= LB_IF.rd;
-		clk_lb.wr		<= LB_IF.wr;
+		clk_lb.rd	<= LB_IF.rd;
+		clk_lb.wr	<= LB_IF.wr;
 		clk_lb.din	<= LB_IF.din;
 	end
 

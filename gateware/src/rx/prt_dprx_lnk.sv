@@ -438,7 +438,7 @@ endgenerate
     VID_INST
     (
         // Control
-        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
 
         // Link sink
         .LNK_RST_IN         (LNK_RST_IN),           // Reset
