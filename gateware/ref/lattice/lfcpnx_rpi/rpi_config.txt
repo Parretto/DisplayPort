@@ -1,0 +1,19 @@
+###
+# RPI demo
+# Add this section to the RPI /boot/config.txt to enable the DPI interface with 720p resolution
+###
+
+# DPI mode
+dtparam=i2c_arm=off
+dtparam=spi=off
+dtoverlay=dpi24
+framebuffer_width=1280
+framebuffer_height=720
+dpi_output_format=04217
+enable_dpi_lcd=1
+display_default_lcd=1
+dpi_timings=1280 0 440 40 220 720 0 5 5 20 0 0 0 50 0 74250000 3
+dpi_group=2
+dpi_mode=87
+#lcd_rotate=1
+
