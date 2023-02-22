@@ -64,16 +64,13 @@ module prt_vtb_top
     input wire          					AXIS_VLD_IN,    		// Valid
 
     // Video out
+	output wire  							VID_LOCK_OUT,			// Lock
   	output wire 							VID_VS_OUT,				// Vsync
   	output wire 							VID_HS_OUT,				// Hsync
   	output wire [(P_BPC * P_PPC)-1:0]		VID_R_OUT,				// Red
   	output wire [(P_BPC * P_PPC)-1:0]		VID_G_OUT,				// Green
   	output wire [(P_BPC * P_PPC)-1:0]		VID_B_OUT,				// Blue
-   	output wire 							VID_DE_OUT,				// Data enable out
-
-	// Debug
-	output wire 							DBG_CR_SYNC_END_OUT,	// Sync end out
-	output wire 							DBG_CR_PIX_END_OUT		// Pixel end out
+   	output wire 							VID_DE_OUT				// Data enable out
 );
 
 // Localparameters
@@ -332,8 +329,8 @@ endgenerate
 		.DIA_VLD_OUT		(DIA_VLD_OUT),
 
 		// Debug
-		.DBG_SYNC_END_OUT	(DBG_CR_SYNC_END_OUT),			// Sync end out
-		.DBG_PIX_END_OUT	(DBG_CR_PIX_END_OUT)			// Pixel end out
+		.DBG_SYNC_END_OUT	(),								// Sync end out
+		.DBG_PIX_END_OUT	()								// Pixel end out
 	);
 
 // Clock generator
@@ -578,6 +575,7 @@ endgenerate
 	);
 
 // Outputs
+	assign VID_LOCK_OUT = (run_to_tpg) ? 1'b1 : lock_from_fifo;
 	assign VID_VS_OUT   = (run_to_tpg) ? vid_vs_from_tpg : vid_vs_from_fifo;
 	assign VID_HS_OUT   = (run_to_tpg) ? vid_hs_from_tpg : vid_hs_from_fifo;
 	assign VID_R_OUT 	= (run_to_tpg) ? vid_r_from_tpg  : vid_r_from_fifo;

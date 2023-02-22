@@ -1,14 +1,23 @@
 /*
+     __        __   __   ___ ___ ___  __  
+    |__)  /\  |__) |__) |__   |   |  /  \ 
+    |    /~~\ |  \ |  \ |___  |   |  \__/ 
+
+
     RPI_DPI
     This module captures the video data from the Raspberry PI DPI interface.
     Then it converts it from single pixel per clock to quad pixel per clock.
 
-    (c) 2022 by Parretto B.V.
+    (c) 2022 - 2023 by Parretto B.V.
 */
 
 `default_nettype none
 
 module rpi_dpi
+#(
+    // System
+    parameter                   P_VENDOR    = "none"  // Vendor "xilinx", "lattice" or "intel"
+)
 (
     // Reset and clock
     input wire                  SYS_RST_IN,
@@ -27,8 +36,12 @@ module rpi_dpi
     input wire [7:0]            DPI_G_IN,
     input wire [7:0]            DPI_B_IN,
 
+    output wire                 DPI_REF_CLK_OUT,
+
     // Video output
-    output wire                 VID_CKE_OUT,
+    input wire                  VID_CLK_IN,
+    input wire                  VID_CKE_IN,
+    output wire                 VID_LOCK_OUT,
     output wire                 VID_VS_OUT,
     output wire                 VID_HS_OUT,
     output wire [(4*8)-1:0]     VID_R_OUT,
@@ -42,6 +55,11 @@ module rpi_dpi
 localparam P_CTL_RUN        = 0;
 localparam P_CTL_ORDER      = 1;
 localparam P_CTL_WIDTH      = 3;
+
+// FIFO
+localparam P_FIFO_WRDS = 16;
+localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
+localparam P_FIFO_DAT = 24 + 1; 
 
 // Structure
 typedef struct {
@@ -82,10 +100,19 @@ typedef struct {
 } sta_struct;
 
 typedef struct {
+    logic                       ref_clk;
+    logic                       run;
+    logic [3:0]                 lock;
+    logic [1:0]                 cnt;
     logic                       vs;
+    logic                       vs_re;
     logic                       hs;
+    logic                       hs_re;
+    logic                       hs_fe;
     logic                       den;
-    logic                       den_fe;
+    logic                       de;
+    logic                       de_re;
+    logic                       de_fe;
     logic   [7:0]               r;
     logic   [7:0]               g;
     logic   [7:0]               b;
@@ -99,21 +126,24 @@ typedef struct {
 } mux_struct;
 
 typedef struct {
+    logic [P_FIFO_DAT-1:0]      din;
+    logic [3:0]                 wr;
+} dpi_fifo_struct;
+
+typedef struct {
+    logic                       rd;
+    logic [P_FIFO_DAT-1:0]      dout[0:3];
+    logic [3:0]                 de;
+    logic [P_FIFO_ADR:0]        wrds[0:3];
+    logic [3:0]                 ep;
+    logic                       rdy;
+} vid_fifo_struct;
+
+typedef struct {
     logic                       run;
-    logic   [1:0]               cke_cnt;
-    logic                       cke;
+    logic                       lock;
     logic                       vs;
-    logic                       vs_re;
     logic                       hs;
-    logic                       hs_re;
-    logic                       hs_fe;
-    logic                       de;
-    logic                       de_re;
-    logic                       de_fe;
-    logic   [(4*8)-1:0]         r;
-    logic   [(4*8)-1:0]         g;
-    logic   [(4*8)-1:0]         b;
-    logic   [1:0]               pix_cnt;
 } vid_struct;
 
 typedef struct {
@@ -142,10 +172,14 @@ typedef struct {
 lb_struct           sclk_lb;         // Local bus
 ctl_struct          sclk_ctl;        // Control register
 sta_struct          sclk_sta;        // Control register
-dpi_struct          vclk_dpi;
-mux_struct          vclk_mux;
+dpi_struct          dclk_dpi;
+mux_struct          dclk_mux;
+dpi_fifo_struct     dclk_fifo;
+mon_struct          dclk_mon;
+vid_fifo_struct     vclk_fifo;
 vid_struct          vclk_vid;
-mon_struct          vclk_mon;
+
+genvar i;
 
 // Logic
 
@@ -261,220 +295,290 @@ mon_struct          vclk_mon;
     assign sclk_ctl.run     = sclk_ctl.r[P_CTL_RUN];                               // Run
     assign sclk_ctl.order   = sclk_ctl.r[P_CTL_ORDER+:$size(sclk_ctl.order)];    // RGB order
 
-// Video run
+// DPI run
     prt_dp_lib_cdc_bit
-    VID_RUN_CDC_INST
+    DPI_RUN_CDC_INST
     (
        .SRC_CLK_IN      (SYS_CLK_IN),
        .SRC_DAT_IN      (sclk_ctl.run),
        .DST_CLK_IN      (DPI_CLK_IN),
-       .DST_DAT_OUT     (vclk_vid.run)
+       .DST_DAT_OUT     (dclk_dpi.run)
     );
 
 // DPI input Registers
     always_ff @ (posedge DPI_CLK_IN)
     begin
-        vclk_dpi.vs  <= DPI_VS_IN;
-        vclk_dpi.hs  <= DPI_HS_IN;
-        vclk_dpi.den <= DPI_DEN_IN;
-        vclk_dpi.r   <= DPI_R_IN;
-        vclk_dpi.g   <= DPI_G_IN;
-        vclk_dpi.b   <= DPI_B_IN;    
+        dclk_dpi.vs  <= DPI_VS_IN;
+        dclk_dpi.hs  <= DPI_HS_IN;
+        dclk_dpi.den <= DPI_DEN_IN;
+        dclk_dpi.r   <= DPI_R_IN;
+        dclk_dpi.g   <= DPI_G_IN;
+        dclk_dpi.b   <= DPI_B_IN;    
     end
 
-// DEN edge detector
-// This used for the clock enable generator
-    prt_dp_lib_edge
-    DPI_DEN_EDGE_INST
-    (
-        .CLK_IN         (DPI_CLK_IN),       // Clock
-        .CKE_IN         (1'b1),             // Clock enable
-        .A_IN           (vclk_dpi.den),     // Input
-        .RE_OUT         (),                 // Rising edge
-        .FE_OUT         (vclk_dpi.den_fe)   // Falling edge
-    );
+// Invert DE
+    assign dclk_dpi.de = ~dclk_dpi.den;
 
-// Clock enable generator
+// DPI reference clock out
+// This is used as a reference clock for the external video clock generator
     always_ff @ (posedge DPI_CLK_IN)
     begin
-        // Run
-        if (vclk_vid.run)
-        begin
-            // Default
-            vclk_vid.cke <= 0;
-
-            // Set counter on falling edge DEN
-            if (vclk_dpi.den_fe)
-                vclk_vid.cke_cnt <= 'd1;
-            
-            else
-            begin
-                // Overflow
-                if (vclk_vid.cke_cnt == 'd3)
-                begin
-                    vclk_vid.cke <= 1;
-                    vclk_vid.cke_cnt <= 0;
-                end
-
-                // Increment
-                else
-                    vclk_vid.cke_cnt <= vclk_vid.cke_cnt + 'd1;
-            end
-        end
-
-        // Idle
-        else
-        begin
-            vclk_vid.cke <= 0;
-            vclk_vid.cke_cnt <= 0;
-        end
-    end
-
-// Pixel counter
-    always_ff @ (posedge DPI_CLK_IN)
-    begin
-        // Active line
-        if (!vclk_dpi.den)
-        begin
-            // Overflow
-            if (vclk_vid.pix_cnt == 'd3)
-                vclk_vid.pix_cnt <= 0;
-            else
-                vclk_vid.pix_cnt <= vclk_vid.pix_cnt + 'd1;
-        end
-
-        // Idle
-        else
-            vclk_vid.pix_cnt <= 0;
+        dclk_dpi.ref_clk <= ~dclk_dpi.ref_clk;
     end
 
     // MUX select CDC
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mux.sel))
+        .P_WIDTH ($size(dclk_mux.sel))
     )
     VID_MUX_SEL_INST
     (
         .SRC_CLK_IN     (SYS_CLK_IN),       // Clock
         .SRC_DAT_IN     (sclk_ctl.order),   // Data
         .DST_CLK_IN     (DPI_CLK_IN),       // Clock
-        .DST_DAT_OUT    (vclk_mux.sel)      // Data
+        .DST_DAT_OUT    (dclk_mux.sel)      // Data
     );
 
 // RGB order mux
 // This mux allows to change the RGB order
     always_comb
     begin
-        case (vclk_mux.sel)
+        case (dclk_mux.sel)
 
             // BGR
             'd1 : 
             begin
-                vclk_mux.r <= vclk_dpi.b;
-                vclk_mux.g <= vclk_dpi.g;
-                vclk_mux.b <= vclk_dpi.r;
+                dclk_mux.r <= dclk_dpi.b;
+                dclk_mux.g <= dclk_dpi.g;
+                dclk_mux.b <= dclk_dpi.r;
             end                
 
             // GBR 
             'd2 : 
             begin
-                vclk_mux.r <= vclk_dpi.g;
-                vclk_mux.g <= vclk_dpi.b;
-                vclk_mux.b <= vclk_dpi.r;
+                dclk_mux.r <= dclk_dpi.g;
+                dclk_mux.g <= dclk_dpi.b;
+                dclk_mux.b <= dclk_dpi.r;
             end                
 
             // BRG
             'd3 : 
             begin
-                vclk_mux.r <= vclk_dpi.b;
-                vclk_mux.g <= vclk_dpi.r;
-                vclk_mux.b <= vclk_dpi.g;
+                dclk_mux.r <= dclk_dpi.b;
+                dclk_mux.g <= dclk_dpi.r;
+                dclk_mux.b <= dclk_dpi.g;
             end                
 
             // RGB
             default : 
             begin
-                vclk_mux.r <= vclk_dpi.r;
-                vclk_mux.g <= vclk_dpi.g;
-                vclk_mux.b <= vclk_dpi.b;
+                dclk_mux.r <= dclk_dpi.r;
+                dclk_mux.g <= dclk_dpi.g;
+                dclk_mux.b <= dclk_dpi.b;
             end                
         endcase
     end
 
-// Pixel packer
-    always_ff @ (posedge DPI_CLK_IN)
-    begin
-        case (vclk_vid.pix_cnt)
-            'd1 : 
-            begin
-                vclk_vid.r[(1*8)+:8] <= vclk_mux.r;
-                vclk_vid.g[(1*8)+:8] <= vclk_mux.g;
-                vclk_vid.b[(1*8)+:8] <= vclk_mux.b;
-            end
-
-            'd2 : 
-            begin
-                vclk_vid.r[(2*8)+:8] <= vclk_mux.r;
-                vclk_vid.g[(2*8)+:8] <= vclk_mux.g;
-                vclk_vid.b[(2*8)+:8] <= vclk_mux.b;
-            end
-
-            'd3 : 
-            begin
-                vclk_vid.r[(3*8)+:8] <= vclk_mux.r;
-                vclk_vid.g[(3*8)+:8] <= vclk_mux.g;
-                vclk_vid.b[(3*8)+:8] <= vclk_mux.b;
-            end
-
-            default : 
-            begin
-                vclk_vid.r[(0*8)+:8] <= vclk_mux.r;
-                vclk_vid.g[(0*8)+:8] <= vclk_mux.g;
-                vclk_vid.b[(0*8)+:8] <= vclk_mux.b;
-            end
-        endcase
-    end
-
-// Video output registers
-    always_ff @ (posedge DPI_CLK_IN)
-    begin
-        vclk_vid.vs <= vclk_dpi.vs;
-        vclk_vid.hs <= vclk_dpi.hs;
-        vclk_vid.de <= ~vclk_dpi.den;
-    end
-
 // VS edge detector
     prt_dp_lib_edge
-    VID_VS_EDGE_INST
+    DPI_VS_EDGE_INST
     (
         .CLK_IN         (DPI_CLK_IN),       // Clock
         .CKE_IN         (1'b1),             // Clock enable
-        .A_IN           (vclk_vid.vs),      // Input
-        .RE_OUT         (vclk_vid.vs_re),   // Rising edge
+        .A_IN           (dclk_dpi.vs),      // Input
+        .RE_OUT         (dclk_dpi.vs_re),   // Rising edge
         .FE_OUT         ()                  // Falling edge
     );
 
 // HS edge detector
     prt_dp_lib_edge
-    VID_HS_EDGE_INST
+    DPI_HS_EDGE_INST
     (
         .CLK_IN         (DPI_CLK_IN),       // Clock
         .CKE_IN         (1'b1),             // Clock enable
-        .A_IN           (vclk_vid.hs),      // Input
-        .RE_OUT         (vclk_vid.hs_re),   // Rising edge
-        .FE_OUT         (vclk_vid.hs_fe)    // Falling edge
+        .A_IN           (dclk_dpi.hs),      // Input
+        .RE_OUT         (dclk_dpi.hs_re),   // Rising edge
+        .FE_OUT         (dclk_dpi.hs_fe)    // Falling edge
     );
 
-// DEN edge detector
+// VS edge detector
     prt_dp_lib_edge
-    VID_DE_EDGE_INST
+    DPI_DE_EDGE_INST
     (
-        .CLK_IN         (DPI_CLK_IN),      // Clock
-        .CKE_IN         (1'b1),            // Clock enable
-        .A_IN           (vclk_vid.de),     // Input
-        .RE_OUT         (vclk_vid.de_re),  // Rising edge
-        .FE_OUT         (vclk_vid.de_fe)   // Falling edge
+        .CLK_IN         (DPI_CLK_IN),       // Clock
+        .CKE_IN         (1'b1),             // Clock enable
+        .A_IN           (dclk_dpi.de),    // Input
+        .RE_OUT         (dclk_dpi.de_re),   // Rising edge
+        .FE_OUT         (dclk_dpi.de_fe)    // Falling edge
     );
+
+// Lock
+    always_ff @ (posedge DPI_CLK_IN)
+    begin
+        // Run
+        if (dclk_dpi.run)
+        begin
+            if (dclk_dpi.vs_re)       
+                dclk_dpi.lock[0] <= 1;
+
+            // The lock must be delayed for three cycles to align the fifo write with the counter.
+            dclk_dpi.lock[$high(dclk_dpi.lock):1] <= dclk_dpi.lock[$high(dclk_dpi.lock)-1:0];
+        end
+
+        // Idle
+        else
+            dclk_dpi.lock <= 0;
+    end
+    
+// Counter
+    always_ff @ (posedge DPI_CLK_IN)
+    begin
+        // Run
+        if (dclk_dpi.run)
+        begin
+            // Clear
+            if (dclk_dpi.vs_re)
+                dclk_dpi.cnt <= 'd1;
+           
+            // Increment
+            else
+                dclk_dpi.cnt <= dclk_dpi.cnt + 'd1;
+        end
+
+        // Idle
+        else
+            dclk_dpi.cnt <= 0;
+    end
+
+// FIFO data in
+    assign dclk_fifo.din = {dclk_dpi.de, dclk_mux.b, dclk_mux.g, dclk_mux.r};
+
+// FIFO write
+    assign dclk_fifo.wr[0] = (dclk_dpi.lock[$high(dclk_dpi.lock)] && (dclk_dpi.cnt == 'd0)) ? 1 : 0;
+    assign dclk_fifo.wr[1] = (dclk_dpi.lock[$high(dclk_dpi.lock)] && (dclk_dpi.cnt == 'd1)) ? 1 : 0;
+    assign dclk_fifo.wr[2] = (dclk_dpi.lock[$high(dclk_dpi.lock)] && (dclk_dpi.cnt == 'd2)) ? 1 : 0;
+    assign dclk_fifo.wr[3] = (dclk_dpi.lock[$high(dclk_dpi.lock)] && (dclk_dpi.cnt == 'd3)) ? 1 : 0;
+
+// FIFO
+generate
+    for (i = 0; i < 4; i++)
+    begin : gen_fifo
+        prt_dp_lib_fifo_dc
+        #(
+            .P_VENDOR       (P_VENDOR),  		// Vendor "xilinx" or "lattice"
+            .P_MODE         ("burst"),		    // "single" or "burst"
+            .P_RAM_STYLE	("distributed"),	// "distributed" or "block"
+            .P_ADR_WIDTH	(P_FIFO_ADR),
+            .P_DAT_WIDTH	(P_FIFO_DAT)
+        )
+        FIFO_INST
+        (
+            .A_RST_IN       (~dclk_dpi.run),		// Reset
+            .B_RST_IN       (~vclk_vid.run),
+            .A_CLK_IN       (DPI_CLK_IN),		    // Clock
+            .B_CLK_IN       (VID_CLK_IN),
+            .A_CKE_IN       (1'b1),		            // Clock enable
+            .B_CKE_IN       (VID_CKE_IN),
+
+            // Input (A)
+            .A_CLR_IN       (1'b0),		            // Clear
+            .A_WR_IN        (dclk_fifo.wr[i]),		// Write
+            .A_DAT_IN       (dclk_fifo.din),		// Write data
+
+            // Output (B)
+            .B_CLR_IN       (1'b0),		            // Clear
+            .B_RD_IN        (vclk_fifo.rd),		    // Read
+            .B_DAT_OUT      (vclk_fifo.dout[i]),	// Read data
+            .B_DE_OUT       (vclk_fifo.de[i]),		// Data enable
+
+            // Status (A)
+            .A_WRDS_OUT     (),	    // Used words
+            .A_FL_OUT       (),		// Full
+            .A_EP_OUT       (),		// Empty
+
+            // Status (B)
+            .B_WRDS_OUT     (vclk_fifo.wrds[i]),	    // Used words
+            .B_FL_OUT       (),		// Full
+            .B_EP_OUT	    (vclk_fifo.ep[i])	    // Empty
+        );
+    end
+endgenerate
+
+// Video
+
+// Video run
+    prt_dp_lib_cdc_bit
+    VID_RUN_CDC_INST
+    (
+       .SRC_CLK_IN      (SYS_CLK_IN),
+       .SRC_DAT_IN      (sclk_ctl.run),
+       .DST_CLK_IN      (VID_CLK_IN),
+       .DST_DAT_OUT     (vclk_vid.run)
+    );
+
+// Vsync
+    prt_dp_lib_cdc_bit
+    VID_VS_CDC_INST
+    (
+       .SRC_CLK_IN      (DPI_CLK_IN),
+       .SRC_DAT_IN      (dclk_dpi.vs),
+       .DST_CLK_IN      (VID_CLK_IN),
+       .DST_DAT_OUT     (vclk_vid.vs)
+    );
+
+// Hsync
+    prt_dp_lib_cdc_bit
+    VID_HS_CDC_INST
+    (
+       .SRC_CLK_IN      (DPI_CLK_IN),
+       .SRC_DAT_IN      (dclk_dpi.hs),
+       .DST_CLK_IN      (VID_CLK_IN),
+       .DST_DAT_OUT     (vclk_vid.hs)
+    );
+
+// FIFO ready
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        vclk_fifo.rdy <= 1;
+        for (int i = 0; i < 4; i++)
+        begin
+            if (vclk_fifo.wrds[i] < (P_FIFO_WRDS/2))
+                vclk_fifo.rdy <= 0;
+        end
+    end
+
+
+// FIFO read
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Run
+        if (vclk_vid.run)
+        begin
+            if (vclk_fifo.rdy)
+                vclk_fifo.rd <= 1;
+            else
+                vclk_fifo.rd <= 0;
+        end
+
+        else
+            vclk_fifo.rd <= 0;
+    end
+
+// Lock
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Run
+        if (vclk_vid.run)
+        begin
+            if (&vclk_fifo.de)
+                vclk_vid.lock <= 1;
+            else
+                vclk_vid.lock <= 0;
+        end
+
+        else
+            vclk_vid.lock <= 0;
+    end
 
 // Monitor
 
@@ -482,23 +586,23 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.hs_re)
+            if (dclk_dpi.hs_re)
             begin
-                vclk_mon.htotal_cnt <= 'd1;
-                vclk_mon.htotal     <= vclk_mon.htotal_cnt;
+                dclk_mon.htotal_cnt <= 'd1;
+                dclk_mon.htotal     <= dclk_mon.htotal_cnt;
             end
 
             else
-                vclk_mon.htotal_cnt <= vclk_mon.htotal_cnt + 'd1;
+                dclk_mon.htotal_cnt <= dclk_mon.htotal_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.htotal <= 0;
-            vclk_mon.htotal_cnt <= 0;
+            dclk_mon.htotal <= 0;
+            dclk_mon.htotal_cnt <= 0;
         end
     end
 
@@ -506,23 +610,23 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.de_fe)
+            if (dclk_dpi.de_fe)
             begin
-                vclk_mon.hwidth_cnt <= 'd0;
-                vclk_mon.hwidth     <= vclk_mon.hwidth_cnt;
+                dclk_mon.hwidth_cnt <= 'd0;
+                dclk_mon.hwidth     <= dclk_mon.hwidth_cnt;
             end
 
-            else if (vclk_vid.de)
-                vclk_mon.hwidth_cnt <= vclk_mon.hwidth_cnt + 'd1;
+            else if (dclk_dpi.de)
+                dclk_mon.hwidth_cnt <= dclk_mon.hwidth_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.hwidth <= 0;
-            vclk_mon.hwidth_cnt <= 0;
+            dclk_mon.hwidth <= 0;
+            dclk_mon.hwidth_cnt <= 0;
         end
     end
 
@@ -530,36 +634,36 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.de_re)
+            if (dclk_dpi.de_re)
             begin
-                vclk_mon.hstart     <= vclk_mon.hstart_cnt;
-                vclk_mon.hstart_run <= 0;
-                vclk_mon.hstart_arm <= 1;
+                dclk_mon.hstart     <= dclk_mon.hstart_cnt;
+                dclk_mon.hstart_run <= 0;
+                dclk_mon.hstart_arm <= 1;
             end
 
-            else if (vclk_vid.hs_re)
+            else if (dclk_dpi.hs_re)
             begin
-                if (vclk_mon.hstart_arm)
+                if (dclk_mon.hstart_arm)
                 begin
-                    vclk_mon.hstart_arm <= 0;
-                    vclk_mon.hstart_run <= 1;
+                    dclk_mon.hstart_arm <= 0;
+                    dclk_mon.hstart_run <= 1;
                 end
-                vclk_mon.hstart_cnt <= 'd1;
+                dclk_mon.hstart_cnt <= 'd1;
             end
 
-            else if (vclk_mon.hstart_run)
-                vclk_mon.hstart_cnt <= vclk_mon.hstart_cnt + 'd1;
+            else if (dclk_mon.hstart_run)
+                dclk_mon.hstart_cnt <= dclk_mon.hstart_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.hstart_arm <= 0;
-            vclk_mon.hstart_run <= 0;
-            vclk_mon.hstart <= 0;
-            vclk_mon.hstart_cnt <= 0;
+            dclk_mon.hstart_arm <= 0;
+            dclk_mon.hstart_run <= 0;
+            dclk_mon.hstart <= 0;
+            dclk_mon.hstart_cnt <= 0;
         end
     end
 
@@ -567,23 +671,23 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.hs_fe)
+            if (dclk_dpi.hs_fe)
             begin
-                vclk_mon.hsw_cnt <= 'd0;
-                vclk_mon.hsw     <= vclk_mon.hsw_cnt;
+                dclk_mon.hsw_cnt <= 'd0;
+                dclk_mon.hsw     <= dclk_mon.hsw_cnt;
             end
 
-            else if (vclk_vid.hs)
-                vclk_mon.hsw_cnt <= vclk_mon.hsw_cnt + 'd1;
+            else if (dclk_dpi.hs)
+                dclk_mon.hsw_cnt <= dclk_mon.hsw_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.hsw <= 0;
-            vclk_mon.hsw_cnt <= 0;
+            dclk_mon.hsw <= 0;
+            dclk_mon.hsw_cnt <= 0;
         end
     end
 
@@ -591,23 +695,23 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.vs_re)
+            if (dclk_dpi.vs_re)
             begin
-                vclk_mon.vtotal_cnt <= 'd1;
-                vclk_mon.vtotal     <= vclk_mon.vtotal_cnt;
+                dclk_mon.vtotal_cnt <= 'd1;
+                dclk_mon.vtotal     <= dclk_mon.vtotal_cnt;
             end
 
-            else if (vclk_vid.hs_re)
-                vclk_mon.vtotal_cnt <= vclk_mon.vtotal_cnt + 'd1;
+            else if (dclk_dpi.hs_re)
+                dclk_mon.vtotal_cnt <= dclk_mon.vtotal_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.vtotal <= 0;
-            vclk_mon.vtotal_cnt <= 0;
+            dclk_mon.vtotal <= 0;
+            dclk_mon.vtotal_cnt <= 0;
         end
     end
 
@@ -615,23 +719,23 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.vs_re)
+            if (dclk_dpi.vs_re)
             begin
-                vclk_mon.vheight_cnt <= 'd0;
-                vclk_mon.vheight     <= vclk_mon.vheight_cnt;
+                dclk_mon.vheight_cnt <= 'd0;
+                dclk_mon.vheight     <= dclk_mon.vheight_cnt;
             end
 
-            else if (vclk_vid.de_re)
-                vclk_mon.vheight_cnt <= vclk_mon.vheight_cnt + 'd1;
+            else if (dclk_dpi.de_re)
+                dclk_mon.vheight_cnt <= dclk_mon.vheight_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.vheight <= 0;
-            vclk_mon.vheight_cnt <= 0;
+            dclk_mon.vheight <= 0;
+            dclk_mon.vheight_cnt <= 0;
         end
     end
 
@@ -639,28 +743,28 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.vs_re)
+            if (dclk_dpi.vs_re)
             begin
-                vclk_mon.vstart_cnt <= 'd0;
-                vclk_mon.vstart     <= vclk_mon.vstart_cnt;
-                vclk_mon.vstart_run <= 1;
+                dclk_mon.vstart_cnt <= 'd0;
+                dclk_mon.vstart     <= dclk_mon.vstart_cnt;
+                dclk_mon.vstart_run <= 1;
             end
 
-            else if (vclk_vid.hs_re && vclk_mon.vstart_run)
-                vclk_mon.vstart_cnt <= vclk_mon.vstart_cnt + 'd1;
+            else if (dclk_dpi.hs_re && dclk_mon.vstart_run)
+                dclk_mon.vstart_cnt <= dclk_mon.vstart_cnt + 'd1;
  
-            else if (vclk_vid.de_re)
-                vclk_mon.vstart_run <= 0;        
+            else if (dclk_dpi.de_re)
+                dclk_mon.vstart_run <= 0;        
         end
 
         // Idle
         else
         begin
-            vclk_mon.vstart_run <= 0;
-            vclk_mon.vstart <= 0;
-            vclk_mon.vstart_cnt <= 0;
+            dclk_mon.vstart_run <= 0;
+            dclk_mon.vstart <= 0;
+            dclk_mon.vstart_cnt <= 0;
         end
     end
 
@@ -668,35 +772,35 @@ mon_struct          vclk_mon;
     always_ff @ (posedge DPI_CLK_IN)
     begin
         // Run
-        if (vclk_vid.run)
+        if (dclk_dpi.run)
         begin
-            if (vclk_vid.vs_re)
+            if (dclk_dpi.vs_re)
             begin
-                vclk_mon.vsw_cnt <= 'd1;
-                vclk_mon.vsw     <= vclk_mon.vsw_cnt;
+                dclk_mon.vsw_cnt <= 'd1;
+                dclk_mon.vsw     <= dclk_mon.vsw_cnt;
             end
 
-            else if (vclk_vid.vs && vclk_vid.hs_re)
-                vclk_mon.vsw_cnt <= vclk_mon.vsw_cnt + 'd1;
+            else if (dclk_dpi.vs && dclk_dpi.hs_re)
+                dclk_mon.vsw_cnt <= dclk_mon.vsw_cnt + 'd1;
         end
 
         // Idle
         else
         begin
-            vclk_mon.vsw <= 0;
-            vclk_mon.vsw_cnt <= 0;
+            dclk_mon.vsw <= 0;
+            dclk_mon.vsw_cnt <= 0;
         end
     end
 
 // Htotal
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.htotal))
+        .P_WIDTH ($size(dclk_mon.htotal))
     )
     SCLK_HTOTAL_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.htotal),  // Data
+        .SRC_DAT_IN     (dclk_mon.htotal),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.htotal)   // Data
     );
@@ -704,12 +808,12 @@ mon_struct          vclk_mon;
 // Hwidth
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.hwidth))
+        .P_WIDTH ($size(dclk_mon.hwidth))
     )
     SCLK_HWIDTH_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.hwidth),  // Data
+        .SRC_DAT_IN     (dclk_mon.hwidth),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.hwidth)   // Data
     );
@@ -717,12 +821,12 @@ mon_struct          vclk_mon;
 // Hsw
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.hsw))
+        .P_WIDTH ($size(dclk_mon.hsw))
     )
     SCLK_HSW_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.hsw),     // Data
+        .SRC_DAT_IN     (dclk_mon.hsw),     // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.hsw)      // Data
     );
@@ -730,12 +834,12 @@ mon_struct          vclk_mon;
 // Hstart
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.hstart))
+        .P_WIDTH ($size(dclk_mon.hstart))
     )
     SCLK_HSTART_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.hstart),  // Data
+        .SRC_DAT_IN     (dclk_mon.hstart),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.hstart)   // Data
     );
@@ -743,12 +847,12 @@ mon_struct          vclk_mon;
 // Vtotal
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.vtotal))
+        .P_WIDTH ($size(dclk_mon.vtotal))
     )
     SCLK_VTOTAL_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.vtotal),  // Data
+        .SRC_DAT_IN     (dclk_mon.vtotal),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.vtotal)   // Data
     );
@@ -756,12 +860,12 @@ mon_struct          vclk_mon;
 // Vheight
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.vheight))
+        .P_WIDTH ($size(dclk_mon.vheight))
     )
     SCLK_Vheight_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.vheight),  // Data
+        .SRC_DAT_IN     (dclk_mon.vheight),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.vheight)   // Data
     );
@@ -769,12 +873,12 @@ mon_struct          vclk_mon;
 // Vsw
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.vsw))
+        .P_WIDTH ($size(dclk_mon.vsw))
     )
     SCLK_VSW_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.vsw),     // Data
+        .SRC_DAT_IN     (dclk_mon.vsw),     // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.vsw)      // Data
     );
@@ -782,26 +886,28 @@ mon_struct          vclk_mon;
 // Vstart
     prt_dp_lib_cdc_vec
     #(
-        .P_WIDTH ($size(vclk_mon.vstart))
+        .P_WIDTH ($size(dclk_mon.vstart))
     )
     SCLK_VSTART_VEC_INST
     (
         .SRC_CLK_IN     (DPI_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_mon.vstart),  // Data
+        .SRC_DAT_IN     (dclk_mon.vstart),  // Data
         .DST_CLK_IN     (SYS_CLK_IN),       // Clock
         .DST_DAT_OUT    (sclk_sta.vstart)   // Data
     );
 
 // Outputs
+    assign DPI_REF_CLK_OUT  = dclk_dpi.ref_clk;
     assign LB_IF.dout       = sclk_lb.dout;
     assign LB_IF.vld        = sclk_lb.vld;
-    assign VID_CKE_OUT      = vclk_vid.cke;
-    assign VID_VS_OUT       = vclk_vid.vs;
-    assign VID_HS_OUT       = vclk_vid.hs;
-    assign VID_R_OUT        = vclk_vid.r;
-    assign VID_G_OUT        = vclk_vid.g;
-    assign VID_B_OUT        = vclk_vid.b;
-    assign VID_DE_OUT       = vclk_vid.de;
+
+    assign VID_LOCK_OUT     = vclk_vid.lock;
+    assign VID_VS_OUT       = (vclk_vid.run) ? vclk_vid.vs : 0;
+    assign VID_HS_OUT       = (vclk_vid.run) ? vclk_vid.hs : 0;
+    assign VID_R_OUT        = (vclk_fifo.de[0]) ? {vclk_fifo.dout[3][(0*8)+:8], vclk_fifo.dout[2][(0*8)+:8], vclk_fifo.dout[1][(0*8)+:8], vclk_fifo.dout[0][(0*8)+:8]} : 0;
+    assign VID_G_OUT        = (vclk_fifo.de[0]) ? {vclk_fifo.dout[3][(1*8)+:8], vclk_fifo.dout[2][(1*8)+:8], vclk_fifo.dout[1][(1*8)+:8], vclk_fifo.dout[0][(1*8)+:8]} : 0;
+    assign VID_B_OUT        = (vclk_fifo.de[0]) ? {vclk_fifo.dout[3][(2*8)+:8], vclk_fifo.dout[2][(2*8)+:8], vclk_fifo.dout[1][(2*8)+:8], vclk_fifo.dout[0][(2*8)+:8]} : 0;
+    assign VID_DE_OUT       = (vclk_fifo.de[0]) ? vclk_fifo.dout[0][24] : 0;
 
 endmodule
 

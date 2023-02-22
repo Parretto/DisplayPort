@@ -30,32 +30,34 @@
 // Module
 module prt_scaler_tg
 #(
-     parameter P_PPC = 4          // Pixels per clock
+    parameter 				P_PPC = 4          // Pixels per clock
 )
 (
 	// Reset and clock
-	input wire 			CLK_IN,			// Clock
-	input wire 			CKE_IN,			// Clock enable
+	input wire 				RST_IN,			// Reset
+	input wire 				CLK_IN,			// Clock
+	input wire 				CKE_IN,			// Clock enable
 
 	// Control
-	input wire			CTL_RUN_IN,		// Run
+	input wire				CTL_RUN_IN,		// Run
 
 	// Video parameter set
 	input wire [3:0]		VPS_IDX_IN,		// Index
 	input wire [15:0]		VPS_DAT_IN,		// Data
-	input wire 			VPS_VLD_IN,		// Valid	
-
-	// Video in
- 	input wire 			VID_VS_IN,		// Vsync
+	input wire 				VPS_VLD_IN,		// Valid	
 
 	// Video out
-	output wire 			VID_VS_INT_OUT,	// Vsync (Internal)
-	output wire 			VID_VS_EXT_OUT,	// Vsync (External)
+	output wire 			VID_VS_OUT,		// Vsync
  	output wire 			VID_HS_OUT,		// Hsync
  	output wire 			VID_DE_OUT		// Data enable
 );
 
 // Structures
+typedef struct {
+	logic				run;
+	logic 				run_re;
+} ctl_struct;
+
 typedef struct {
 	logic 	[15:0]		r;			// Register
 	logic				sel;			// Select
@@ -64,26 +66,26 @@ typedef struct {
 typedef struct {
 	logic				run;			// Run
 	logic				vs_in_re;
-	logic [15:0]			hblk;		// Horizontal blanking period
-	logic [15:0]			vblk;		// Vertical blanking period
-	logic [15:0]			hs_str;		// Horizontal sync start
-	logic [15:0]			hs_end;		// Horizontal sync end
-	logic [15:0]			hde_str;		// Horizontal de start
-	logic [15:0]			vs_str_int;	// Vertical sync start
-	logic [15:0]			vs_end_int;	// Vertical sync end
-	logic [15:0]			vs_str_ext;	// Vertical sync start
-	logic [15:0]			vs_end_ext;	// Vertical sync end
-	logic [15:0]			vde_str;		// Vertical de start
-	logic [15:0]			hcnt;		// Horizontal counter
-	logic [15:0]			vcnt;		// Vertical counter
-	logic 				vs_int;		// Vsync internal
-	logic [5:0]			vs_ext;		// Vsync external
-	logic [2:0]  			hs;			// Hsync
+	logic [15:0]		hblk;		// Horizontal blanking period
+	logic [15:0]		vblk;		// Vertical blanking period
+	logic [15:0]		hs_str;		// Horizontal sync start
+	logic [15:0]		hs_end;		// Horizontal sync end
+	logic [15:0]		hde_str;		// Horizontal de start
+	logic [15:0]		vs_str_int;	// Vertical sync start
+	logic [15:0]		vs_end_int;	// Vertical sync end
+	logic [15:0]		vs_str_ext;	// Vertical sync start
+	logic [15:0]		vs_end_ext;	// Vertical sync end
+	logic [15:0]		vde_str;		// Vertical de start
+	logic [15:0]		hcnt;		// Horizontal counter
+	logic [15:0]		vcnt;		// Vertical counter
+	logic 				vs;			// Vsync
+	logic [2:0]  		hs;			// Hsync
 	logic 				hs_re;		// Hsync rising edge
-	logic [2:0] 			de;			// Data enable
+	logic [2:0] 		de;			// Data enable
 } vid_struct;
 
 // Signals
+ctl_struct 		clk_ctl;
 reg_struct 		clk_reg_htotal;
 reg_struct 		clk_reg_hwidth;
 reg_struct 		clk_reg_hstart;
@@ -97,10 +99,26 @@ vid_struct 		clk_vid;
 // Logic
 
 // Run
-	always_ff @ (posedge CLK_IN)
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
 	begin
-		clk_vid.run <= CTL_RUN_IN;
+		// Reset
+		if (RST_IN)
+			clk_ctl.run <= 0;
+		else
+			clk_ctl.run <= CTL_RUN_IN;
 	end
+
+// run edge detector
+// This is used to set the counter when in sync mode
+    prt_scaler_lib_edge
+    RUN_EDGE_INST
+    (
+        .CLK_IN    (CLK_IN), 		       	// Clock
+        .CKE_IN    (1'b1),           	 	// Clock enable
+        .A_IN      (clk_ctl.run), 	     	// Input
+        .RE_OUT    (clk_ctl.run_re),  		// Rising edge
+        .FE_OUT    ()   					// Falling edge
+    );
 
 // Register select
 	always_comb
@@ -227,41 +245,26 @@ vid_struct 		clk_vid;
 		clk_vid.vde_str <= clk_vid.vblk;
 	end
 
-// VS edge detector
-     prt_scaler_lib_edge
-     VS_EDGE_INST
-     (
-          .CLK_IN   (CLK_IN),           // Clock
-          .CKE_IN   (CKE_IN),           // Clock enable
-          .A_IN     (VID_VS_IN),        // Input
-          .RE_OUT   (clk_vid.vs_in_re), // Rising edge
-          .FE_OUT   ()              	// Falling edge
-     );
-
 // Horizontal counter
 	always_ff @ (posedge CLK_IN)
 	begin
+		// Preset counter in sync mode
+		if (clk_ctl.run_re)
+			clk_vid.hcnt <= clk_vid.hde_str;
+
 		// Run
-		if (clk_vid.run) 
+		else if (clk_ctl.run)
 		begin
-			// Sync
-			if (clk_vid.vs_in_re)
-				clk_vid.hcnt <= clk_vid.hs_str;
-
-			// Count
-			else
+			// Clock enable
+			if (CKE_IN)
 			begin
-				// Clock enable
-				if (CKE_IN)
-				begin
-					// Increment
-					if (clk_vid.hcnt < clk_reg_htotal.r - P_PPC)
-						clk_vid.hcnt <= clk_vid.hcnt + P_PPC;
+				// Increment
+				if (clk_vid.hcnt < clk_reg_htotal.r - P_PPC)
+					clk_vid.hcnt <= clk_vid.hcnt + P_PPC;
 
-					// Reset
-					else
-						clk_vid.hcnt <= 0;
-				end
+				// Reset
+				else
+					clk_vid.hcnt <= 0;
 			end
 		end
 
@@ -273,28 +276,23 @@ vid_struct 		clk_vid;
 // Vertical counter
 	always_ff @ (posedge CLK_IN)
 	begin
+		// Preset counter in sync mode
+		if (clk_ctl.run_re)
+			clk_vid.vcnt <= clk_vid.vde_str;
+
 		// Run
-		if (clk_vid.run)
+		else if (clk_ctl.run)
 		begin
-			// Sync
-			if (clk_vid.vs_in_re)
-				clk_vid.vcnt <= clk_vid.vs_str_int - 'd1;
-
-			// Count
-			else
+			if (CKE_IN)
 			begin
-				// Clock enable
-				if (CKE_IN)
+				// Increment
+				if (clk_vid.hs_re)
 				begin
-					// Increment
-					if (clk_vid.hs_re)
-					begin
-						if (clk_vid.vcnt < clk_reg_vtotal.r - 'd1)
-							clk_vid.vcnt <= clk_vid.vcnt + 'd1;
+					if (clk_vid.vcnt < clk_reg_vtotal.r - 'd1)
+						clk_vid.vcnt <= clk_vid.vcnt + 'd1;
 
-						else
-							clk_vid.vcnt <= 0;
-					end
+					else
+						clk_vid.vcnt <= 0;
 				end
 			end
 		end
@@ -341,28 +339,9 @@ vid_struct 		clk_vid;
 		if (CKE_IN)
 		begin
 			if ((clk_vid.vcnt >= clk_vid.vs_str_int) && (clk_vid.vcnt < clk_vid.vs_end_int))
-				clk_vid.vs_int <= 1;
+				clk_vid.vs <= 1;
 			else
-				clk_vid.vs_int <= 0;	
-		end
-	end
-
-// Vsync external
-// The scaler has a latency of four lines.
-// This vsync is used to output at the top level.
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Clock enable
-		if (CKE_IN)
-		begin
-			if ((clk_vid.vcnt >= clk_vid.vs_str_ext) && (clk_vid.vcnt < clk_vid.vs_end_ext))
-				clk_vid.vs_ext[0] <= 1;
-			else
-				clk_vid.vs_ext[0] <= 0;
-
-			// Also the hsync has an internal latency.
-			// This delay aligns the external vsync with the external hsync.
-			clk_vid.vs_ext[1+:$left(clk_vid.vs_ext)] <= clk_vid.vs_ext[0+:$size(clk_vid.vs_ext)];	
+				clk_vid.vs <= 0;	
 		end
 	end
 
@@ -384,8 +363,7 @@ vid_struct 		clk_vid;
 	end
 
 // Outputs
-	assign VID_VS_INT_OUT 	= clk_vid.vs_int;
-	assign VID_VS_EXT_OUT 	= clk_vid.vs_ext[$left(clk_vid.vs_ext)];
+	assign VID_VS_OUT 		= clk_vid.vs;
 	assign VID_HS_OUT 		= clk_vid.hs[$left(clk_vid.hs)];
 	assign VID_DE_OUT 		= clk_vid.de[$left(clk_vid.de)];
 

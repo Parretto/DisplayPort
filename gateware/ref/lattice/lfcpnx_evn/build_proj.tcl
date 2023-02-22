@@ -1,6 +1,6 @@
 ###
 # Lattice DP reference design project script
-# (c) 2022 by Parretto B.V.
+# (c) 2022-2023 by Parretto B.V.
 ###
 
 # Create project
@@ -85,11 +85,19 @@ prj_add_source $SRC/misc/prt_uart.sv
 
 # Scaler
 prj_add_source $SRC/scaler/prt_scaler_lib.sv 
-prj_add_source $SRC/scaler/prt_scaler_ctl.sv 
-prj_add_source $SRC/scaler/prt_scaler_tg.sv
-prj_add_source $SRC/scaler/prt_scaler_hbs.sv
-prj_add_source $SRC/scaler/prt_scaler_vbs.sv
-prj_add_source $SRC/scaler/prt_scaler_top.sv 
+prj_add_source $SRC/scaler/prt_scaler_agnt_lut.sv
+prj_add_source $SRC/scaler/prt_scaler_agnt.sv
+prj_add_source $SRC/scaler/prt_scaler_coef.sv
+prj_add_source $SRC/scaler/prt_scaler_ctl.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl_mac.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl_mux.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl.sv
+prj_add_source $SRC/scaler/prt_scaler_lbf.sv 
+prj_add_source $SRC/scaler/prt_scaler_lst.sv 
+prj_add_source $SRC/scaler/prt_scaler_slw_mux.sv
+prj_add_source $SRC/scaler/prt_scaler_slw.sv
+prj_add_source $SRC/scaler/prt_scaler_tg.sv 
+prj_add_source $SRC/scaler/prt_scaler_top.sv
 
 # Top
 prj_add_source ../../ref/lattice/lfcpnx_evn/dp_ref_lat_lfcpnx_evn.sv

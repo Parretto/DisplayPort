@@ -5,7 +5,7 @@
 
 
     Module: Video Toolbox Test Pattern Generator
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
@@ -66,6 +66,9 @@ logic 							clk_run;
 logic 							clk_ramp;
 logic [15:0]					clk_hwidth;	
 logic [15:0]					clk_vheight;
+logic [15:0]					clk_vheight_quad;
+logic [15:0]					clk_ramp_str;
+logic [15:0]					clk_lines_str;
 wire  [12:0]					clk_bar_width;
 logic [1:0]						clk_vs;
 wire 							clk_vs_re;
@@ -122,6 +125,15 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 		// Write
 		if ((VPS_IDX_IN == 'd9) && VPS_VLD_IN)
 			clk_vheight <= VPS_DAT_IN[0+:$size(clk_vheight)];
+	end
+
+// Quad height
+	assign clk_vheight_quad = clk_vheight[15:2];
+
+	always_ff @ (posedge CLK_IN)
+	begin
+		clk_ramp_str <= 2 * clk_vheight_quad;
+		clk_lines_str <= 3 * clk_vheight_quad;
 	end
 
 // Vsync edge detector
@@ -230,9 +242,8 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 		// Clock enable
 		if (CKE_IN)
 		begin
-
 			// Ramp
-			if (clk_ramp || (clk_lcnt > clk_vheight[15:1]))
+			if (clk_ramp || ((clk_lcnt >= clk_ramp_str) && (clk_lcnt < clk_lines_str)))
 			begin
 				// Four pixels per clock
 				if (P_PPC == 4)
@@ -249,6 +260,14 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 					clk_g <= {clk_pcnt[6:0], 1'b1, clk_pcnt[6:0], 1'b0};
 					clk_b <= {clk_pcnt[6:0], 1'b1, clk_pcnt[6:0], 1'b0};
 				end
+			end
+
+			// Lines
+			else if (clk_lcnt >= clk_lines_str)
+			begin
+				clk_r <= clk_pcnt[0] ? '1 : 0;
+				clk_g <= clk_pcnt[0] ? '1 : 0;
+				clk_b <= clk_pcnt[0] ? '1 : 0;
 			end
 
 			// Color bar

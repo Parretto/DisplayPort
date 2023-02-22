@@ -86,7 +86,7 @@ logic [1:0]                 clk_rd_vld;
     assign clk_wr = (INIT_VLD_IN) ? 'b1 : RAM_IF.wr;
 
 // Port A byte enable
-    assign clk_be = (INIT_VLD_IN) ? 'b1111 : RAM_IF.wr_strb;
+    assign clk_be = (INIT_VLD_IN) ? 'b1111 : ((clk_wr) ? RAM_IF.wr_strb : 'b0000);
 
 generate
     if (P_VENDOR == "xilinx")
@@ -124,7 +124,7 @@ generate
           .regcea           (1'b1),                 // 1-bit input: Clock Enable for the last register stage on the output data path.
           .rsta             (RST_IN),               // 1-bit input: Reset signal for the final port B output register stage.
           .sleep            (1'b0),                 // 1-bit input: sleep signal to enable the dynamic power saving feature.
-          .wea              (clk_wr),               // WRITE_DATA_WIDTH_A-bit input: Write enable vector for port A input
+          .wea              (clk_be),               // WRITE_DATA_WIDTH_A-bit input: Write enable vector for port A input
           .sbiterra         (),
           .dbiterra         ()
         );
@@ -155,7 +155,7 @@ generate
         #( 
             .address_aclr_b                     ("NONE"),
             .address_reg_b                      ("CLOCK0"),
-            .outdata_reg_b                      ("REGISTERED"),
+            .outdata_reg_b                      ("CLOCK0"),
             .clock_enable_input_a               ("BYPASS"),
             .clock_enable_input_b               ("BYPASS"),
             .enable_force_to_zero               ("FALSE"),
@@ -181,7 +181,7 @@ generate
             .clock0                             (CLK_IN),
             .data_a                             (clk_din),
             .wren_a                             (clk_wr),
-            .q_b                                (RAM_IF.rd_dat),
+            .q_a                                (RAM_IF.rd_dat),
             .aclr0                              (1'b0),
             .aclr1                              (1'b0),
             .address2_a                         (1'b1),
@@ -199,7 +199,7 @@ generate
             .eccencbypass                       (1'b0),
             .eccencparity                       (8'b0),
             .eccstatus                          (),
-            .q_a                                (),
+            .q_b                                (),
             .rden_a                             (1'b1),
             .rden_b                             (1'b1),
             .sclr                               (1'b0),

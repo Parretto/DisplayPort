@@ -146,7 +146,6 @@ generate
             .Data       (clk_dina), 
             .Q          (ROM_IF.dat)  
         );
-
     end
 
     else if (P_VENDOR == "intel")

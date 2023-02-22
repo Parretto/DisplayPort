@@ -5,7 +5,7 @@
 
 
     Module: Scaler Library
-    (c) 2022 by Parretto B.V.
+    (c) 2022 - 2023 by Parretto B.V.
 
     History
     =======
@@ -126,31 +126,32 @@ endmodule
 */
 module prt_scaler_lib_fifo_sc
 #(
-	parameter                          	P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
-	parameter							P_MODE         = "single",		// "single" or "burst"
-	parameter 						P_RAM_STYLE	= "distributed",	// "distributed" or "block"
+	parameter                       P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
+	parameter						P_MODE         	= "single",		// "single" or "burst"
+	parameter 						P_RAM_STYLE		= "distributed",	// "distributed" or "block"
 	parameter 						P_ADR_WIDTH 	= 7,
-	parameter							P_DAT_WIDTH 	= 512
+	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Clocks and reset
 	input wire						RST_IN,		// Reset
 	input wire						CLK_IN,		// Clock
-	input wire						CLR_IN,		// Clear
 
 	// Write
-	input wire						WR_EN_IN,		// Write enable
+	input wire						WR_EN_IN,	// Write enable
+	input wire						WR_CLR_IN,	// Write clear
 	input wire						WR_IN,		// Write in
-	input wire 	[P_DAT_WIDTH-1:0]		DAT_IN,		// Write data
+	input wire 	[P_DAT_WIDTH-1:0]	DAT_IN,		// Write data
 
 	// Read
-	input wire						RD_EN_IN,		// Read enable in
+	input wire						RD_EN_IN,	// Read enable in
+	input wire						RD_CLR_IN,	// Read clear in
 	input wire						RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]			DAT_OUT,		// Data out
+	output wire [P_DAT_WIDTH-1:0]	DAT_OUT,	// Data out
 	output wire						DE_OUT,		// Data enable
 
 	// Status
-	output wire	[P_ADR_WIDTH:0]		WRDS_OUT,		// Used words
+	output wire	[P_ADR_WIDTH:0]		WRDS_OUT,	// Used words
 	output wire						EP_OUT,		// Empty
 	output wire						FL_OUT		// Full
 );
@@ -159,11 +160,10 @@ module prt_scaler_lib_fifo_sc
 localparam P_WRDS = 2**P_ADR_WIDTH;
 
 // Signals
-logic	[P_ADR_WIDTH-1:0]		clk_wp;			// Write pointer
-logic 	[P_ADR_WIDTH-1:0]		clk_rp;			// Read pointer
-logic	[1:0]				clk_da;
+logic	[P_ADR_WIDTH-1:0]	clk_wp;			// Write pointer
+logic 	[P_ADR_WIDTH-1:0]	clk_rp;			// Read pointer
 logic	[1:0]				clk_de;
-logic	[P_ADR_WIDTH-1:0]		clk_wrds;
+logic	[P_ADR_WIDTH-1:0]	clk_wrds;
 logic						clk_ep;
 logic						clk_fl;
 
@@ -175,42 +175,42 @@ generate
 	begin : gen_ram_xlx
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("common_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(2),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("common_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(2),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(0),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(1),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
 			.clka				(CLK_IN),       
 			.addra				(clk_wp), 
 			.dina				(DAT_IN),
-			.ena					(WR_EN_IN), 
-			.wea					(WR_IN),
+			.ena				(WR_EN_IN), 
+			.wea				(WR_IN),
 
 			.clkb				(CLK_IN),  
 			.addrb				(clk_rp),  
-			.enb					(RD_EN_IN),    
+			.enb				(RD_EN_IN),    
 			.doutb				(DAT_OUT), 
 
 			.injectdbiterra		(1'b0),
@@ -218,8 +218,8 @@ generate
 			.regceb				(RD_EN_IN),             
 			.rstb				(1'b0),        
 			.sleep				(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb			(), 
+			.sbiterrb			()    
 		);
 	end
 
@@ -241,19 +241,19 @@ generate
 		) 
 		RAM_INST
 		(
-			.Reset     (RST_IN),  
+			.Reset     	(RST_IN),  
 
-			.WrClock   (CLK_IN),  
-			.WrClockEn (WR_EN_IN),
-			.WrAddress (clk_wp),  
-			.WE        (WR_IN),  
-			.Data      (DAT_IN), 
+			.WrClock   	(CLK_IN),  
+			.WrClockEn 	(WR_EN_IN),
+			.WrAddress 	(clk_wp),  
+			.WE        	(WR_IN),  
+			.Data      	(DAT_IN), 
 
-			.RdClock   (CLK_IN), 
-			.RdClockEn (RD_EN_IN),
-			.RdAddress (clk_rp),  
+			.RdClock   	(CLK_IN), 
+			.RdClockEn 	(RD_EN_IN),
+			.RdAddress 	(clk_rp),  
 
-			.Q         (DAT_OUT)  
+			.Q         	(DAT_OUT)  
 		);
 	end
 endgenerate
@@ -267,7 +267,7 @@ endgenerate
 		else
 		begin
 			// Clear
-			if (CLR_IN)
+			if (WR_CLR_IN)
 				clk_wp <= 0;
 
 			// Write enable
@@ -295,7 +295,7 @@ endgenerate
 		else
 		begin
 			// Clear
-			if (CLR_IN)
+			if (RD_CLR_IN)
 				clk_rp <= 0;
 
 			// Read enable
@@ -314,63 +314,25 @@ endgenerate
 		end
 	end
 
-// Data available
+// Data enable
 	always_ff @ (posedge RST_IN, posedge CLK_IN)
 	begin
 		if (RST_IN)
-			clk_da <= 0;
+			clk_de <= 0;
 
 		else
 		begin
 			// Enable
 			if (RD_EN_IN)
 			begin
-				if (clk_ep || RD_IN)
-					clk_da <= 0;
+				if (!clk_ep)
+					clk_de[0] <= RD_IN;
 				else
-				begin
-					clk_da[0] <= 1;
-					clk_da[1] <= clk_da[0];
-				end
+					clk_de[0] <= 0;
+				clk_de[1] <= clk_de[0];
 			end
 		end
 	end
-
-// Data enable
-generate
-	if (P_RAM_STYLE == "distributed")
-	begin
-		always_comb
-		begin
-			if (RD_IN && !clk_ep)
-				clk_de = 'b01;
-			else
-				clk_de = 'b00;
-		end
-	end
-
-	else
-	begin
-		always_ff @ (posedge RST_IN, posedge CLK_IN)
-		begin
-			if (RST_IN)
-				clk_de <= 0;
-
-			else
-			begin
-				// Enable
-				if (RD_EN_IN)
-				begin
-					if (!clk_ep)
-						clk_de[0] <= RD_IN;
-					else
-						clk_de[0] <= 0;
-					clk_de[1] <= clk_de[0];
-				end
-			end
-		end
-	end
-endgenerate
 
 // Empty
 // Must be combinatorial
@@ -406,7 +368,7 @@ endgenerate
 	end
 
 // Outputs
-	assign DE_OUT 		= (P_MODE == "burst") ? ((P_RAM_STYLE == "block") ? clk_de[$size(clk_de)-1] : clk_de[0]) : ((P_RAM_STYLE == "block") ? clk_da[$size(clk_da)-1] : clk_da[0]);
+	assign DE_OUT 		= clk_de[$size(clk_de)-1];
 	assign WRDS_OUT 	= clk_wrds;
 	assign EP_OUT 		= clk_ep;
 	assign FL_OUT 		= clk_fl;
@@ -419,27 +381,27 @@ endmodule
 module prt_scaler_lib_sdp_ram_dc
 #(
      // System
-	parameter                          P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
+	parameter                       P_VENDOR    	= "none",  // Vendor "xilinx" or "lattice"
 
-	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
-	parameter 					P_ADR_WIDTH 	= 7,
+	parameter 						P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
+	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Port A
-	input wire					A_RST_IN,		// Reset
-	input wire					A_CLK_IN,		// Clock
-	input wire [P_ADR_WIDTH-1:0]		A_ADR_IN,		// Address
-	input wire					A_WR_IN,		// Write in
-	input wire [P_DAT_WIDTH-1:0]		A_DAT_IN,		// Write data
+	input wire						A_RST_IN,		// Reset
+	input wire						A_CLK_IN,		// Clock
+	input wire [P_ADR_WIDTH-1:0]	A_ADR_IN,		// Address
+	input wire						A_WR_IN,		// Write in
+	input wire [P_DAT_WIDTH-1:0]	A_DAT_IN,		// Write data
 
 	// Port B
-	input wire					B_RST_IN,		// Reset
-	input wire					B_CLK_IN,		// Clock
-	input wire [P_ADR_WIDTH-1:0]		B_ADR_IN,		// Address
-	input wire					B_RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]		B_DAT_OUT,	// Read data
-	output wire					B_VLD_OUT		// Read data valid
+	input wire						B_RST_IN,		// Reset
+	input wire						B_CLK_IN,		// Clock
+	input wire [P_ADR_WIDTH-1:0]	B_ADR_IN,		// Address
+	input wire						B_RD_IN,		// Read in
+	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,	// Read data
+	output wire						B_VLD_OUT		// Read data valid
 );
 
 // Local parameters
@@ -461,42 +423,42 @@ generate
 
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("independent_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(1),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("independent_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(1),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(P_USE_CONSTRAINT),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(1),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
 			.clka				(A_CLK_IN),       
 			.addra				(A_ADR_IN), 
 			.dina				(A_DAT_IN),
-			.ena					(1'b1), 
-			.wea					(A_WR_IN),
+			.ena				(1'b1), 
+			.wea				(A_WR_IN),
 
 			.clkb				(B_CLK_IN),  
 			.addrb				(B_ADR_IN),  
-			.enb					(1'b1),    
+			.enb				(1'b1),    
 			.doutb				(B_DAT_OUT), 
 
 			.injectdbiterra		(1'b0),
@@ -504,8 +466,8 @@ generate
 			.regceb				(1'b1),             
 			.rstb				(1'b0),        
 			.sleep				(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb			(), 
+			.sbiterrb			()    
 		);
 	end
 

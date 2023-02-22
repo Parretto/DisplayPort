@@ -5,11 +5,12 @@
 
 
     DP reference design running on Lattice LFCPNX-EVN
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Updated with new scaler
 
     License
     =======
@@ -25,11 +26,13 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
+// The nettype overwrite can't be used when using the Reveal analyzer
 //`default_nettype none
 
 module dp_ref_lat_lfcpnx_evn
 (
     // Clock
+    input wire              SYS_RSTN_IN,              // Reset input
     input wire              SYS_CLK_IN,               // 125 MHz
 
     // UART
@@ -42,11 +45,11 @@ module dp_ref_lat_lfcpnx_evn
 
     // Tentiva
     output wire             TENTIVA_CLK_SEL_OUT,        // Clock select
-    input wire              TENTIVA_PHY_CLK_LOCK_IN,    // PHY clock lock
+    input wire              TENTIVA_GT_CLK_LOCK_IN,     // GT clock lock
     input wire              TENTIVA_VID_CLK_LOCK_IN,    // Video clock lock
     input wire              TENTIVA_VID_CLK_IN,         // Video clock 
 
-    // PHY reference clocks
+    // Serdes
     input wire              SD_REFCLK0_IN_P,
     input wire              SD_REFCLK0_IN_N,
     input wire              SD_REFCLK1_IN_P,
@@ -90,7 +93,9 @@ localparam P_SPL            = 4;
 localparam P_PPC            = 4;
 localparam P_BPC            = 8;
 localparam P_AXI_WIDTH      = 96;
-localparam P_SCALER         = 0;
+localparam P_APP_ROM_INIT   = "none";
+localparam P_APP_RAM_INIT   = "none";
+localparam P_SCALER         = 1;
 
 // Interfaces
 
@@ -135,17 +140,18 @@ scaler_if();
 */
 
 // Reset
-(* syn_preserve=1 *) logic [9:0]             sclk_rst_cnt;
-(* syn_preserve=1 *) logic                   sclk_rst;
+(* syn_preserve=1 *) logic [15:0]   sclk_rst_cnt;
+(* syn_preserve=1 *) logic          sclk_rst;
 
 // Clocks
-wire    clk_from_sys_pll;
-wire    lock_from_sys_pll;
-wire    refclk0_from_diffclkio;
-wire    refclk1_from_diffclkio;
-wire    clk_from_tx_buf;
-wire    clk_from_rx_buf;
-wire    clk_from_vid_buf;
+wire                            clk_from_sys_buf;
+wire                            clk_from_sys_pll;
+wire                            lock_from_sys_pll;
+wire                            refclk0_from_diffclkio;
+wire                            refclk1_from_diffclkio;
+wire                            clk_from_tx_buf;
+wire                            clk_from_rx_buf;
+wire                            clk_from_vid_buf;
 
 // APP
 wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
@@ -175,6 +181,7 @@ wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
 wire                            vid_vld_from_dprx;   // Valid
 
 // VTB
+wire                            lock_from_vtb;
 wire                            vs_from_vtb;
 wire                            hs_from_vtb;
 wire [(P_PPC*P_BPC)-1:0]        r_from_vtb;
@@ -202,7 +209,7 @@ wire [3:0]                      dir_from_lmmi;
 wire [(4*9)-1:0]                adr_from_lmmi;
 wire [(4*8)-1:0]                dat_from_lmmi;
 
-// PHY
+// Serdes
 wire                            tx_clk_from_phy;
 wire                            rx_clk_from_phy;
 wire [79:0]                     tx_dat_to_phy[0:3];
@@ -215,44 +222,38 @@ wire [3:0]                      lmmi_rdy_from_phy;
 
 // Heartbeat
 wire                            led_from_sys_hb;
-wire                            led_from_phytx_hb;
-wire                            led_from_phyrx_hb;
+wire                            led_from_sdtx_hb;
+wire                            led_from_sdrx_hb;
 wire                            led_from_vid_hb;
-
 
 /*
     Logic
 */
 
-// System PLL
-// This PLL generates the 100 MHz clock for the application.    
-    sys_pll
-    SYS_PLL_INST
+// System clock input buffer
+    IB
+    SYS_CLK_BUF_INST
     (
-        .clki_i     (SYS_CLK_IN), 
-        .clkop_o    (clk_from_sys_pll), 
-        .lock_o     (lock_from_sys_pll)
+        .I (SYS_CLK_IN),        // I
+        .O (clk_from_sys_buf)   // O
     );
 
 // Reset generator
-    always_ff @ (negedge lock_from_sys_pll, posedge clk_from_sys_pll)
+    always_ff @ (negedge SYS_RSTN_IN, posedge clk_from_sys_buf)
     begin
-        if (!lock_from_sys_pll)
+        if (!SYS_RSTN_IN)
         begin
+            sclk_rst_cnt <= '1;
             sclk_rst <= 1;
-            sclk_rst_cnt <= 0;
         end
 
+        // Decrement
+        else if (sclk_rst_cnt != 0)
+            sclk_rst_cnt <= sclk_rst_cnt - 'd1;
+
+        // Release
         else
-        begin
-            // Increment
-            if (!(&sclk_rst_cnt))
-                sclk_rst_cnt <= sclk_rst_cnt + 'd1;
-
-            // Counter expired
-            else
-                sclk_rst <= 0;
-        end
+            sclk_rst <= 0;
     end
 
 // Global reset 
@@ -261,8 +262,18 @@ wire                            led_from_vid_hb;
     GSR
     GSR_INST
     (
-        .GSR_N (lock_from_sys_pll),  
-        .CLK   (clk_from_sys_pll)  
+        .GSR_N (~sclk_rst),  
+        .CLK   (clk_from_sys_buf)  
+    );
+
+// System PLL
+// This PLL generates the 50 MHz clock for the application.    
+    sys_pll
+    SYS_PLL_INST
+    (
+        .clki_i     (clk_from_sys_buf), 
+        .clkop_o    (clk_from_sys_pll), 
+        .lock_o     (lock_from_sys_pll)
     );
 
 // Serdes reference clock buffer
@@ -294,12 +305,14 @@ wire                            led_from_vid_hb;
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_INIT         (P_APP_ROM_INIT),
+        .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
     )
     APP_INST
     (
          // Reset and clock
-        .RST_IN             (sclk_rst),    
+        .RST_IN             (sclk_rst), 
         .CLK_IN             (clk_from_sys_pll),
 
         // PIO
@@ -344,7 +357,7 @@ wire                            led_from_vid_hb;
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]        = TENTIVA_PHY_CLK_LOCK_IN; 
+    assign pio_dat_to_app[0]        = TENTIVA_GT_CLK_LOCK_IN; 
     assign pio_dat_to_app[1]        = TENTIVA_VID_CLK_LOCK_IN;
     assign pio_dat_to_app[2]        = &rdy_from_phy;
 
@@ -457,6 +470,7 @@ wire                            led_from_vid_hb;
 // Video toolbox
     prt_vtb_top
     #(
+        .P_VENDOR               (P_VENDOR),
         .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
         .P_PPC                  (P_PPC),        // Pixels per clock
         .P_BPC                  (P_BPC),        // Bits per component
@@ -490,16 +504,13 @@ wire                            led_from_vid_hb;
         // Native video
         .VID_CLK_IN             (clk_from_vid_buf),
         .VID_CKE_IN             (cke_from_scaler),
+        .VID_LOCK_OUT           (lock_from_vtb),
         .VID_VS_OUT             (vs_from_vtb),
         .VID_HS_OUT             (hs_from_vtb),
         .VID_R_OUT              (r_from_vtb),
         .VID_G_OUT              (g_from_vtb),
         .VID_B_OUT              (b_from_vtb),
-        .VID_DE_OUT             (de_from_vtb),
-
-        // Debug
-        .DBG_CR_SYNC_END_OUT    (),                         // Sync end out
-        .DBG_CR_PIX_END_OUT     ()                          // Pixel end out
+        .VID_DE_OUT             (de_from_vtb)
     );
 
 // Scaler
@@ -508,8 +519,12 @@ generate
     begin : gen_scaler
         prt_scaler_top
         #(
-            .P_PPC (4),          // Pixels per clock
-            .P_BPC (8)           // Bits per component
+            // System
+            .P_VENDOR               (P_VENDOR),
+            
+            // Video
+            .P_PPC                  (4),          // Pixels per clock
+            .P_BPC                  (8)           // Bits per component
         )
         SCALER_INST
         (
@@ -523,8 +538,9 @@ generate
             // Video
             .VID_CLK_IN             (clk_from_vid_buf),
 
-            // Video in
+             // Video in
             .VID_CKE_IN             (cke_from_scaler),      // Clock enable
+            .VID_LOCK_IN            (lock_from_vtb),        // Lock
             .VID_VS_IN              (vs_from_vtb),          // Vertical sync
             .VID_HS_IN              (hs_from_vtb),          // Horizontal sync    
             .VID_R_IN               (r_from_vtb),           // Red
@@ -598,7 +614,7 @@ endgenerate
     );
 
 // PHY
-    phy
+    phy 
     PHY_INST
     (
         // PMA serial
@@ -932,26 +948,26 @@ endgenerate
         .LED_OUT    (led_from_sys_hb)
     );
 
-// PHY TX clock heartbeat
+// Serdes TX clock heartbeat
     prt_hb
     #(
         .P_BEAT ('d67_500_000)
     )
-    PHYTX_HB_INST
+    SDTX_HB_INST
     (
         .CLK_IN     (clk_from_tx_buf),
-        .LED_OUT    (led_from_phytx_hb)
+        .LED_OUT    (led_from_sdtx_hb)
     );
 
-// PHY RX clock heartbeat
+// Serdes RX clock heartbeat
     prt_hb
     #(
         .P_BEAT ('d67_500_000)
     )
-    PHYRX_HB_INST
+    SDRX_HB_INST
     (
         .CLK_IN     (clk_from_rx_buf),
-        .LED_OUT    (led_from_phyrx_hb)
+        .LED_OUT    (led_from_sdrx_hb)
     );
 
 // Video clock heartbeat
@@ -971,12 +987,12 @@ endgenerate
     assign LED_OUT[0]   = led_from_sys_hb;
     assign LED_OUT[1]   = hb_from_dptx;
     assign LED_OUT[2]   = hb_from_dprx;
-    assign LED_OUT[3]   = led_from_phytx_hb; 
-    assign LED_OUT[4]   = led_from_phyrx_hb;
+    assign LED_OUT[3]   = led_from_sdtx_hb; 
+    assign LED_OUT[4]   = led_from_sdrx_hb;
     assign LED_OUT[5]   = led_from_vid_hb;
     assign LED_OUT[6]   = 0; 
     assign LED_OUT[7]   = 0;
 
 endmodule
 
-//`default_nettype wire
+`default_nettype wire

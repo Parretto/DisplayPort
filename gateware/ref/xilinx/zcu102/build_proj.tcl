@@ -1,6 +1,6 @@
 ###
 # Xilinx DP reference design project script
-# (c) 2022 by Parretto B.V.
+# (c) 2023 by Parretto B.V.
 ###
 
 # Create project

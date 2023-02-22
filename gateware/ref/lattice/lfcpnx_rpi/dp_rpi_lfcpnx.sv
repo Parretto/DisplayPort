@@ -5,11 +5,12 @@
 
 
     DP reference design running on Lattice LFCPNX-EVN
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Updated scaler and RPI DPI interface
 
     License
     =======
@@ -31,7 +32,8 @@
 module dp_rpi_lfcpnx
 (
     // Clock
-    input wire              SYS_CLK_IN,               // 125 MHz
+    input wire              SYS_RSTN_IN,                    // Reset input
+    input wire              SYS_CLK_IN,                     // 125 MHz
 
     // UART
     input wire              UART_RX_IN,
@@ -42,10 +44,11 @@ module dp_rpi_lfcpnx
     inout wire              I2C_SDA_INOUT,
 
     // Tentiva
-    output wire             TENTIVA_CLK_SEL_OUT,        // Clock select
-    input wire              TENTIVA_GT_CLK_LOCK_IN,     // GT clock lock
-    input wire              TENTIVA_VID_CLK_LOCK_IN,    // Video clock lock
-    input wire              TENTIVA_VID_CLK_IN,         // Video clock 
+    output wire             TENTIVA_CLK_SEL_OUT,            // Clock select
+    input wire              TENTIVA_GT_CLK_LOCK_IN,         // GT clock lock
+    input wire              TENTIVA_VID_CLK_LOCK_IN,        // Video clock lock
+    input wire              TENTIVA_VID_CLK_IN,             // Video clock 
+    output wire             TENTIVA_VID_REF_CLK_OUT,        // Video reference clock
 
     // Serdes
     input wire              SD_REFCLK0_IN_P,
@@ -67,23 +70,21 @@ module dp_rpi_lfcpnx
     input wire [7:0]        RPI_DPI_B_IN,
 
     // DP TX
-    output wire [3:0]       DPTX_ML_OUT_P,          // Main link
-    output wire [3:0]       DPTX_ML_OUT_N,          // Main link
-    output wire             DPTX_AUX_EN_OUT,        // AUX Enable
-    output wire             DPTX_AUX_TX_OUT,        // AUX Transmit
-    input wire              DPTX_AUX_RX_IN,         // AUX Receive
-    input wire              DPTX_HPD_IN,            // HPD
+    output wire [3:0]       DPTX_ML_OUT_P,                  // Main link
+    output wire [3:0]       DPTX_ML_OUT_N,                  // Main link
+    output wire             DPTX_AUX_EN_OUT,                // AUX Enable
+    output wire             DPTX_AUX_TX_OUT,                // AUX Transmit
+    input wire              DPTX_AUX_RX_IN,                 // AUX Receive
+    input wire              DPTX_HPD_IN,                    // HPD
+
+    // FALD
+    output wire             FALD_PWR_EN_OUT,                // Power enable
+    output wire             FALD_CLK_OUT,                   // Clock
+    output wire             FALD_DAT_OUT,                   // Data
 
     // Misc
     output wire [7:0]       LED_OUT,
-    input wire [1:0]        SW_IN,
-    output wire [7:0]       DEBUG_OUT,
-
-    // Aqua
-    input wire              AQUA_SEL_IN,
-    input wire              AQUA_CTL_IN,
-    input wire              AQUA_CLK_IN,
-    input wire              AQUA_DAT_IN
+    input wire [1:0]        SW_IN
 );
 
 
@@ -102,6 +103,8 @@ localparam P_SPL            = 4;
 localparam P_PPC            = 4;
 localparam P_BPC            = 8;
 localparam P_AXI_WIDTH      = 96;
+localparam P_APP_ROM_INIT   = "none";
+localparam P_APP_RAM_INIT   = "none";
 
 // Interfaces
 
@@ -146,7 +149,7 @@ scaler_if();
 */
 
 // Reset
-(* syn_preserve=1 *) logic [9:0]    sclk_rst_cnt;
+(* syn_preserve=1 *) logic [15:0]   sclk_rst_cnt;
 (* syn_preserve=1 *) logic          sclk_rst;
 
 // Clocks
@@ -156,6 +159,7 @@ wire                            refclk0_from_diffclkio;
 wire                            refclk1_from_diffclkio;
 wire                            clk_from_tx_buf;
 wire                            clk_from_vid_buf;
+wire                            clk_from_rpi_vid_buf;
 
 // APP
 wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
@@ -169,7 +173,8 @@ wire                            phy_rx_rst_from_app;
 wire                            vid_mux_sel_from_app;
 
 // RPI DPI
-wire                            cke_from_rpi_dpi;
+wire                            ref_clk_from_rpi_dpi;
+wire                            lock_from_rpi_dpi;
 wire                            vs_from_rpi_dpi;
 wire                            hs_from_rpi_dpi;
 wire [(P_PPC*P_BPC)-1:0]        r_from_rpi_dpi;
@@ -229,39 +234,38 @@ wire                            led_from_sys_hb;
 wire                            led_from_sdtx_hb;
 wire                            led_from_vid_hb;
 
+// FALD
+wire                            led_clk_from_fald;
+wire                            led_dat_from_fald;
+
 /*
     Logic
 */
 
-// System PLL
-// This PLL generates the 100 MHz clock for the application.    
-    sys_pll
-    SYS_PLL_INST
+// System clock input buffer
+    IB
+    SYS_CLK_BUF_INST
     (
-        .clki_i     (SYS_CLK_IN), 
-        .clkop_o    (clk_from_sys_pll), 
-        .lock_o     (lock_from_sys_pll)
+        .I (SYS_CLK_IN),        // I
+        .O (clk_from_sys_buf)   // O
     );
 
 // Reset generator
-    always_ff @ (negedge lock_from_sys_pll, posedge clk_from_sys_pll)
+    always_ff @ (negedge SYS_RSTN_IN, posedge clk_from_sys_buf)
     begin
-        if (!lock_from_sys_pll)
+        if (!SYS_RSTN_IN)
         begin
+            sclk_rst_cnt <= '1;
             sclk_rst <= 1;
-            sclk_rst_cnt <= 0;
         end
 
+        // Decrement
+        else if (sclk_rst_cnt != 0)
+            sclk_rst_cnt <= sclk_rst_cnt - 'd1;
+
+        // Release
         else
-        begin
-            // Increment
-            if (!(&sclk_rst_cnt))
-                sclk_rst_cnt <= sclk_rst_cnt + 'd1;
-
-            // Counter expired
-            else
-                sclk_rst <= 0;
-        end
+            sclk_rst <= 0;
     end
 
 // Global reset 
@@ -270,8 +274,18 @@ wire                            led_from_vid_hb;
     GSR
     GSR_INST
     (
-        .GSR_N (lock_from_sys_pll),  
-        .CLK   (clk_from_sys_pll)  
+        .GSR_N (~sclk_rst),  
+        .CLK   (clk_from_sys_buf)  
+    );
+
+// System PLL
+// This PLL generates the 50 MHz clock for the application.    
+    sys_pll
+    SYS_PLL_INST
+    (
+        .clki_i     (clk_from_sys_buf), 
+        .clkop_o    (clk_from_sys_pll), 
+        .lock_o     (lock_from_sys_pll)
     );
 
 // Serdes reference clock buffer
@@ -286,12 +300,21 @@ wire                            led_from_vid_hb;
         .CLKOUT1    (refclk1_from_diffclkio) 
     );
 
-// Video clock input buffer
+// Tentiva video clock input buffer
     IB
-    VID_BUF_INST
+    TENTIVA_VID_BUF_INST
     (
-        .I (RPI_DPI_CLK_IN),    // I
-        .O (clk_from_vid_buf)   // O
+        .I (TENTIVA_VID_CLK_IN),    // I
+        .O (clk_from_vid_buf)       // O
+    );
+
+
+// RPI video clock input buffer
+    IB
+    RPI_VID_BUF_INST
+    (
+        .I (RPI_DPI_CLK_IN),        // I
+        .O (clk_from_rpi_vid_buf)   // O
     );
 
 // Application
@@ -303,6 +326,8 @@ wire                            led_from_vid_hb;
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_INIT         (P_APP_ROM_INIT),
+        .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
     )
     APP_INST
@@ -347,10 +372,10 @@ wire                            led_from_vid_hb;
         .SCALER_IF          (scaler_if),
 
         // Aqua 
-        .AQUA_SEL_IN        (AQUA_SEL_IN),
-        .AQUA_CTL_IN        (AQUA_CTL_IN),
-        .AQUA_CLK_IN        (AQUA_CLK_IN),
-        .AQUA_DAT_IN        (AQUA_DAT_IN)
+        .AQUA_SEL_IN        (0),
+        .AQUA_CTL_IN        (0),
+        .AQUA_CLK_IN        (0),
+        .AQUA_DAT_IN        (0)
     );
 
     // PIO in mapping
@@ -371,6 +396,10 @@ wire                            led_from_vid_hb;
 
 // Raspberry PI DPI
     rpi_dpi
+    #(
+        // System
+        .P_VENDOR               (P_VENDOR)
+    )
     RPI_DPI_INST
     (
          // System
@@ -381,7 +410,7 @@ wire                            led_from_vid_hb;
         .LB_IF                  (rpi_if),
         
         // DPI input
-        .DPI_CLK_IN             (clk_from_vid_buf),   
+        .DPI_CLK_IN             (clk_from_rpi_vid_buf),   
         .DPI_VS_IN              (RPI_DPI_VS_IN),
         .DPI_HS_IN              (RPI_DPI_HS_IN),
         .DPI_DEN_IN             (RPI_DPI_DEN_IN),
@@ -390,8 +419,12 @@ wire                            led_from_vid_hb;
         .DPI_G_IN               (RPI_DPI_G_IN),
         .DPI_B_IN               (RPI_DPI_B_IN),
 
+        .DPI_REF_CLK_OUT        (ref_clk_from_rpi_dpi),
+
         // Video output
-        .VID_CKE_OUT            (cke_from_rpi_dpi),
+        .VID_CLK_IN             (clk_from_vid_buf),
+        .VID_CKE_IN             (cke_from_scaler),
+        .VID_LOCK_OUT           (lock_from_rpi_dpi),
         .VID_VS_OUT             (vs_from_rpi_dpi),
         .VID_HS_OUT             (hs_from_rpi_dpi),
         .VID_R_OUT              (r_from_rpi_dpi),
@@ -423,7 +456,8 @@ wire                            led_from_vid_hb;
         .VID_CLK_IN             (clk_from_vid_buf),
 
          // Video in
-        .VID_CKE_IN             (cke_from_rpi_dpi),     // Clock enable
+        .VID_CKE_IN             (cke_from_scaler),      // Clock enable
+        .VID_LOCK_IN            (lock_from_rpi_dpi),    // Lock
         .VID_VS_IN              (vs_from_rpi_dpi),      // Vertical sync
         .VID_HS_IN              (hs_from_rpi_dpi),      // Horizontal sync    
         .VID_R_IN               (r_from_rpi_dpi),       // Red
@@ -483,11 +517,7 @@ wire                            led_from_vid_hb;
         .VID_R_OUT              (r_from_vtb),
         .VID_G_OUT              (g_from_vtb),
         .VID_B_OUT              (b_from_vtb),
-        .VID_DE_OUT             (de_from_vtb),
-
-        // Debug
-        .DBG_CR_SYNC_END_OUT    (),                         // Sync end out
-        .DBG_CR_PIX_END_OUT     ()                          // Pixel end out
+        .VID_DE_OUT             (de_from_vtb)
     );
 
 // Video mux select CDC
@@ -898,6 +928,9 @@ wire                            led_from_vid_hb;
 
 // Outputs
 
+    // Tentiva
+    assign TENTIVA_VID_REF_CLK_OUT = ref_clk_from_rpi_dpi;
+
     // LED
     assign LED_OUT[0]   = led_from_sys_hb;
     assign LED_OUT[1]   = hb_from_dptx;
@@ -907,16 +940,6 @@ wire                            led_from_vid_hb;
     assign LED_OUT[5]   = led_from_vid_hb;
     assign LED_OUT[6]   = 0; 
     assign LED_OUT[7]   = 0;
-
-    // Debug
-    assign DEBUG_OUT[0] = phy_all_rst_from_app;
-    assign DEBUG_OUT[1] = phy_tx_rst_from_app;
-    assign DEBUG_OUT[2] = phy_rx_rst_from_app;
-    assign DEBUG_OUT[3] = &rdy_from_phy;
-    assign DEBUG_OUT[4] = 0;
-    assign DEBUG_OUT[5] = 0;
-    assign DEBUG_OUT[6] = 0;
-    assign DEBUG_OUT[7] = 0;
 
 endmodule
 

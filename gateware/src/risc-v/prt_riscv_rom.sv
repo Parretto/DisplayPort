@@ -150,7 +150,7 @@ generate
     begin : gen_int
         altera_syncram
         #( 
-            .outdata_reg_a                      ("UNREGISTERED"),
+            .outdata_reg_a                      ("CLOCK0"),
             .clock_enable_input_a               ("BYPASS"),
             .clock_enable_input_b               ("BYPASS"),
             .enable_force_to_zero               ("FALSE"),
@@ -184,7 +184,7 @@ generate
             .byteena_a                          (1'b1),
             .byteena_b                          (1'b1),
             .clock1                             (1'b1),
-            .clocken0                           (1'b1),
+            .clocken0                           (clk_en),
             .clocken1                           (1'b1),
             .clocken2                           (1'b1),
             .clocken3                           (1'b1),
@@ -193,7 +193,7 @@ generate
             .eccencparity                       (8'b0),
             .eccstatus                          (),
             .q_a                                (ROM_IF.dat),
-            .rden_a                             (1'b1),
+            .rden_a                             (clk_en),
             .rden_b                             (1'b1),
             .sclr                               (1'b0),
             .wren_b                             (1'b0)

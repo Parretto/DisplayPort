@@ -92,6 +92,10 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[5]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[6]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[7]}]
 
+# Switch
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports SYS_RSTN_IN]
+ldc_set_location -site {J5} [get_ports SYS_RSTN_IN]
+
 # I2C
 ldc_set_location -site {H22} [get_ports I2C_SCL_INOUT]
 ldc_set_location -site {H23} [get_ports I2C_SDA_INOUT]

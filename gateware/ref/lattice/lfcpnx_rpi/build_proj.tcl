@@ -74,11 +74,19 @@ prj_add_source $SRC/misc/prt_uart.sv
 
 # Scaler
 prj_add_source $SRC/scaler/prt_scaler_lib.sv 
-prj_add_source $SRC/scaler/prt_scaler_ctl.sv 
-prj_add_source $SRC/scaler/prt_scaler_tg.sv
-prj_add_source $SRC/scaler/prt_scaler_hbs.sv
-prj_add_source $SRC/scaler/prt_scaler_vbs.sv
-prj_add_source $SRC/scaler/prt_scaler_top.sv 
+prj_add_source $SRC/scaler/prt_scaler_agnt_lut.sv
+prj_add_source $SRC/scaler/prt_scaler_agnt.sv
+prj_add_source $SRC/scaler/prt_scaler_coef.sv
+prj_add_source $SRC/scaler/prt_scaler_ctl.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl_mac.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl_mux.sv
+prj_add_source $SRC/scaler/prt_scaler_krnl.sv
+prj_add_source $SRC/scaler/prt_scaler_lbf.sv 
+prj_add_source $SRC/scaler/prt_scaler_lst.sv 
+prj_add_source $SRC/scaler/prt_scaler_slw_mux.sv
+prj_add_source $SRC/scaler/prt_scaler_slw.sv
+prj_add_source $SRC/scaler/prt_scaler_tg.sv 
+prj_add_source $SRC/scaler/prt_scaler_top.sv
 
 # RPI
 prj_add_source $SRC/rpi/rpi_dpi.sv 
@@ -117,6 +125,3 @@ prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
 
 # Set top level
 prj_set_impl_opt -impl impl1 top dp_rpi_lfcpnx
-
-# This argument needs to be set to use the RPI DPI clock on a normal I/O pin
-prj_set_strategy_value -strategy Strategy1 {par_cmdline_args=-exp WARNING_ON_PCLKPLC1=1}
