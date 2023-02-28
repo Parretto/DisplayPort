@@ -5,12 +5,13 @@
 
 
     Module: RISC-V CPU registers
-    (c) 2022 by Parretto B.V.
+    (c) 2022 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-
+	v1.1 - Added ramstyle property
+		
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -51,7 +52,11 @@ module prt_riscv_cpu_reg
 );
 
 // Signals
-(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
+// The ram style is needed for Lattice.
+// If not set Lattice Radiant 2022.1 will map the registers into block rams (EBR)
+// and this results in unknown read outputs.
+(* syn_ramstyle = "distributed" *) logic [31:0]	clk_reg[0:P_REGS-1];
+//(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
 logic [31:0]	clk_rs1_dat;
 logic [31:0]	clk_rs2_dat;
 

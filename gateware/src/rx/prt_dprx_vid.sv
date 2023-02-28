@@ -3240,6 +3240,7 @@ endgenerate
 // Head clock domain crossing
     prt_dp_lib_cdc_gray
     #(
+        .P_VENDOR       (P_VENDOR),
         .P_WIDTH        ($size(lclk_fifo.head))
     )
     VCLK_HEAD_CDC_INST

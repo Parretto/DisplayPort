@@ -5,12 +5,13 @@
 
 
     Module: DP TX Main Stream Attribute (msa)
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added support for 1 and 2 lanes
+    v1.2 - Updated architecture to insert Mvid value in MSA RAM output
 
     License
     =======
@@ -106,6 +107,11 @@ typedef struct {
 } ram_struct;
 
 typedef struct {
+    logic   [P_RAM_ADR-1:0]         cnt;
+    logic   [P_RAM_DAT-1:0]         dat[0:P_LANES*P_SPL-1];    // Read data
+} ins_struct;
+
+typedef struct {
     logic   [1:0]                   lanes;
     logic                           efm;
     logic   [12:0]                  idle_cnt;
@@ -149,6 +155,7 @@ typedef struct {
 // Signals
 msg_struct          lclk_msg;
 ram_struct          lclk_ram;
+ins_struct          lclk_ins;
 lnk_struct          lclk_lnk;
 vid_struct          lclk_vid;
 vid_mvid_struct     vclk_mvid;
@@ -277,115 +284,7 @@ endgenerate
     end
 
 // Write data
-// MVid insertion
-    always_comb
-    begin
-        // 4 lanes
-        if (lclk_lnk.lanes == 'd3)
-        begin
-            case (lclk_msg.idx)
-                // Mvid 23:16
-                'd8  : lclk_ram.din = lclk_mvid.val[23:16];
-                'd9  : lclk_ram.din = lclk_mvid.val[23:16];
-                'd10 : lclk_ram.din = lclk_mvid.val[23:16];
-                'd11 : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd12 : lclk_ram.din = lclk_mvid.val[15:8];
-                'd13 : lclk_ram.din = lclk_mvid.val[15:8];
-                'd14 : lclk_ram.din = lclk_mvid.val[15:8];
-                'd15 : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd16 : lclk_ram.din = lclk_mvid.val[7:0];
-                'd17 : lclk_ram.din = lclk_mvid.val[7:0];
-                'd18 : lclk_ram.din = lclk_mvid.val[7:0];
-                'd19 : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Data from policy maker
-                default : lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
-            endcase
-        end
-
-        // 2 lanes
-        else if (lclk_lnk.lanes == 'd2)
-        begin
-            case (lclk_msg.idx)
-                // Mvid 23:16
-                'd4  : lclk_ram.din = lclk_mvid.val[23:16];
-                'd5  : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd6  : lclk_ram.din = lclk_mvid.val[15:8];
-                'd7  : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd8  : lclk_ram.din = lclk_mvid.val[7:0];
-                'd9  : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Mvid 23:16
-                'd22 : lclk_ram.din = lclk_mvid.val[23:16];
-                'd23 : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd24 : lclk_ram.din = lclk_mvid.val[15:8];
-                'd25 : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd26 : lclk_ram.din = lclk_mvid.val[7:0];
-                'd27 : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Data from policy maker
-                default : lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
-            endcase
-        end        
-
-        // 1 lane
-        else 
-        begin
-            case (lclk_msg.idx)
-                // Mvid 23:16
-                'd2  : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd3  : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd4  : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Mvid 23:16
-                'd11 : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd12 : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd13 : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Mvid 23:16
-                'd20 : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd21 : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd22 : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Mvid 23:16
-                'd29 : lclk_ram.din = lclk_mvid.val[23:16];
-
-                // Mvid 15:8
-                'd30 : lclk_ram.din = lclk_mvid.val[15:8];
-
-                // Mvid 7:0
-                'd31 : lclk_ram.din = lclk_mvid.val[7:0];
-
-                // Data from policy maker
-                default : lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
-            endcase
-        end        
-
-    end
+    assign lclk_ram.din = lclk_msg.dat[P_RAM_DAT-1:0];
 
 // Write
 // The policy maker writes the MSA data sequential over the lanes.
@@ -632,6 +531,54 @@ endgenerate
             lclk_lnk.bs_cnt_end = 0;
     end
 
+// Inserter
+// This process inserts the Mvid value in the MSA data from the RAM.
+// todo: Add all lanes modes
+
+// Counter
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Increment
+        if (lclk_ram.de[0])
+            lclk_ins.cnt <= lclk_ins.cnt + 'd1;
+        
+        // Clear
+        else
+            lclk_ins.cnt <= 0;
+    end
+
+// Data inserter
+    always_comb
+    begin
+        // Default
+        for (int i = 0; i < P_LANES * P_SPL; i++)
+            lclk_ins.dat[i] = lclk_ram.dout[i];
+
+        case (lclk_ins.cnt)
+            'd0 : 
+            begin
+                lclk_ins.dat[(0*4)+2] = lclk_mvid.val[23:16];
+                lclk_ins.dat[(0*4)+3] = lclk_mvid.val[15:8];
+                lclk_ins.dat[(1*4)+2] = lclk_mvid.val[23:16];
+                lclk_ins.dat[(1*4)+3] = lclk_mvid.val[15:8];
+                lclk_ins.dat[(2*4)+2] = lclk_mvid.val[23:16];
+                lclk_ins.dat[(2*4)+3] = lclk_mvid.val[15:8];
+                lclk_ins.dat[(3*4)+2] = lclk_mvid.val[23:16];
+                lclk_ins.dat[(3*4)+3] = lclk_mvid.val[15:8];
+            end
+
+            'd1 : 
+            begin
+                lclk_ins.dat[(0*4)+0] = lclk_mvid.val[7:0];
+                lclk_ins.dat[(1*4)+0] = lclk_mvid.val[7:0];
+                lclk_ins.dat[(2*4)+0] = lclk_mvid.val[7:0];
+                lclk_ins.dat[(3*4)+0] = lclk_mvid.val[7:0];
+            end
+
+            default : ;
+        endcase
+    end
+    
 // Mux
 generate
     // Four symbols per lane
@@ -643,28 +590,28 @@ generate
             if (lclk_ram.de[0])
             begin
                 // Lane 0
-                {lclk_lnk.k[0][0], lclk_lnk.dat[0][0]} <= lclk_ram.dout[0]; // Sublane 0
-                {lclk_lnk.k[0][1], lclk_lnk.dat[0][1]} <= lclk_ram.dout[1]; // Sublane 1
-                {lclk_lnk.k[0][2], lclk_lnk.dat[0][2]} <= lclk_ram.dout[2]; // Sublane 2
-                {lclk_lnk.k[0][3], lclk_lnk.dat[0][3]} <= lclk_ram.dout[3]; // Sublane 3
+                {lclk_lnk.k[0][0], lclk_lnk.dat[0][0]} <= lclk_ins.dat[0]; // Sublane 0
+                {lclk_lnk.k[0][1], lclk_lnk.dat[0][1]} <= lclk_ins.dat[1]; // Sublane 1
+                {lclk_lnk.k[0][2], lclk_lnk.dat[0][2]} <= lclk_ins.dat[2]; // Sublane 2
+                {lclk_lnk.k[0][3], lclk_lnk.dat[0][3]} <= lclk_ins.dat[3]; // Sublane 3
 
                 // Lane 1
-                {lclk_lnk.k[1][0], lclk_lnk.dat[1][0]} <= lclk_ram.dout[4]; // Sublane 0
-                {lclk_lnk.k[1][1], lclk_lnk.dat[1][1]} <= lclk_ram.dout[5]; // Sublane 1
-                {lclk_lnk.k[1][2], lclk_lnk.dat[1][2]} <= lclk_ram.dout[6]; // Sublane 2
-                {lclk_lnk.k[1][3], lclk_lnk.dat[1][3]} <= lclk_ram.dout[7]; // Sublane 3
+                {lclk_lnk.k[1][0], lclk_lnk.dat[1][0]} <= lclk_ins.dat[4]; // Sublane 0
+                {lclk_lnk.k[1][1], lclk_lnk.dat[1][1]} <= lclk_ins.dat[5]; // Sublane 1
+                {lclk_lnk.k[1][2], lclk_lnk.dat[1][2]} <= lclk_ins.dat[6]; // Sublane 2
+                {lclk_lnk.k[1][3], lclk_lnk.dat[1][3]} <= lclk_ins.dat[7]; // Sublane 3
 
                 // Lane 2
-                {lclk_lnk.k[2][0], lclk_lnk.dat[2][0]} <= lclk_ram.dout[8];  // Sublane 0
-                {lclk_lnk.k[2][1], lclk_lnk.dat[2][1]} <= lclk_ram.dout[9];  // Sublane 1
-                {lclk_lnk.k[2][2], lclk_lnk.dat[2][2]} <= lclk_ram.dout[10]; // Sublane 2
-                {lclk_lnk.k[2][3], lclk_lnk.dat[2][3]} <= lclk_ram.dout[11]; // Sublane 3
+                {lclk_lnk.k[2][0], lclk_lnk.dat[2][0]} <= lclk_ins.dat[8];  // Sublane 0
+                {lclk_lnk.k[2][1], lclk_lnk.dat[2][1]} <= lclk_ins.dat[9];  // Sublane 1
+                {lclk_lnk.k[2][2], lclk_lnk.dat[2][2]} <= lclk_ins.dat[10]; // Sublane 2
+                {lclk_lnk.k[2][3], lclk_lnk.dat[2][3]} <= lclk_ins.dat[11]; // Sublane 3
 
                 // Lane 3
-                {lclk_lnk.k[3][0], lclk_lnk.dat[3][0]} <= lclk_ram.dout[12]; // Sublane 0
-                {lclk_lnk.k[3][1], lclk_lnk.dat[3][1]} <= lclk_ram.dout[13]; // Sublane 1
-                {lclk_lnk.k[3][2], lclk_lnk.dat[3][2]} <= lclk_ram.dout[14]; // Sublane 2
-                {lclk_lnk.k[3][3], lclk_lnk.dat[3][3]} <= lclk_ram.dout[15]; // Sublane 3
+                {lclk_lnk.k[3][0], lclk_lnk.dat[3][0]} <= lclk_ins.dat[12]; // Sublane 0
+                {lclk_lnk.k[3][1], lclk_lnk.dat[3][1]} <= lclk_ins.dat[13]; // Sublane 1
+                {lclk_lnk.k[3][2], lclk_lnk.dat[3][2]} <= lclk_ins.dat[14]; // Sublane 2
+                {lclk_lnk.k[3][3], lclk_lnk.dat[3][3]} <= lclk_ins.dat[15]; // Sublane 3
             end
 
             // BS
@@ -737,14 +684,14 @@ generate
             // Main stream attribute
             if (lclk_ram.de[0])
             begin
-                {lclk_lnk.k[0][0], lclk_lnk.dat[0][0]} <= lclk_ram.dout[0]; // Lane 0 sublane 0
-                {lclk_lnk.k[0][1], lclk_lnk.dat[0][1]} <= lclk_ram.dout[1]; // Lane 0 sublane 1
-                {lclk_lnk.k[1][0], lclk_lnk.dat[1][0]} <= lclk_ram.dout[2]; // Lane 1 sublane 0
-                {lclk_lnk.k[1][1], lclk_lnk.dat[1][1]} <= lclk_ram.dout[3]; // Lane 1 sublane 1
-                {lclk_lnk.k[2][0], lclk_lnk.dat[2][0]} <= lclk_ram.dout[4]; // Lane 2 sublane 0
-                {lclk_lnk.k[2][1], lclk_lnk.dat[2][1]} <= lclk_ram.dout[5]; // Lane 2 sublane 1
-                {lclk_lnk.k[3][0], lclk_lnk.dat[3][0]} <= lclk_ram.dout[6]; // Lane 3 sublane 0
-                {lclk_lnk.k[3][1], lclk_lnk.dat[3][1]} <= lclk_ram.dout[7]; // Lane 3 sublane 1
+                {lclk_lnk.k[0][0], lclk_lnk.dat[0][0]} <= lclk_ins.dat[0]; // Lane 0 sublane 0
+                {lclk_lnk.k[0][1], lclk_lnk.dat[0][1]} <= lclk_ins.dat[1]; // Lane 0 sublane 1
+                {lclk_lnk.k[1][0], lclk_lnk.dat[1][0]} <= lclk_ins.dat[2]; // Lane 1 sublane 0
+                {lclk_lnk.k[1][1], lclk_lnk.dat[1][1]} <= lclk_ins.dat[3]; // Lane 1 sublane 1
+                {lclk_lnk.k[2][0], lclk_lnk.dat[2][0]} <= lclk_ins.dat[4]; // Lane 2 sublane 0
+                {lclk_lnk.k[2][1], lclk_lnk.dat[2][1]} <= lclk_ins.dat[5]; // Lane 2 sublane 1
+                {lclk_lnk.k[3][0], lclk_lnk.dat[3][0]} <= lclk_ins.dat[6]; // Lane 3 sublane 0
+                {lclk_lnk.k[3][1], lclk_lnk.dat[3][1]} <= lclk_ins.dat[7]; // Lane 3 sublane 1
             end
 
             // BS

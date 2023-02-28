@@ -5,12 +5,13 @@
 
 
     Module: DP TX Video
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added support for 1 and 2 active lanes
+    v1.2 - Improved vu size calculation and fifo reset
 
     License
     =======
@@ -91,6 +92,7 @@ typedef struct {
     logic                           vs_re;
     logic                           hs;
     logic                           hs_re;
+    logic                           hs_fe;
     logic                           de;
     logic                           de_re;
     logic                           de_fe;
@@ -117,10 +119,7 @@ typedef struct {
 } vid_map_struct;
 
 typedef struct {
-    logic                           clr;
-    logic                           clr_re;
-    logic                           clr_fe;
-    logic                           clr_pulse;    
+    logic   [7:0]                   head;
     logic	[P_FIFO_DAT-1:0]        din[0:P_LANES-1][0:P_FIFO_STRIPES-1];
     logic   [P_FIFO_STRIPES-1:0]    wr[0:P_LANES-1];
     logic   [P_FIFO_ADR:0]          wrds[0:P_LANES-1][0:P_FIFO_STRIPES-1];
@@ -129,10 +128,10 @@ typedef struct {
 } vid_fifo_struct;
 
 typedef struct {
-    logic                           clr;
-    logic                           clr_re;
-    logic                           clr_fe;
-    logic                           clr_pulse;    
+    logic   [7:0]                   head;
+    logic   [7:0]                   tail;
+    logic   [7:0]                   delta;
+    logic [7:0]                     msk;      // Mask
     logic   [P_FIFO_STRIPES-1:0]    rd[0:P_LANES-1];
     logic   [P_FIFO_DAT-1:0]        dout[0:P_LANES-1][0:P_FIFO_STRIPES-1];
     logic   [P_FIFO_STRIPES-1:0]    de[0:P_LANES-1];
@@ -142,7 +141,10 @@ typedef struct {
 } lnk_fifo_struct;
 
 typedef struct {
+    logic                           run;
     logic                           vs;
+    logic                           hs;
+    logic                           hs_fe;
     logic                           vbf;      // Vertical blanking flag
     logic                           act;
     logic                           act_re;
@@ -156,8 +158,6 @@ typedef struct {
     logic [1:0]                     lanes;          // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     logic                           en;             // Enable
     logic                           bs;             // Blanking start 
-    logic [7:0]                     fifo_wrds[0:3]; // FIFO words
-    logic [9:0]                     fifo_wrds_all;  // FIFO words
     logic                           fifo_rdy;       // FIFO ready
     logic [5:0]                     vu_len;         // Video unit length in a TU
     logic                           tu_run;
@@ -165,7 +165,7 @@ typedef struct {
     logic [5:0]                     tu_cnt;         // Transfer unit counter
     logic                           tu_cnt_last;
     logic                           tu_cnt_end;
-    logic [6:0]                     vu_rd_cnt;      // Video unit read counter
+    logic [5:0]                     vu_rd_cnt;      // Video unit read counter
     logic                           vu_rd_cnt_end;
     logic [4:0]                     ins_be;
     logic [P_SPL-1:0]               k[0:P_LANES-1];
@@ -295,7 +295,7 @@ genvar i, j;
         .CKE_IN    (VID_CKE_IN),        // Clock enable
         .A_IN      (vclk_vid.hs),       // Input
         .RE_OUT    (vclk_vid.hs_re),    // Rising edge
-        .FE_OUT    ()                   // Falling edge
+        .FE_OUT    (vclk_vid.hs_fe)     // Falling edge
     );
 
 // Data enable edge detector
@@ -889,12 +889,10 @@ endgenerate
     FIFO
 */
 
-// FIFO Clear
-// In the link domain the data can be transmitted during blanking. 
-// Therefore the hsync or vsync can't be used to reset the FIFO.
-// Before a new line starts, all the data should be transmitted. 
-// This signal is toggled just before the start of a new line.
-// Because this signal must transfer to the link domain, this signal is toggling. 
+// Head counter
+// The head counter is used count the active words in the fifo. 
+// Only the last stripe of the last lane is used. 
+// The head value is used by the link domain to determine the size of the read packet.
     always_ff @ (posedge VID_CLK_IN)
     begin
         // Run
@@ -903,33 +901,19 @@ endgenerate
             // Clock enable
             if (VID_CKE_IN)
             begin
-                // Toggle - just before the line starts
-                if (vclk_vid.pix_cnt == (vclk_vid.hstart  - (8 * P_PPC)))
-                    vclk_fifo.clr <= ~vclk_fifo.clr;
+                // Clear on falling edge hsync
+                if (vclk_vid.hs_fe)
+                    vclk_fifo.head <= 0;
+
+                // Increment
+                else if (vclk_fifo.wr[P_LANES-1][P_FIFO_STRIPES-1])
+                    vclk_fifo.head <= vclk_fifo.head + 'd1;
             end
         end
 
+        // Idle
         else
-            vclk_fifo.clr <= 0;
-    end
-
-// FIFO clear edge
-    prt_dp_lib_edge
-    VID_FIFO_CLR_EDGE_INST
-    (
-        .CLK_IN         (VID_CLK_IN),          // Clock
-        .CKE_IN         (VID_CKE_IN),          // Clock enable
-        .A_IN           (vclk_fifo.clr),       // Input
-        .RE_OUT         (vclk_fifo.clr_re),    // Rising edge
-        .FE_OUT         (vclk_fifo.clr_fe)     // Falling edge
-    );
-
-// Pulse
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Clock enable
-        if (VID_CKE_IN)
-            vclk_fifo.clr_pulse <= vclk_fifo.clr_re || vclk_fifo.clr_fe;
+            vclk_fifo.head <= 0;
     end
 
 generate
@@ -961,12 +945,12 @@ generate
             	.B_CKE_IN      (lclk_lnk.en),
 
             	// Input (A)
-                .A_CLR_IN      (vclk_fifo.clr_pulse),       // Clear
+                .A_CLR_IN      (vclk_vid.hs_fe),            // Clear
             	.A_WR_IN       (vclk_fifo.wr[i][j]),	    // Write
             	.A_DAT_IN      (vclk_fifo.din[i][j]),		// Write data
 
             	// Output (B)
-            	.B_CLR_IN      (lclk_fifo.clr_pulse),       // Clear
+            	.B_CLR_IN      (lclk_vid.hs_fe),            // Clear
                 .B_RD_IN       (lclk_fifo.rd[i][j]),	    // Read
             	.B_DAT_OUT     (lclk_fifo.dout[i][j]),		// Read data
             	.B_DE_OUT      (lclk_fifo.de[i][j]),		// Data enable
@@ -990,33 +974,6 @@ endgenerate
     Link domain
 */
 
-// FIFO clear clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_FIFO_CLR_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),         // Clock
-        .SRC_DAT_IN     (vclk_fifo.clr),      // Data
-        .DST_CLK_IN     (LNK_CLK_IN),         // Clock
-        .DST_DAT_OUT    (lclk_fifo.clr)       // Data
-    );
-
-// FIFO clear edge
-    prt_dp_lib_edge
-    LNK_FIFO_CLR_EDGE_INST
-    (
-        .CLK_IN         (LNK_CLK_IN),          // Clock
-        .CKE_IN         (1'b1),                // Clock enable
-        .A_IN           (lclk_fifo.clr),       // Input
-        .RE_OUT         (lclk_fifo.clr_re),    // Rising edge
-        .FE_OUT         (lclk_fifo.clr_fe)     // Falling edge
-    );
-
-// FIFO clear pulse
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        lclk_fifo.clr_pulse <= lclk_fifo.clr_re || lclk_fifo.clr_fe;
-    end
-
 // Control
     always_ff @ (posedge LNK_CLK_IN)
     begin
@@ -1024,18 +981,68 @@ endgenerate
         lclk_lnk.en     <= CTL_EN_IN;
     end
 
-// FIFO words
-// This process calculates the totals number of words in the fifo. 
-// This is used for the fifo ready signal
-// Only the last stripe / fifo of the last lane is used.
+// Run clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_RUN_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
+        .SRC_DAT_IN     (vclk_vid.run),      // Data
+        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
+        .DST_DAT_OUT    (lclk_vid.run)       // Data
+    );
+
+// Head clock domain crossing
+    prt_dp_lib_cdc_gray
+    #(
+        .P_VENDOR       (P_VENDOR),
+        .P_WIDTH        ($size(lclk_fifo.head))
+    )
+    LNK_HEAD_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),         // Clock
+        .SRC_DAT_IN     (vclk_fifo.head),     // Data
+        .DST_CLK_IN     (LNK_CLK_IN),         // Clock
+        .DST_DAT_OUT    (lclk_fifo.head)      // Data
+    );
+
+// Mask
+// At the start of a new line, the head value is cleared to zero. 
+// There is a possible race condition between the head, tail and delta values when this condition occurs. 
+// To prevent a false read sequence this mask flag is asserted. 
+// This flag is simply a delay of the first FIFO empty signal. 
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        lclk_lnk.fifo_wrds[0]   <= lclk_fifo.wrds[0][0] + lclk_fifo.wrds[0][1] + lclk_fifo.wrds[0][2] + lclk_fifo.wrds[0][3];
-        lclk_lnk.fifo_wrds[1]   <= lclk_fifo.wrds[1][0] + lclk_fifo.wrds[1][1] + lclk_fifo.wrds[1][2] + lclk_fifo.wrds[1][3];
-        lclk_lnk.fifo_wrds[2]   <= lclk_fifo.wrds[2][0] + lclk_fifo.wrds[2][1] + lclk_fifo.wrds[2][2] + lclk_fifo.wrds[2][3];
-        lclk_lnk.fifo_wrds[3]   <= lclk_fifo.wrds[3][0] + lclk_fifo.wrds[3][1] + lclk_fifo.wrds[3][2] + lclk_fifo.wrds[3][3];
-        lclk_lnk.fifo_wrds_all  <= lclk_lnk.fifo_wrds[0] + lclk_lnk.fifo_wrds[1] + lclk_lnk.fifo_wrds[2] + lclk_lnk.fifo_wrds[3];
+        lclk_fifo.msk <= {lclk_fifo.msk[0+:$size(lclk_fifo.msk)-1], lclk_fifo.ep[0][0]};
     end
+
+// Tail pointer 
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Run
+        if (lclk_vid.run)
+        begin
+            // Clear
+            if (lclk_vid.hs_fe)
+                lclk_fifo.tail <= 0;
+            
+            // Increment
+            else if (!lclk_lnk.vu_rd_cnt_end)
+                lclk_fifo.tail <= lclk_fifo.tail + 'd1;
+        end
+
+        // Idle
+        else
+            lclk_fifo.tail <= 0;
+    end
+
+// Delta
+    always_comb
+    begin
+        if (lclk_fifo.head > lclk_fifo.tail)
+            lclk_fifo.delta = lclk_fifo.head - lclk_fifo.tail;
+        else
+            lclk_fifo.delta = (2**$size(lclk_fifo.tail) - lclk_fifo.tail) + lclk_fifo.head;
+    end   
 
 // FIFO ready
 // This signal is asserted when the FIFO has enough words to start the initial TU.
@@ -1619,6 +1626,16 @@ endgenerate
         .DST_DAT_OUT    (lclk_vid.vs)       // Data
     );
 
+// Vsync clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_HS_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
+        .SRC_DAT_IN     (vclk_vid.hs),      // Data
+        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
+        .DST_DAT_OUT    (lclk_vid.hs)       // Data
+    );
+
 // Vertical blanking flag clock domain crossing
     prt_dp_lib_cdc_bit
     LNK_VBF_CDC_INST
@@ -1671,16 +1688,27 @@ endgenerate
         .FE_OUT         ()                   // Falling edge
     );
 
+// Hsync edge
+    prt_dp_lib_edge
+    LNK_HS_EDGE_INST
+    (
+        .CLK_IN         (LNK_CLK_IN),       // Clock
+        .CKE_IN         (1'b1),             // Clock enable
+        .A_IN           (lclk_vid.hs),      // Input
+        .RE_OUT         (),                // Rising edge
+        .FE_OUT         (lclk_vid.hs_fe)    // Falling edge
+    );
+
 // Video active event
 // This flag is asserted when there is an active video line.
 // The flag is sticky.
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        // Enable
-        if (lclk_lnk.en)
+        // Run
+        if (lclk_vid.run)
         begin
             // Clear
-            if (lclk_map.bs || lclk_fifo.clr_pulse)
+            if (lclk_map.bs || lclk_vid.hs_fe)
                 lclk_vid.act_evt <= 0;
 
             // Set
@@ -1698,11 +1726,11 @@ endgenerate
 // The flag is sticky.
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        // Enable
-        if (lclk_lnk.en)
+        // Run
+        if (lclk_vid.run)
         begin
             // Clear
-            if (lclk_map.bs || lclk_fifo.clr_pulse)
+            if (lclk_map.bs || lclk_vid.hs_fe)
                 lclk_vid.blnk_evt <= 0;
 
             // Set
@@ -1728,11 +1756,11 @@ endgenerate
 // Transfer unit run
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        // Enable
-        if (lclk_lnk.en)
+        // Run
+        if (lclk_vid.run)
         begin
             // Clear 
-            if (lclk_map.bs || lclk_fifo.clr_pulse)
+            if (lclk_map.bs || lclk_vid.hs_fe)
                 lclk_lnk.tu_run <= 0;
             
             // Set
@@ -1796,6 +1824,8 @@ endgenerate
 
 // Video unit length
 // This process determines the length of the video unit 
+// Todo: check all modes
+/*
 generate
     // 4 symbols per lane
     if (P_SPL == 4)
@@ -1841,6 +1871,11 @@ generate
         end
     end
 endgenerate
+*/
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        lclk_lnk.vu_len <= lclk_fifo.delta[0+:$size(lclk_lnk.vu_len)];
+    end
 
 // Video data read counter
 // This counter counts video symbols in a transfer unit during read

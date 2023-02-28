@@ -240,6 +240,8 @@ genvar i;
     end
 
 // Last horizontal block flag
+// todo: make registered
+/*
     always_comb 
     begin
         if (clk_agnt.hcnt == (clk_ctl.hwidth[$left(clk_ctl.hwidth):2] - 'd1))
@@ -247,14 +249,32 @@ genvar i;
         else
             clk_agnt.hlast = 0;       
     end
+*/
+    always_ff @ (posedge CLK_IN)
+    begin
+        if (clk_agnt.hcnt == (clk_ctl.hwidth[$left(clk_ctl.hwidth):2] - 'd2))
+            clk_agnt.hlast <= 1;
+        else
+            clk_agnt.hlast <= 0;       
+    end
 
 // Last line flag
+// todo: make registered
+/*
     always_comb 
     begin
         if (clk_agnt.vcnt == (clk_ctl.vheight - 'd1))
             clk_agnt.vlast = 1;
         else
             clk_agnt.vlast = 0;       
+    end
+*/
+    always_ff @ (posedge CLK_IN)
+    begin
+        if (clk_agnt.vcnt == (clk_ctl.vheight - 'd1))
+            clk_agnt.vlast <= 1;
+        else
+            clk_agnt.vlast <= 0;       
     end
 
 // Block index
@@ -388,12 +408,13 @@ genvar i;
     end
 
 // Counter end
-    always_comb
+// todo: make registered
+    always_ff @ (posedge CLK_IN)
     begin
         if (clk_agnt.cnt == 0)
-            clk_agnt.cnt_end = 1;
+            clk_agnt.cnt_end <= 1;
         else
-            clk_agnt.cnt_end = 0;
+            clk_agnt.cnt_end <= 0;
     end
 
 // State machine

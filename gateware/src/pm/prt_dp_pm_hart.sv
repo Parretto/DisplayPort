@@ -1436,7 +1436,11 @@ module prt_dp_pm_hart_reg
 );
 
 // Signals
-(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
+//(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
+// The ram style is needed for Lattice.
+// If not set Lattice Radiant 2022.1 will map the registers into block rams (EBR)
+// and this results in unknown read outputs.
+(* syn_ramstyle = "distributed" *) logic [31:0]	clk_reg[0:P_REGS-1];
 logic [31:0]	clk_rs1_dat;
 logic [31:0]	clk_rs2_dat;
 

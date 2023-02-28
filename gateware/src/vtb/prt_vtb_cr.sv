@@ -5,11 +5,12 @@
 
 
     Module: Video Toolbox Clock Recovery
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+	v1.1 - Correct issue with busy signal in video clock domain
 
     License
     =======
@@ -368,7 +369,8 @@ dia_struct 		sclk_dia;
 
 			vid_sm_wait :
 			begin
-				if (vclk_vid.busy_fe)
+				// Wait for busy to be de-asserted
+				if (!vclk_vid.busy)
 					vclk_vid.sm_nxt = vid_sm_idle;
 
 				else

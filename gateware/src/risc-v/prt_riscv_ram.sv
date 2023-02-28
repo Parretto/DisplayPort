@@ -227,7 +227,7 @@ endgenerate
     end
 
 // Outputs
-    assign RAM_IF.rd_vld = clk_rd_vld[$left(clk_rd_vld)];
+    assign RAM_IF.rd_vld = clk_rd_vld[$high(clk_rd_vld)];
 
 endmodule
 

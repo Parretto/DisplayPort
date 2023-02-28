@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added test pattern
 
     License
     =======
@@ -29,9 +30,10 @@
 
 module prt_scaler_lbf
 #(
-     parameter                               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
-     parameter                               P_PPC = 4,          // Pixels per clock
-     parameter                               P_BPC = 8           // Bits per component
+     parameter                              P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+     parameter                              P_PPC = 4,          // Pixels per clock
+     parameter                              P_BPC = 8,          // Bits per component
+     parameter                              P_IDX = 0           // Index 0 - red, 1 - green , 2 - blue
 )
 (
     // Reset and clock
@@ -41,6 +43,7 @@ module prt_scaler_lbf
     // Control
     input wire                              CTL_RUN_IN,         // Run
     input wire                              CTL_FS_IN,          // Frame start
+    input wire                              CTL_TP_IN,          // Test pattern
 
 	// Timing generator
     input wire                              TG_VS_IN,           // Vsync
@@ -72,6 +75,7 @@ localparam P_FIFO_LVL   = P_FIFO_WRDS - 960;    // Level. At least a 3840 video 
 typedef struct {
     logic                           run;
     logic                           fs;
+    logic                           tp;
 } ctl_struct;
 
 typedef struct {
@@ -96,15 +100,21 @@ typedef struct {
 } fifo_struct;
 
 typedef struct {
-    logic de;
-    logic run;    
+    logic                           de;
+    logic                           run;    
 } tg_struct;
+
+typedef struct {
+    logic [7:0]                     cnt;
+    logic [P_BPC-1:0]               dat;
+} tp_struct;
 
 // Signals
 ctl_struct               clk_ctl;
 vid_struct               clk_vid;
 fifo_struct              clk_fifo;
 tg_struct                clk_tg;
+tp_struct                clk_tp;        // Test pattern
 
 // Logic
 
@@ -122,6 +132,7 @@ tg_struct                clk_tg;
      always_ff @ (posedge CLK_IN)
      begin
           clk_ctl.fs <= CTL_FS_IN;
+          clk_ctl.tp <= CTL_TP_IN;
      end
 
 // Video data and data enable
@@ -217,12 +228,81 @@ tg_struct                clk_tg;
         clk_vid.hs <= {clk_vid.hs[0+:$size(clk_vid.hs)-1], TG_HS_IN};
 	end
 
+// Test pattern
+// The test pattern allows to overwrite the fifo output with a fixed test pattern
+// Counter
+    always_ff @ (posedge CLK_IN)
+	begin
+        if (clk_fifo.de)
+            clk_tp.cnt <= clk_tp.cnt + 'd1;
+        
+        else
+            clk_tp.cnt <= 0;
+    end
+
+generate
+
+    // Red
+    if (P_IDX == 0)
+    begin : gen_tp_red
+        always_ff @ (posedge CLK_IN)
+        begin
+            case (clk_tp.cnt[$high(clk_tp.cnt):$high(clk_tp.cnt)-2])
+                'd1     : clk_tp.dat <= 'd180;
+                'd2     : clk_tp.dat <= 'd180;
+                'd3     : clk_tp.dat <= 'd16;
+                'd4     : clk_tp.dat <= 'd16;
+                'd5     : clk_tp.dat <= 'd180;
+                'd6     : clk_tp.dat <= 'd180;
+                'd7     : clk_tp.dat <= 'd16;
+                default : clk_tp.dat <= 'd16;
+            endcase
+        end
+    end
+    
+    // Green
+    else if (P_IDX == 1)
+    begin : gen_tp_green
+        always_ff @ (posedge CLK_IN)
+        begin
+            case (clk_tp.cnt[$high(clk_tp.cnt):$high(clk_tp.cnt)-2])
+                'd1     : clk_tp.dat <= 'd180;
+                'd2     : clk_tp.dat <= 'd180;
+                'd3     : clk_tp.dat <= 'd180;
+                'd4     : clk_tp.dat <= 'd180;
+                'd5     : clk_tp.dat <= 'd16;
+                'd6     : clk_tp.dat <= 'd16;
+                'd7     : clk_tp.dat <= 'd16;
+                default : clk_tp.dat <= 'd16;
+            endcase
+        end   
+    end
+
+    // Blue
+    else
+    begin : gen_tp_blue
+        always_ff @ (posedge CLK_IN)
+        begin
+            case (clk_tp.cnt[$high(clk_tp.cnt):$high(clk_tp.cnt)-2])
+                'd1     : clk_tp.dat <= 'd180;
+                'd2     : clk_tp.dat <= 'd16;
+                'd3     : clk_tp.dat <= 'd180;
+                'd4     : clk_tp.dat <= 'd16;
+                'd5     : clk_tp.dat <= 'd180;
+                'd6     : clk_tp.dat <= 'd16;
+                'd7     : clk_tp.dat <= 'd180;
+                default : clk_tp.dat <= 'd16;
+            endcase
+        end   
+    end
+endgenerate
+
 // Outputs
     assign LBF_RDY_OUT = clk_fifo.rdy;
     assign TG_RUN_OUT = clk_tg.run;
     assign VID_VS_OUT = clk_vid.vs[$high(clk_vid.vs)];
     assign VID_HS_OUT = clk_vid.hs[$high(clk_vid.hs)];
-    assign VID_DAT_OUT = clk_fifo.dout;
+    assign VID_DAT_OUT = {clk_ctl.tp} ? {P_PPC{clk_tp.dat}} : clk_fifo.dout;
     assign VID_DE_OUT = clk_fifo.de;
 
 endmodule

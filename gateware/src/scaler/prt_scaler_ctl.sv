@@ -47,6 +47,7 @@ module prt_scaler_ctl
 	output wire 					CTL_RUN_OUT,		// Run
 	output wire [3:0]				CTL_MODE_OUT, 		// Mode
 	output wire [3:0]				CTL_CR_OUT,			// Clock ratio
+	output wire   					CTL_TP_OUT,			// Test Pattern
 
 	// Video parameter set
 	output wire [3:0]				VPS_IDX_OUT,		// Index
@@ -77,6 +78,7 @@ typedef struct {
 	logic [3:0]				mode;
 	logic [3:0]				cr;
 	logic [3:0]				vps;
+	logic 					tp;
 } ctl_struct;
 
 typedef struct {
@@ -101,6 +103,7 @@ vps_rd_struct 	vclk_vps;
 wire			vclk_run;
 wire  [3:0]		vclk_mode;
 wire  [3:0]		vclk_cr;
+wire			vclk_tp;
 
 // Logic
 
@@ -147,6 +150,7 @@ wire  [3:0]		vclk_cr;
 	assign sclk_ctl.mode	= sclk_ctl.r[1+:4];			// Mode
 	assign sclk_ctl.cr		= sclk_ctl.r[5+:4];			// Clock ratio
 	assign sclk_ctl.vps		= sclk_ctl.r[9+:4];			// Video parameters address
+	assign sclk_ctl.tp      = sclk_ctl.r[13];			// Test pattern
 
 // Register data out
 // Must be combinatorial
@@ -208,6 +212,19 @@ wire  [3:0]		vclk_cr;
 		.DST_CLK_IN		(VID_CLK_IN),		// Clock
 		.DST_DAT_OUT	(vclk_cr)			// Data
 	);
+
+// Control test pattern clock domain crossing
+    prt_scaler_lib_cdc
+    #(
+    	.P_WIDTH 		(1) 
+    )
+    CTL_TP_CDC_INST
+    (
+        .SRC_CLK_IN     (SYS_CLK_IN),  	// Clock
+        .SRC_DAT_IN  	(sclk_ctl.tp), // Data
+        .DST_CLK_IN     (VID_CLK_IN),   // Clock
+        .DST_DAT_OUT 	(vclk_tp)   	// Data
+    );
 
 /*
 	VPS
@@ -300,6 +317,7 @@ wire  [3:0]		vclk_cr;
 	assign CTL_RUN_OUT		= vclk_run;
 	assign CTL_MODE_OUT		= vclk_mode;
 	assign CTL_CR_OUT		= vclk_cr;
+	assign CTL_TP_OUT		= vclk_tp;
 
 	// VPS	
 	assign VPS_DAT_OUT 		= vclk_vps.dout;

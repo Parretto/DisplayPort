@@ -45,7 +45,7 @@ module dp_ref_lat_lfcpnx_evn
 
     // Tentiva
     output wire             TENTIVA_CLK_SEL_OUT,        // Clock select
-    input wire              TENTIVA_GT_CLK_LOCK_IN,     // GT clock lock
+    input wire              TENTIVA_PHY_CLK_LOCK_IN,     // GT clock lock
     input wire              TENTIVA_VID_CLK_LOCK_IN,    // Video clock lock
     input wire              TENTIVA_VID_CLK_IN,         // Video clock 
 
@@ -53,7 +53,7 @@ module dp_ref_lat_lfcpnx_evn
     input wire              SD_REFCLK0_IN_P,
     input wire              SD_REFCLK0_IN_N,
     input wire              SD_REFCLK1_IN_P,
-    input wire         	    SD_REFCLK1_IN_N,
+    input wire         	 SD_REFCLK1_IN_N,
     input wire  [3:0]     	SD_REXT_IN,
     input wire  [3:0]      	SD_REFRET_IN,
 
@@ -357,7 +357,7 @@ wire                            led_from_vid_hb;
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]        = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[0]        = TENTIVA_PHY_CLK_LOCK_IN; 
     assign pio_dat_to_app[1]        = TENTIVA_VID_CLK_LOCK_IN;
     assign pio_dat_to_app[2]        = &rdy_from_phy;
 

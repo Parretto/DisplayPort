@@ -391,11 +391,11 @@ endmodule
 */
 module prt_dp_lib_fifo_dc
 #(
-	parameter                          	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter							P_MODE         = "single",		// "single" or "burst"
+	parameter                       P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter						P_MODE         = "single",		// "single" or "burst"
 	parameter 						P_RAM_STYLE	= "distributed",	// "distributed" or "block"
-	parameter							P_ADR_WIDTH	= 5,
-	parameter							P_DAT_WIDTH	= 32
+	parameter						P_ADR_WIDTH	= 5,
+	parameter						P_DAT_WIDTH	= 32
 )
 (
 	input wire						A_RST_IN,		// Reset
@@ -408,12 +408,12 @@ module prt_dp_lib_fifo_dc
 	// Input (A)
 	input wire						A_CLR_IN,		// Clear
 	input wire						A_WR_IN,		// Write
-	input wire	[P_DAT_WIDTH-1:0]		A_DAT_IN,		// Write data
+	input wire	[P_DAT_WIDTH-1:0]	A_DAT_IN,		// Write data
 
 	// Output (B)
 	input wire						B_CLR_IN,		// Clear
 	input wire						B_RD_IN,		// Read
-	output wire	[P_DAT_WIDTH-1:0]		B_DAT_OUT,	// Read data
+	output wire	[P_DAT_WIDTH-1:0]	B_DAT_OUT,	// Read data
 	output wire						B_DE_OUT,		// Data enable
 
 	// Status (A)
@@ -435,14 +435,14 @@ localparam P_WRDS = 2**P_ADR_WIDTH;
 /*
 	Signals
 */
-logic 	[P_ADR_WIDTH-1:0]		aclk_wp;
-wire 	[P_ADR_WIDTH-1:0]		aclk_rp;
+logic 	[P_ADR_WIDTH-1:0]	aclk_wp;
+wire 	[P_ADR_WIDTH-1:0]	aclk_rp;
 logic	[P_ADR_WIDTH:0]		aclk_wrds;
 logic						aclk_fl;
 logic						aclk_ep;
 
-logic 	[P_ADR_WIDTH-1:0]		bclk_rp;
-wire 	[P_ADR_WIDTH-1:0]		bclk_wp;
+logic 	[P_ADR_WIDTH-1:0]	bclk_rp;
+wire 	[P_ADR_WIDTH-1:0]	bclk_wp;
 logic	[P_ADR_WIDTH:0]		bclk_wrds;
 logic						bclk_fl;
 logic						bclk_ep;
@@ -494,12 +494,12 @@ generate
 			.clka				(A_CLK_IN),       
 			.addra				(aclk_wp), 
 			.dina				(A_DAT_IN),
-			.ena					(A_CKE_IN), 
-			.wea					(A_WR_IN),
+			.ena				(A_CKE_IN), 
+			.wea				(A_WR_IN),
 
 			.clkb				(B_CLK_IN),  
 			.addrb				(bclk_rp),  
-			.enb					(B_CKE_IN),    
+			.enb				(B_CKE_IN),    
 			.doutb				(B_DAT_OUT), 
 
 			.injectdbiterra		(1'b0),
@@ -507,8 +507,8 @@ generate
 			.regceb				(B_CKE_IN),             
 			.rstb				(1'b0),        
 			.sleep				(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb			(), 
+			.sbiterrb			()    
 		);
 	end
 
@@ -694,13 +694,14 @@ endgenerate
 // This adapter crosses the (original size) read pointer to the write pointer domain.
 	prt_dp_lib_cdc_gray
 	#(
+		.P_VENDOR 		(P_VENDOR),
 		.P_WIDTH		(P_ADR_WIDTH)
 	)
 	RP_CDC_INST
 	(
-		.SRC_CLK_IN	(B_CLK_IN),
-		.SRC_DAT_IN	(bclk_rp),
-		.DST_CLK_IN	(A_CLK_IN),
+		.SRC_CLK_IN		(B_CLK_IN),
+		.SRC_DAT_IN		(bclk_rp),
+		.DST_CLK_IN		(A_CLK_IN),
 		.DST_DAT_OUT	(aclk_rp)
 	);
 
@@ -773,13 +774,14 @@ endgenerate
 // This adapter crosses the (original size) write pointer to the read pointer domain.
 	prt_dp_lib_cdc_gray
 	#(
+		.P_VENDOR 		(P_VENDOR),
 		.P_WIDTH		(P_ADR_WIDTH)
 	)
 	WP_CDC_INST
 	(
-		.SRC_CLK_IN	(A_CLK_IN),
-		.SRC_DAT_IN	(aclk_wp),
-		.DST_CLK_IN	(B_CLK_IN),
+		.SRC_CLK_IN		(A_CLK_IN),
+		.SRC_DAT_IN		(aclk_wp),
+		.DST_CLK_IN		(B_CLK_IN),
 		.DST_DAT_OUT	(bclk_wp)
 	);
 
@@ -879,26 +881,26 @@ endmodule
 */
 module prt_dp_lib_sdp_ram_sc
 #(
-	parameter                       	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
-	parameter 					P_ADR_WIDTH 	= 7,
+	parameter                   	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter 						P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
+	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Clocks and reset
-	input wire					RST_IN,		// Reset
-	input wire					CLK_IN,		// Clock
+	input wire						RST_IN,		// Reset
+	input wire						CLK_IN,		// Clock
 
 	// Port A
-	input wire [P_ADR_WIDTH-1:0]		A_ADR_IN,		// Address
-	input wire					A_WR_IN,		// Write in
-	input wire [P_DAT_WIDTH-1:0]		A_DAT_IN,		// Write data
+	input wire [P_ADR_WIDTH-1:0]	A_ADR_IN,		// Address
+	input wire						A_WR_IN,		// Write in
+	input wire [P_DAT_WIDTH-1:0]	A_DAT_IN,		// Write data
 
 	// Port B
-	input wire [P_ADR_WIDTH-1:0]		B_ADR_IN,		// Address
-	input wire					B_RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]		B_DAT_OUT,	// Read data
-	output wire					B_VLD_OUT		// Read data valid
+	input wire [P_ADR_WIDTH-1:0]	B_ADR_IN,		// Address
+	input wire						B_RD_IN,		// Read in
+	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,	// Read data
+	output wire						B_VLD_OUT		// Read data valid
 );
 
 // Parameters

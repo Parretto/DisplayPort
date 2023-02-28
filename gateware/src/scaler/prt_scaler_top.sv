@@ -94,6 +94,7 @@ logic							vclk_de_in;
 wire							run_from_ctl;
 wire [3:0]						mode_from_ctl;
 wire [3:0]						cr_from_ctl;
+wire							tp_from_ctl;
 wire [3:0]						vps_idx_from_ctl;
 wire [15:0]						vps_dat_from_ctl;
 wire 							vps_vld_from_ctl;
@@ -183,6 +184,7 @@ genvar i;
 		.CTL_RUN_OUT		(run_from_ctl),			// Run
 		.CTL_MODE_OUT		(mode_from_ctl),		// Mode
 		.CTL_CR_OUT			(cr_from_ctl),			// Clock ratio
+		.CTL_TP_OUT			(tp_from_ctl),			// Test Pattern
 
 		// Video parameter set
 		.VPS_IDX_OUT		(vps_idx_from_ctl),		// Index
@@ -446,7 +448,8 @@ generate
 		#(
 			.P_VENDOR			(P_VENDOR),
 			.P_PPC 				(P_PPC),          	// Pixels per clock
-			.P_BPC 				(P_BPC)           	// Bits per component
+			.P_BPC 				(P_BPC),           	// Bits per component
+			.P_IDX 				(i)					// Index 
 		)
 		LBF_INST
 		(
@@ -457,6 +460,7 @@ generate
 			// Control
 			.CTL_RUN_IN			(vclk_run),				// Run
 			.CTL_FS_IN			(vclk_vs_in),			// Frame start
+			.CTL_TP_IN			(tp_from_ctl),			// Test pattern
 
 			// FIFO
 			.LBF_RDY_OUT 		(rdy_from_lbf[i]),		// Ready

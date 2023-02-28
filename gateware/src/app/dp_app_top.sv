@@ -27,7 +27,7 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
 module dp_app_top
 #(
@@ -233,7 +233,7 @@ wire [31:0]     dat_from_aqua;
         .INIT_VLD_IN    (ram_vld_from_aqua)     // Valid
     );
 
-    assign ram_if_ram.adr       = ram_if_cpu.adr;
+    assign ram_if_ram.adr       = ram_if_cpu.adr[0+:$size(ram_if_ram.adr)];
     assign ram_if_ram.wr        = ~ram_if_cpu.adr[31] && ram_if_cpu.wr;
     assign ram_if_ram.rd        = ~ram_if_cpu.adr[31] && ram_if_cpu.rd;
     assign ram_if_ram.wr_dat    = ram_if_cpu.wr_dat;
