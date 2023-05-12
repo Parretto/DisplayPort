@@ -35,11 +35,11 @@
 */
 module prt_dp_lib_fifo_sc
 #(
-	parameter                          	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter							P_MODE         = "single",		// "single" or "burst"
+	parameter                       P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter						P_MODE         = "single",		// "single" or "burst"
 	parameter 						P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
-	parameter							P_DAT_WIDTH 	= 512
+	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Clocks and reset
@@ -49,12 +49,12 @@ module prt_dp_lib_fifo_sc
 
 	// Write
 	input wire						WR_IN,		// Write in
-	input wire 	[P_DAT_WIDTH-1:0]		DAT_IN,		// Write data
+	input wire 	[P_DAT_WIDTH-1:0]	DAT_IN,		// Write data
 
 	// Read
 	input wire						RD_EN_IN,		// Read enable in
 	input wire						RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]			DAT_OUT,		// Data out
+	output wire [P_DAT_WIDTH-1:0]	DAT_OUT,		// Data out
 	output wire						DE_OUT,		// Data enable
 
 	// Status
@@ -70,11 +70,11 @@ localparam P_WRDS = 2**P_ADR_WIDTH;
 
 logic	[P_ADR_WIDTH-1:0]	clk_wp;			// Write pointer
 logic 	[P_ADR_WIDTH-1:0]	clk_rp;			// Read pointer
-logic	[1:0]			clk_da;
-logic	[1:0]			clk_de;
+logic	[1:0]				clk_da;
+logic	[1:0]				clk_de;
 logic	[P_ADR_WIDTH-1:0]	clk_wrds;
-logic					clk_ep;
-logic					clk_fl;
+logic						clk_ep;
+logic						clk_fl;
 
 // Logic
 
@@ -82,44 +82,45 @@ logic					clk_fl;
 generate
 	if (P_VENDOR == "xilinx")
 	begin : gen_ram_xlx
+
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("common_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(1),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("common_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(1),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(0),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(0),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
 			.clka				(CLK_IN),       
 			.addra				(clk_wp), 
 			.dina				(DAT_IN),
-			.ena					(1'b1), 
-			.wea					(WR_IN),
+			.ena				(1'b1), 
+			.wea				(WR_IN),
 
 			.clkb				(CLK_IN),  
 			.addrb				(clk_rp),  
-			.enb					(RD_EN_IN),    
+			.enb				(RD_EN_IN),    
 			.doutb				(DAT_OUT), 
 
 			.injectdbiterra		(1'b0),
@@ -127,8 +128,8 @@ generate
 			.regceb				(RD_EN_IN),             
 			.rstb				(1'b0),        
 			.sleep				(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb			(), 
+			.sbiterrb			()    
 		);
 	end
 
@@ -179,50 +180,50 @@ generate
 			.clock_enable_input_b 				("BYPASS"),
 			.clock_enable_output_b 				("BYPASS"),
 			.enable_force_to_zero 				("FALSE"),
-			.intended_device_family 				("Cyclone 10 GX"),
-			.lpm_type 						("altera_syncram"),
+			.intended_device_family 			("Cyclone 10 GX"),
+			.lpm_type 							("altera_syncram"),
 			.numwords_a 						(P_WRDS),
 			.numwords_b 						(P_WRDS),
 			.operation_mode 					("DUAL_PORT"),
 			.outdata_aclr_b 					("NONE"),
 			.outdata_sclr_b 					("NONE"),
-			.outdata_reg_b 					("CLOCK0"),
+			.outdata_reg_b 						("CLOCK0"),
 			.power_up_uninitialized  			("FALSE"),
 			.rdcontrol_reg_b  					("CLOCK0"),
-			.widthad_a 						(P_ADR_WIDTH),
-			.widthad_b 						(P_ADR_WIDTH),
+			.widthad_a 							(P_ADR_WIDTH),
+			.widthad_b 							(P_ADR_WIDTH),
 			.width_a 							(P_DAT_WIDTH),
 			.width_b 							(P_DAT_WIDTH)
 		)
 		RAM_INST
 		(
-			.address_a 		(clk_wp),
-			.address_b 		(clk_rp),
+			.address_a 			(clk_wp),
+			.address_b 			(clk_rp),
 			.clock0 			(CLK_IN),
 			.data_a 			(DAT_IN),
 			.wren_a 			(WR_IN),
-			.q_b 			(DAT_OUT),
-			.aclr0 			(1'b0),
-			.aclr1 			(1'b0),
+			.q_b 				(DAT_OUT),
+			.aclr0 				(1'b0),
+			.aclr1 				(1'b0),
 			.address2_a 		(1'b1),
 			.address2_b 		(1'b1),
 			.addressstall_a 	(1'b0),
 			.addressstall_b 	(1'b0),
-			.byteena_a 		(1'b1),
-			.byteena_b 		(1'b1),
+			.byteena_a 			(1'b1),
+			.byteena_b 			(1'b1),
 			.clock1 			(1'b1),
-			.clocken0 		(1'b1),
-			.clocken1 		(1'b1),
-			.clocken2 		(1'b1),
-			.clocken3 		(1'b1),
+			.clocken0 			(1'b1),
+			.clocken1 			(1'b1),
+			.clocken2 			(1'b1),
+			.clocken3 			(1'b1),
 			.data_b 			({P_DAT_WIDTH{1'b1}}),
 			.eccencbypass 		(1'b0),
 			.eccencparity 		(8'b0),
-			.eccstatus 		(),
-			.q_a 			(),
+			.eccstatus 			(),
+			.q_a 				(),
 			.rden_a 			(1'b1),
 			.rden_b 			(RD_EN_IN),
-			.sclr 			(1'b0),
+			.sclr 				(1'b0),
 			.wren_b 			(1'b0)
 		);
 	end
@@ -464,30 +465,30 @@ generate
 
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("independent_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(2),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("independent_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(2),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(P_USE_CONSTRAINT),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(1),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
@@ -526,11 +527,11 @@ generate
 				.pmi_rd_addr_depth    	(P_WRDS), 		// integer
 				.pmi_rd_addr_width    	(P_ADR_WIDTH), 	// integer
 				.pmi_rd_data_width    	(P_DAT_WIDTH), 	// integer
-				.pmi_regmode          	("reg"), 			// "reg"|"noreg"
+				.pmi_regmode          	("reg"), 		// "reg"|"noreg"
 				.pmi_resetmode        	("async"), 		// "async"|"sync"
 				.pmi_init_file        	("none"), 		// string
-				.pmi_init_file_format 	("hex"), 			// "binary"|"hex"
-				.pmi_family           	("common")  		// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+				.pmi_init_file_format 	("hex"), 		// "binary"|"hex"
+				.pmi_family           	("common")  	// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
 			) 
 			RAM_INST
 			(
@@ -613,49 +614,49 @@ generate
 			.clock_enable_input_b 				("BYPASS"),
 			.clock_enable_output_b 				("BYPASS"),
 			.enable_force_to_zero 				("FALSE"),
-			.intended_device_family 				("Cyclone 10 GX"),
-			.lpm_type 						("altera_syncram"),
+			.intended_device_family 			("Cyclone 10 GX"),
+			.lpm_type 							("altera_syncram"),
 			.numwords_a 						(P_WRDS),
 			.numwords_b 						(P_WRDS),
 			.operation_mode 					("DUAL_PORT"),
 			.outdata_aclr_b 					("NONE"),
 			.outdata_sclr_b 					("NONE"),
-			.outdata_reg_b 					("CLOCK1"),
+			.outdata_reg_b 						("CLOCK1"),
 			.power_up_uninitialized  			("FALSE"),
-			.widthad_a 						(P_ADR_WIDTH),
-			.widthad_b 						(P_ADR_WIDTH),
+			.widthad_a 							(P_ADR_WIDTH),
+			.widthad_b 							(P_ADR_WIDTH),
 			.width_a 							(P_DAT_WIDTH),
 			.width_b 							(P_DAT_WIDTH)
 		)
 		RAM_INST
 		(
-			.address_a 		(aclk_wp),
-			.address_b 		(bclk_rp),
+			.address_a 			(aclk_wp),
+			.address_b 			(bclk_rp),
 			.clock0 			(A_CLK_IN),
 			.data_a 			(A_DAT_IN),
 			.wren_a 			(A_WR_IN),
-			.q_b 			(B_DAT_OUT),
-			.aclr0 			(1'b0),
-			.aclr1 			(1'b0),
+			.q_b 				(B_DAT_OUT),
+			.aclr0 				(1'b0),
+			.aclr1 				(1'b0),
 			.address2_a 		(1'b1),
 			.address2_b 		(1'b1),
 			.addressstall_a 	(1'b0),
 			.addressstall_b 	(1'b0),
-			.byteena_a 		(1'b1),
-			.byteena_b 		(1'b1),
+			.byteena_a 			(1'b1),
+			.byteena_b 			(1'b1),
 			.clock1 			(B_CLK_IN),
-			.clocken0 		(A_CKE_IN),
-			.clocken1 		(B_CKE_IN),
-			.clocken2 		(1'b1),
-			.clocken3 		(1'b1),
+			.clocken0 			(A_CKE_IN),
+			.clocken1 			(B_CKE_IN),
+			.clocken2 			(1'b1),
+			.clocken3 			(1'b1),
 			.data_b 			({P_DAT_WIDTH{1'b1}}),
 			.eccencbypass 		(1'b0),
 			.eccencparity 		(8'b0),
-			.eccstatus 		(),
-			.q_a 			(),
+			.eccstatus 			(),
+			.q_a 				(),
 			.rden_a 			(1'b1),
 			.rden_b 			(1'b1),
-			.sclr 			(1'b0),
+			.sclr 				(1'b0),
 			.wren_b 			(1'b0)
 		);
 	end
@@ -882,14 +883,14 @@ endmodule
 module prt_dp_lib_sdp_ram_sc
 #(
 	parameter                   	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter 						P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
+	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Clocks and reset
-	input wire						RST_IN,		// Reset
-	input wire						CLK_IN,		// Clock
+	input wire						RST_IN,			// Reset
+	input wire						CLK_IN,			// Clock
 
 	// Port A
 	input wire [P_ADR_WIDTH-1:0]	A_ADR_IN,		// Address
@@ -899,7 +900,7 @@ module prt_dp_lib_sdp_ram_sc
 	// Port B
 	input wire [P_ADR_WIDTH-1:0]	B_ADR_IN,		// Address
 	input wire						B_RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,	// Read data
+	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,		// Read data
 	output wire						B_VLD_OUT		// Read data valid
 );
 
@@ -917,49 +918,49 @@ generate
 	begin : gen_ram_xlx
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("common_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(1),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("common_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(1),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(0),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(1),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
-			.clka				(CLK_IN),       
-			.addra				(A_ADR_IN), 
-			.dina				(A_DAT_IN),
+			.clka					(CLK_IN),       
+			.addra					(A_ADR_IN), 
+			.dina					(A_DAT_IN),
 			.ena					(1'b1), 
 			.wea					(A_WR_IN),
 
-			.clkb				(CLK_IN),  
-			.addrb				(B_ADR_IN),  
+			.clkb					(CLK_IN),  
+			.addrb					(B_ADR_IN),  
 			.enb					(1'b1),    
-			.doutb				(B_DAT_OUT), 
+			.doutb					(B_DAT_OUT), 
 
-			.injectdbiterra		(1'b0),
-			.injectsbiterra		(1'b0),
-			.regceb				(1'b1),             
-			.rstb				(1'b0),        
-			.sleep				(1'b0),             
+			.injectdbiterra			(1'b0),
+			.injectsbiterra			(1'b0),
+			.regceb					(1'b1),             
+			.rstb					(1'b0),        
+			.sleep					(1'b0),             
 			.dbiterrb				(), 
 			.sbiterrb				()    
 		);
@@ -973,11 +974,11 @@ generate
 		// Therefore the output register is enabled.
 		pmi_distributed_dpram
 		#(
-		  .pmi_addr_depth       	(P_WRDS), 	// integer      
-		  .pmi_addr_width       	(P_ADR_WIDTH), // integer      
-		  .pmi_data_width       	(P_DAT_WIDTH), // integer      
+		  .pmi_addr_depth       	(P_WRDS), 		// integer      
+		  .pmi_addr_width       	(P_ADR_WIDTH), 	// integer      
+		  .pmi_data_width       	(P_DAT_WIDTH), 	// integer      
 		  .pmi_regmode          	("reg"), 		// "reg"|"noreg"    
-		  .pmi_init_file        	("none"), 	// string       
+		  .pmi_init_file        	("none"), 		// string       
 		  .pmi_init_file_format 	("hex"), 		// "binary"|"hex"     
 		  .pmi_family           	("common")  	// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"    
 		) 
@@ -1011,49 +1012,49 @@ generate
 			.clock_enable_input_b 				("BYPASS"),
 			.clock_enable_output_b 				("BYPASS"),
 			.enable_force_to_zero 				("FALSE"),
-			.intended_device_family 				("Cyclone 10 GX"),
-			.lpm_type 						("altera_syncram"),
+			.intended_device_family 			("Cyclone 10 GX"),
+			.lpm_type 							("altera_syncram"),
 			.numwords_a 						(P_WRDS),
 			.numwords_b 						(P_WRDS),
 			.operation_mode 					("DUAL_PORT"),
 			.outdata_aclr_b 					("NONE"),
 			.outdata_sclr_b 					("NONE"),
-			.outdata_reg_b 					("CLOCK0"),
+			.outdata_reg_b 						("UNREGISTERED"),
 			.power_up_uninitialized  			("FALSE"),
-			.widthad_a 						(P_ADR_WIDTH),
-			.widthad_b 						(P_ADR_WIDTH),
+			.widthad_a 							(P_ADR_WIDTH),
+			.widthad_b 							(P_ADR_WIDTH),
 			.width_a 							(P_DAT_WIDTH),
 			.width_b 							(P_DAT_WIDTH)
 		)
 		RAM_INST
 		(
-			.address_a 		(A_ADR_IN),
-			.address_b 		(B_ADR_IN),
+			.address_a 			(A_ADR_IN),
+			.address_b 			(B_ADR_IN),
 			.clock0 			(CLK_IN),
 			.data_a 			(A_DAT_IN),
 			.wren_a 			(A_WR_IN),
-			.q_b 			(B_DAT_OUT),
-			.aclr0 			(1'b0),
-			.aclr1 			(1'b0),
+			.q_b 				(B_DAT_OUT),
+			.aclr0 				(1'b0),
+			.aclr1 				(1'b0),
 			.address2_a 		(1'b1),
 			.address2_b 		(1'b1),
 			.addressstall_a 	(1'b0),
 			.addressstall_b 	(1'b0),
-			.byteena_a 		(1'b1),
-			.byteena_b 		(1'b1),
+			.byteena_a 			(1'b1),
+			.byteena_b 			(1'b1),
 			.clock1 			(1'b1),
-			.clocken0 		(1'b1),
-			.clocken1 		(1'b1),
-			.clocken2 		(1'b1),
-			.clocken3 		(1'b1),
+			.clocken0 			(1'b1),
+			.clocken1 			(1'b1),
+			.clocken2 			(1'b1),
+			.clocken3 			(1'b1),
 			.data_b 			({P_DAT_WIDTH{1'b1}}),
 			.eccencbypass 		(1'b0),
 			.eccencparity 		(8'b0),
-			.eccstatus 		(),
-			.q_a 			(),
+			.eccstatus 			(),
+			.q_a 				(),
 			.rden_a 			(1'b1),
 			.rden_b 			(1'b1),
-			.sclr 			(1'b0),
+			.sclr 				(1'b0),
 			.wren_b 			(1'b0)
 		);
 	end
@@ -1076,26 +1077,26 @@ endmodule
 */
 module prt_dp_lib_sdp_ram_dc
 #(
-	parameter                         	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
-	parameter 					P_ADR_WIDTH 	= 7,
+	parameter                   	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
+	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
 )
 (
 	// Port A
-	input wire					A_RST_IN,		// Reset
-	input wire					A_CLK_IN,		// Clock
-	input wire [P_ADR_WIDTH-1:0]		A_ADR_IN,		// Address
-	input wire					A_WR_IN,		// Write in
-	input wire [P_DAT_WIDTH-1:0]		A_DAT_IN,		// Write data
+	input wire						A_RST_IN,		// Reset
+	input wire						A_CLK_IN,		// Clock
+	input wire [P_ADR_WIDTH-1:0]	A_ADR_IN,		// Address
+	input wire						A_WR_IN,		// Write in
+	input wire [P_DAT_WIDTH-1:0]	A_DAT_IN,		// Write data
 
 	// Port B
-	input wire					B_RST_IN,		// Reset
-	input wire					B_CLK_IN,		// Clock
-	input wire [P_ADR_WIDTH-1:0]		B_ADR_IN,		// Address
-	input wire					B_RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]		B_DAT_OUT,	// Read data
-	output wire					B_VLD_OUT		// Read data valid
+	input wire						B_RST_IN,		// Reset
+	input wire						B_CLK_IN,		// Clock
+	input wire [P_ADR_WIDTH-1:0]	B_ADR_IN,		// Address
+	input wire						B_RD_IN,		// Read in
+	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,		// Read data
+	output wire						B_VLD_OUT		// Read data valid
 );
 
 // Local parameters
@@ -1117,42 +1118,42 @@ generate
 
 		xpm_memory_sdpram 
 		#(
-			.ADDR_WIDTH_A			(P_ADR_WIDTH),  
-			.ADDR_WIDTH_B			(P_ADR_WIDTH),  
-			.AUTO_SLEEP_TIME		(0),   
-			.BYTE_WRITE_WIDTH_A		(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT		(0),            
-			.CLOCKING_MODE			("independent_clock"), 
-			.ECC_MODE				("no_ecc"), 
-			.MEMORY_INIT_FILE		("none"),   
-			.MEMORY_INIT_PARAM		("0"),      
-			.MEMORY_OPTIMIZATION	("true"),   
-			.MEMORY_PRIMITIVE		(P_RAM_STYLE),     
-			.MEMORY_SIZE			(P_WRDS * P_DAT_WIDTH),        
-			.MESSAGE_CONTROL		(0),           
-			.READ_DATA_WIDTH_B		(P_DAT_WIDTH), 
-			.READ_LATENCY_B		(1),      
-			.READ_RESET_VALUE_B		("0"),    
-			.RST_MODE_A			("SYNC"), 
-			.RST_MODE_B			("SYNC"), 
-			.SIM_ASSERT_CHK		(0),             
+			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
+			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
+			.AUTO_SLEEP_TIME			(0),   
+			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
+			.CASCADE_HEIGHT				(0),            
+			.CLOCKING_MODE				("independent_clock"), 
+			.ECC_MODE					("no_ecc"), 
+			.MEMORY_INIT_FILE			("none"),   
+			.MEMORY_INIT_PARAM			("0"),      
+			.MEMORY_OPTIMIZATION		("true"),   
+			.MEMORY_PRIMITIVE			(P_RAM_STYLE),     
+			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
+			.MESSAGE_CONTROL			(0),           
+			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
+			.READ_LATENCY_B				(1),      
+			.READ_RESET_VALUE_B			("0"),    
+			.RST_MODE_A					("SYNC"), 
+			.RST_MODE_B					("SYNC"), 
+			.SIM_ASSERT_CHK				(0),             
 			.USE_EMBEDDED_CONSTRAINT	(P_USE_CONSTRAINT),    
-			.USE_MEM_INIT			(1),              
-			.WAKEUP_TIME			("disable_sleep"),
-			.WRITE_DATA_WIDTH_A		(P_DAT_WIDTH),
-			.WRITE_MODE_B			("read_first") 
+			.USE_MEM_INIT				(1),              
+			.WAKEUP_TIME				("disable_sleep"),
+			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
+			.WRITE_MODE_B				("read_first") 
 		)
 		RAM_INST 
 		(
 			.clka				(A_CLK_IN),       
 			.addra				(A_ADR_IN), 
 			.dina				(A_DAT_IN),
-			.ena					(1'b1), 
-			.wea					(A_WR_IN),
+			.ena				(1'b1), 
+			.wea				(A_WR_IN),
 
 			.clkb				(B_CLK_IN),  
 			.addrb				(B_ADR_IN),  
-			.enb					(1'b1),    
+			.enb				(1'b1),    
 			.doutb				(B_DAT_OUT), 
 
 			.injectdbiterra		(1'b0),
@@ -1160,8 +1161,8 @@ generate
 			.regceb				(1'b1),             
 			.rstb				(1'b0),        
 			.sleep				(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb			(), 
+			.sbiterrb			()    
 		);
 	end
 
@@ -1205,56 +1206,56 @@ generate
 		
 		altera_syncram
 		#( 
-			.ram_block_type 					(P_RAM_TYPE),
-			.address_aclr_b 					("NONE"),
-			.address_reg_b  					("CLOCK1"),
-			.clock_enable_input_a 				("BYPASS"),
-			.clock_enable_input_b 				("BYPASS"),
-			.clock_enable_output_b 				("BYPASS"),
-			.enable_force_to_zero 				("FALSE"),
-			.intended_device_family 				("Cyclone 10 GX"),
+			.ram_block_type 				(P_RAM_TYPE),
+			.address_aclr_b 				("NONE"),
+			.address_reg_b  				("CLOCK1"),
+			.clock_enable_input_a 			("BYPASS"),
+			.clock_enable_input_b 			("BYPASS"),
+			.clock_enable_output_b 			("BYPASS"),
+			.enable_force_to_zero 			("FALSE"),
+			.intended_device_family 		("Cyclone 10 GX"),
 			.lpm_type 						("altera_syncram"),
-			.numwords_a 						(P_WRDS),
-			.numwords_b 						(P_WRDS),
-			.operation_mode 					("DUAL_PORT"),
-			.outdata_aclr_b 					("NONE"),
-			.outdata_sclr_b 					("NONE"),
-			.outdata_reg_b 					("CLOCK1"),
-			.power_up_uninitialized  			("FALSE"),
+			.numwords_a 					(P_WRDS),
+			.numwords_b 					(P_WRDS),
+			.operation_mode 				("DUAL_PORT"),
+			.outdata_aclr_b 				("NONE"),
+			.outdata_sclr_b 				("NONE"),
+			.outdata_reg_b 					("UNREGISTERED"),
+			.power_up_uninitialized  		("FALSE"),
 			.widthad_a 						(P_ADR_WIDTH),
 			.widthad_b 						(P_ADR_WIDTH),
-			.width_a 							(P_DAT_WIDTH),
-			.width_b 							(P_DAT_WIDTH)
+			.width_a 						(P_DAT_WIDTH),
+			.width_b 						(P_DAT_WIDTH)
 		)
 		RAM_INST
 		(
-			.address_a 		(A_ADR_IN),
-			.address_b 		(B_ADR_IN),
+			.address_a 			(A_ADR_IN),
+			.address_b 			(B_ADR_IN),
 			.clock0 			(A_CLK_IN),
 			.data_a 			(A_DAT_IN),
 			.wren_a 			(A_WR_IN),
-			.q_b 			(B_DAT_OUT),
-			.aclr0 			(1'b0),
-			.aclr1 			(1'b0),
+			.q_b 				(B_DAT_OUT),
+			.aclr0 				(1'b0),
+			.aclr1 				(1'b0),
 			.address2_a 		(1'b1),
 			.address2_b 		(1'b1),
 			.addressstall_a 	(1'b0),
 			.addressstall_b 	(1'b0),
-			.byteena_a 		(1'b1),
-			.byteena_b 		(1'b1),
+			.byteena_a 			(1'b1),
+			.byteena_b 			(1'b1),
 			.clock1 			(B_CLK_IN),
-			.clocken0 		(1'b1),
-			.clocken1 		(1'b1),
-			.clocken2 		(1'b1),
-			.clocken3 		(1'b1),
+			.clocken0 			(1'b1),
+			.clocken1 			(1'b1),
+			.clocken2 			(1'b1),
+			.clocken3 			(1'b1),
 			.data_b 			({P_DAT_WIDTH{1'b1}}),
 			.eccencbypass 		(1'b0),
 			.eccencparity 		(8'b0),
-			.eccstatus 		(),
-			.q_a 			(),
+			.eccstatus 			(),
+			.q_a 				(),
 			.rden_a 			(1'b1),
 			.rden_b 			(1'b1),
-			.sclr 			(1'b0),
+			.sclr 				(1'b0),
 			.wren_b 			(1'b0)
 		);
 	end

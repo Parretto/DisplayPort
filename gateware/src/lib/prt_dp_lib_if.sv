@@ -183,6 +183,23 @@ interface prt_dp_tx_lnk_if
 	parameter P_LANES = 2,			// Lanes
 	parameter P_SPL = 2				// Symbols per lane
 );
+	logic	[4:0]			sym[0:P_LANES-1][0:P_SPL-1];	// Symbol
+	logic 	[7:0]			dat[0:P_LANES-1][0:P_SPL-1];	// Data
+	logic 					vld;							// Valid
+	logic 					rd;								// Read
+	modport snk	(input sym, input dat, input vld, output rd);
+	modport src	(output sym, output dat, output vld, input rd);
+
+endinterface
+
+/*
+	TX PHY interface
+*/
+interface prt_dp_tx_phy_if
+#(
+	parameter P_LANES = 2,			// Lanes
+	parameter P_SPL = 2				// Symbols per lane
+);
 	logic	[P_SPL-1:0]		disp_ctl[0:P_LANES-1];			// Disparity control (0-automatic / 1-force)
 	logic	[P_SPL-1:0]		disp_val[0:P_LANES-1];			// Disparity value (0-negative / 1-postive) 
 	logic	[P_SPL-1:0]		k[0:P_LANES-1];					// k character

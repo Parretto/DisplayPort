@@ -3346,7 +3346,7 @@ endgenerate
         begin
             for (int i = 0; i < P_LANES; i++)
             begin
-                for (int j = 0; j < P_SPL * 2; j++)
+                for (int j = 0; j < P_FIFO_STRIPES; j++)
                 begin
                     if (vclk_fifo.de[i][j])
                         vclk_fifo.de_all = 1;
@@ -3358,7 +3358,7 @@ endgenerate
         begin
             for (int i = 0; i < 2; i++)
             begin
-                for (int j = 0; j < P_SPL * 2; j++)
+                for (int j = 0; j < P_FIFO_STRIPES; j++)
                 begin
                     if (vclk_fifo.de[i][j])
                         vclk_fifo.de_all = 1;

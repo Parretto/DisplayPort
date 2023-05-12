@@ -5,11 +5,12 @@
 
 
     Module: DP TX Top
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added MST support
 
     License
     =======
@@ -30,8 +31,9 @@
 module prt_dptx_top
 #(
     // System
-    parameter                                   P_VENDOR    = "none",  // Vendor "xilinx", "lattice" or "intel"
-    parameter                                   P_BEAT      = 'd125,     // Beat value
+    parameter                                   P_VENDOR    = "none",   // Vendor "xilinx", "lattice" or "intel"
+    parameter                                   P_BEAT      = 'd125,    // Beat value
+    parameter                                   P_MST       = 0,        // MST support
 
     // Link
     parameter                                   P_LANES     = 4,        // Lanes
@@ -59,15 +61,25 @@ module prt_dptx_top
     input wire                                  HPD_IN,
     output wire                                 HB_OUT,
 
-    // Video
-    input wire                                  VID_CLK_IN,    // Clock
-    input wire                                  VID_CKE_IN,    // Clock enable
-    input wire                                  VID_VS_IN,     // Vsync
-    input wire                                  VID_HS_IN,     // Hsync
-    input wire [(P_PPC * P_BPC)-1:0]            VID_R_IN,      // Red
-    input wire [(P_PPC * P_BPC)-1:0]            VID_G_IN,      // Green
-    input wire [(P_PPC * P_BPC)-1:0]            VID_B_IN,      // Blue
-    input wire                                  VID_DE_IN,     // Data enable
+    // Video stream 0
+    input wire                                  VID0_CLK_IN,    // Clock
+    input wire                                  VID0_CKE_IN,    // Clock enable
+    input wire                                  VID0_VS_IN,     // Vsync
+    input wire                                  VID0_HS_IN,     // Hsync
+    input wire [(P_PPC * P_BPC)-1:0]            VID0_R_IN,      // Red
+    input wire [(P_PPC * P_BPC)-1:0]            VID0_G_IN,      // Green
+    input wire [(P_PPC * P_BPC)-1:0]            VID0_B_IN,      // Blue
+    input wire                                  VID0_DE_IN,     // Data enable
+
+    // Video stream 1
+    input wire                                  VID1_CLK_IN,    // Clock
+    input wire                                  VID1_CKE_IN,    // Clock enable
+    input wire                                  VID1_VS_IN,     // Vsync
+    input wire                                  VID1_HS_IN,     // Hsync
+    input wire [(P_PPC * P_BPC)-1:0]            VID1_R_IN,      // Red
+    input wire [(P_PPC * P_BPC)-1:0]            VID1_G_IN,      // Green
+    input wire [(P_PPC * P_BPC)-1:0]            VID1_B_IN,      // Blue
+    input wire                                  VID1_DE_IN,     // Data enable
 
     // Link
     input wire                                  LNK_CLK_IN,
@@ -87,23 +99,25 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_rom.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_rom.hex") : "none";
-localparam P_RAM_INIT = (P_SIM) ? ((P_VENDOR == "xilinx") ? "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_ram.mem" : "/home/marco/SandBox/bitbucket/displayport/software/prt_dptx_ram.hex") : "none";
+localparam P_ROM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dptx_rom.mem" : (P_VENDOR == "intel") ? "prt_dptx_rom.hex" : "none" : "none";
+localparam P_RAM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dptx_ram.mem" : (P_VENDOR == "intel") ? "prt_dptx_ram.hex" : "none" : "none";
 
 // Hardware version
-localparam P_HW_VER_MAJOR = 1;
+localparam P_HW_VER_MAJOR = 2;
 localparam P_HW_VER_MINOR = 0;
 
 // PIO
-localparam P_PIO_IN_WIDTH = 2;
-localparam P_PIO_OUT_WIDTH = 4;
+localparam P_PIO_IN_WIDTH = 3;
+localparam P_PIO_OUT_WIDTH = 5;
 
 // Message
-localparam P_MSG_IDX    = 7;        // Index width
-localparam P_MSG_DAT    = 16;       // Data width
-localparam P_MSG_ID_CTL = 'h10;     // Message ID control
-localparam P_MSG_ID_TPS = 'h11;     // Message ID training pattern sequence
-localparam P_MSG_ID_MSA = 'h12;     // Message ID main stream attributes
+localparam P_MSG_IDX     = 7;        // Index width
+localparam P_MSG_DAT     = 16;       // Data width
+localparam P_MSG_ID_CTL  = 'h10;     // Message ID control
+localparam P_MSG_ID_TPS  = 'h11;     // Message ID training pattern sequence
+localparam P_MSG_ID_MSA0 = 'h12;     // Message ID main stream attributes 0
+localparam P_MSG_ID_MSA1 = 'h13;     // Message ID main stream attributes 1
+localparam P_MSG_ID_MST  = 'h14;     // Message ID MST
 
 // Interfaces
 
@@ -124,10 +138,10 @@ prt_dp_vid_if
   .P_PPC    (P_PPC),
   .P_BPC    (P_BPC)
 )
-vid_if();
+vid_if[0:1]();
 
 // Link interface
-prt_dp_tx_lnk_if
+prt_dp_tx_phy_if
 #(
   .P_LANES  (P_LANES),
   .P_SPL    (P_SPL)
@@ -138,7 +152,7 @@ lnk_if();
 // Reset
 wire                            rst_from_sys_rst;
 wire                            rst_from_lnk_rst;
-wire                            rst_from_vid_rst;
+wire [1:0]                      rst_from_vid_rst;
 
 // Policy maker
 wire [1:0]                      irq_to_pm;
@@ -147,7 +161,7 @@ wire [P_PIO_OUT_WIDTH-1:0]      pio_from_pm;
 
 // Link
 wire                            lnk_clkdet_from_lnk;
-wire                            vid_clkdet_from_lnk;
+wire [1:0]                      vid_clkdet_from_lnk;
 
 genvar i, j;
 
@@ -175,12 +189,21 @@ genvar i, j;
     );
 
     prt_dp_lib_rst
-    VID_RST_INST
+    VID0_RST_INST
     (
         .SRC_RST_IN         (~pio_from_pm[3]),
         .SRC_CLK_IN         (SYS_CLK_IN),
-        .DST_CLK_IN         (VID_CLK_IN),
-        .DST_RST_OUT        (rst_from_vid_rst)
+        .DST_CLK_IN         (VID0_CLK_IN),
+        .DST_RST_OUT        (rst_from_vid_rst[0])
+    );
+
+    prt_dp_lib_rst
+    VID1_RST_INST
+    (
+        .SRC_RST_IN         (~pio_from_pm[4]),
+        .SRC_CLK_IN         (SYS_CLK_IN),
+        .DST_CLK_IN         (VID1_CLK_IN),
+        .DST_RST_OUT        (rst_from_vid_rst[1])
     );
 
 // Policy maker
@@ -196,7 +219,8 @@ genvar i, j;
         .P_RAM_INIT_FILE    (P_RAM_INIT),
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
-        .P_SPL              (P_SPL)             // Symbols per lane
+        .P_SPL              (P_SPL),            // Symbols per lane
+        .P_MST              (P_MST)             // MST
     )
     PM_INST
     (
@@ -234,7 +258,8 @@ genvar i, j;
 
 // PIO
     assign pio_to_pm[0]     = lnk_clkdet_from_lnk;
-    assign pio_to_pm[1]     = vid_clkdet_from_lnk;
+    assign pio_to_pm[1]     = vid_clkdet_from_lnk[0];
+    assign pio_to_pm[2]     = vid_clkdet_from_lnk[1];
 
 // Message to PM
 // A return message from the link is not used,
@@ -251,6 +276,7 @@ genvar i, j;
         // System
         .P_VENDOR               (P_VENDOR),         // Vendor
         .P_SIM                  (P_SIM),            // Simulation
+        .P_MST                  (P_MST),            // MST support
 
         // Link
         .P_LANES                (P_LANES),          // Lanes
@@ -265,7 +291,9 @@ genvar i, j;
         .P_MSG_DAT              (P_MSG_DAT),        // Data width
         .P_MSG_ID_CTL           (P_MSG_ID_CTL),     // Message ID control
         .P_MSG_ID_TPS           (P_MSG_ID_TPS),     // Message ID training pattern sequence
-        .P_MSG_ID_MSA           (P_MSG_ID_MSA)      // Message ID main stream attributes
+        .P_MSG_ID_MSA0          (P_MSG_ID_MSA0),    // Message ID main stream attributes 0
+        .P_MSG_ID_MSA1          (P_MSG_ID_MSA1),    // Message ID main stream attributes 1
+        .P_MSG_ID_MST           (P_MSG_ID_MST)      // Message ID MST
     )
     LNK_INST
     (
@@ -280,11 +308,17 @@ genvar i, j;
         // MSG sink
         .MSG_SNK_IF             (msg_if_from_pm),       
 
-        // Video
-        .VID_RST_IN             (rst_from_vid_rst),     // Reset
-        .VID_CLK_IN             (VID_CLK_IN),           // Clock
-        .VID_CKE_IN             (VID_CKE_IN),           // Clock enable
-        .VID_SNK_IF             (vid_if),               // Interface
+        // Video stream 0
+        .VID0_RST_IN            (rst_from_vid_rst[0]),  // Reset
+        .VID0_CLK_IN            (VID0_CLK_IN),          // Clock
+        .VID0_CKE_IN            (VID0_CKE_IN),          // Clock enable
+        .VID0_SNK_IF            (vid_if[0]),            // Interface
+
+        // Video stream 1
+        .VID1_RST_IN            (rst_from_vid_rst[1]),  // Reset
+        .VID1_CLK_IN            (VID1_CLK_IN),          // Clock
+        .VID1_CKE_IN            (VID1_CKE_IN),          // Clock enable
+        .VID1_SNK_IF            (vid_if[1]),            // Interface
 
         // Link
         .LNK_RST_IN             (rst_from_lnk_rst),     // Reset
@@ -292,13 +326,21 @@ genvar i, j;
         .LNK_SRC_IF             (lnk_if)                // Interface
     );
 
-// Map video interface
-    assign vid_if.vs        = VID_VS_IN;
-    assign vid_if.hs        = VID_HS_IN;
-    assign vid_if.dat[0]    = VID_R_IN;
-    assign vid_if.dat[1]    = VID_G_IN;
-    assign vid_if.dat[2]    = VID_B_IN;
-    assign vid_if.de        = VID_DE_IN;
+// Map video interface stream 0
+    assign vid_if[0].vs        = VID0_VS_IN;
+    assign vid_if[0].hs        = VID0_HS_IN;
+    assign vid_if[0].dat[0]    = VID0_R_IN;
+    assign vid_if[0].dat[1]    = VID0_G_IN;
+    assign vid_if[0].dat[2]    = VID0_B_IN;
+    assign vid_if[0].de        = VID0_DE_IN;
+
+// Map video interface stream 1
+    assign vid_if[1].vs        = (P_MST) ? VID1_VS_IN : 0;
+    assign vid_if[1].hs        = (P_MST) ? VID1_HS_IN : 0;
+    assign vid_if[1].dat[0]    = (P_MST) ? VID1_R_IN : 0;
+    assign vid_if[1].dat[1]    = (P_MST) ? VID1_G_IN : 0;
+    assign vid_if[1].dat[2]    = (P_MST) ? VID1_B_IN : 0;
+    assign vid_if[1].de        = (P_MST) ? VID1_DE_IN : 0;
 
 // Outputs
     assign HB_OUT  = pio_from_pm[0];
@@ -337,32 +379,6 @@ generate
         );
     end
 endgenerate
-
-/*
-    generate
-        for (i = 0; i < P_LANES; i++)
-        begin : gen_lnk_dbg
-            for (j = 0; j < P_SPL; j++)
-            begin
-                assign lnk_dat_to_dbg[(i*P_SPL*9)+(j*9)+:9] = {lnk_if.k[i][j], lnk_if.dat[i][j]};
-            end
-        end
-    endgenerate
-
-// Debug
-    prt_dptx_debug
-    DGB_INST
-    (
-        // Link
-        .LNK_RST_IN     (rst_from_lnk_rst),     // Reset
-        .LNK_CLK_IN     (LNK_CLK_IN),           // Clock
-        .LNK_DAT_IN     (lnk_dat_to_dbg),       // Data
-
-        // Video source
-        .VID_RST_IN     (rst_from_vid_rst),     // Reset
-        .VID_CLK_IN     (VID_CLK_IN)            // Clock
-    );
-*/
 
 endmodule
 

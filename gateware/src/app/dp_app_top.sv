@@ -12,6 +12,8 @@
     v1.0 - Initial release
     v1.1 - Added scaler interface
     v1.2 - Updated RISC-V processor
+    v1.3 - Added misc interface
+    v1.4 - Added second VTB interface (for MST application)
 
     License
     =======
@@ -72,13 +74,17 @@ module dp_app_top
     input wire                              DPRX_IRQ_IN,
 
     // VTB interface
-    prt_dp_lb_if.lb_out                     VTB_IF,
+    prt_dp_lb_if.lb_out                     VTB0_IF,
+    prt_dp_lb_if.lb_out                     VTB1_IF,
 
     // PHY interface
     prt_dp_lb_if.lb_out                     PHY_IF,
 
     // Scaler interface
     prt_dp_lb_if.lb_out                     SCALER_IF,
+
+    // MISC interface
+    prt_dp_lb_if.lb_out                     MISC_IF,
 
     // Aqua 
     input wire                              AQUA_SEL_IN,
@@ -100,9 +106,9 @@ localparam P_ROM_SIZE = 64 * 1024;                     // ROM size in bytes
 localparam P_ROM_ADR = $clog2(P_ROM_SIZE);
 localparam P_RAM_SIZE = 64 * 1024;                      // RAM size in bytes
 localparam P_RAM_ADR = $clog2(P_RAM_SIZE);
-localparam P_UART_BEAT = P_SYS_FREQ / 115200; //'d868; // 115200 baud @ 100 MHz system clock 
-localparam P_TMR_BEAT = P_SYS_FREQ / 1_000_000; //'d100; // 100 MHz
-localparam P_LB_MUX_PORTS = 9;
+localparam P_UART_BEAT = P_SYS_FREQ / 115200; 
+localparam P_TMR_BEAT = P_SYS_FREQ / 1_000_000;
+localparam P_LB_MUX_PORTS = 11;
 
 // Interfaces
 prt_riscv_rom_if 
@@ -164,6 +170,9 @@ wire [31:0]     dat_from_aqua;
 	
 // CPU
     prt_riscv_cpu
+    #(
+        .P_VENDOR               (P_VENDOR)          // Vendor
+    )
     CPU_INST
     (
         // Clocks and reset
@@ -262,7 +271,9 @@ wire [31:0]     dat_from_aqua;
         .LB_DWN_IF5         (lb_from_mux[5]),
         .LB_DWN_IF6         (lb_from_mux[6]),
         .LB_DWN_IF7         (lb_from_mux[7]),
-        .LB_DWN_IF8         (lb_from_mux[8])
+        .LB_DWN_IF8         (lb_from_mux[8]),
+        .LB_DWN_IF9         (lb_from_mux[9]),
+        .LB_DWN_IF10        (lb_from_mux[10])
     );
    
     // Upstream
@@ -415,29 +426,45 @@ endgenerate
     assign lb_from_mux[5].dout  = DPRX_IF.dout;
     assign lb_from_mux[5].vld   = DPRX_IF.vld;
 
-// VTB interface
-    assign VTB_IF.adr           = lb_from_mux[6].adr;
-    assign VTB_IF.wr            = lb_from_mux[6].wr;
-    assign VTB_IF.rd            = lb_from_mux[6].rd;
-    assign VTB_IF.din           = lb_from_mux[6].din;
-    assign lb_from_mux[6].dout  = VTB_IF.dout;
-    assign lb_from_mux[6].vld   = VTB_IF.vld;
+// VTB0 interface
+    assign VTB0_IF.adr          = lb_from_mux[6].adr;
+    assign VTB0_IF.wr           = lb_from_mux[6].wr;
+    assign VTB0_IF.rd           = lb_from_mux[6].rd;
+    assign VTB0_IF.din          = lb_from_mux[6].din;
+    assign lb_from_mux[6].dout  = VTB0_IF.dout;
+    assign lb_from_mux[6].vld   = VTB0_IF.vld;
+
+// VTB0 interface
+    assign VTB1_IF.adr          = lb_from_mux[7].adr;
+    assign VTB1_IF.wr           = lb_from_mux[7].wr;
+    assign VTB1_IF.rd           = lb_from_mux[7].rd;
+    assign VTB1_IF.din          = lb_from_mux[7].din;
+    assign lb_from_mux[7].dout  = VTB1_IF.dout;
+    assign lb_from_mux[7].vld   = VTB1_IF.vld;
 
 // PHY interface
-    assign PHY_IF.adr           = lb_from_mux[7].adr;
-    assign PHY_IF.wr            = lb_from_mux[7].wr;
-    assign PHY_IF.rd            = lb_from_mux[7].rd;
-    assign PHY_IF.din           = lb_from_mux[7].din;
-    assign lb_from_mux[7].dout  = PHY_IF.dout;
-    assign lb_from_mux[7].vld   = PHY_IF.vld;
+    assign PHY_IF.adr           = lb_from_mux[8].adr;
+    assign PHY_IF.wr            = lb_from_mux[8].wr;
+    assign PHY_IF.rd            = lb_from_mux[8].rd;
+    assign PHY_IF.din           = lb_from_mux[8].din;
+    assign lb_from_mux[8].dout  = PHY_IF.dout;
+    assign lb_from_mux[8].vld   = PHY_IF.vld;
 
 // Scaler interface
-    assign SCALER_IF.adr        = lb_from_mux[8].adr;
-    assign SCALER_IF.wr         = lb_from_mux[8].wr;
-    assign SCALER_IF.rd         = lb_from_mux[8].rd;
-    assign SCALER_IF.din        = lb_from_mux[8].din;
-    assign lb_from_mux[8].dout  = SCALER_IF.dout;
-    assign lb_from_mux[8].vld   = SCALER_IF.vld;
+    assign SCALER_IF.adr        = lb_from_mux[9].adr;
+    assign SCALER_IF.wr         = lb_from_mux[9].wr;
+    assign SCALER_IF.rd         = lb_from_mux[9].rd;
+    assign SCALER_IF.din        = lb_from_mux[9].din;
+    assign lb_from_mux[9].dout  = SCALER_IF.dout;
+    assign lb_from_mux[9].vld   = SCALER_IF.vld;
+
+// Misc interface
+    assign MISC_IF.adr          = lb_from_mux[10].adr;
+    assign MISC_IF.wr           = lb_from_mux[10].wr;
+    assign MISC_IF.rd           = lb_from_mux[10].rd;
+    assign MISC_IF.din          = lb_from_mux[10].din;
+    assign lb_from_mux[10].dout  = MISC_IF.dout;
+    assign lb_from_mux[10].vld   = MISC_IF.vld;
 
 endmodule
 

@@ -4,8 +4,8 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP reference design running on Xilinx ZCU102
-    (c) 2021, 2022 by Parretto B.V.
+    Module: DP reference design running on AMD ZCU102
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
@@ -27,7 +27,7 @@
 
 `default_nettype none
 
-module dp_ref_xlx_zcu102
+module dp_ref_amd_zcu102
 (
     // Clock
     input wire              CLK_IN_P,               // 125 MHz
@@ -69,13 +69,12 @@ module dp_ref_xlx_zcu102
     output wire [3:0]       GT_TX_OUT_N,
 
     // Misc
-    output wire [7:0]       LED_OUT,
-    output wire [7:0]       DEBUG_OUT
+    output wire [7:0]       LED_OUT
 );
 
 // Parameters
 localparam P_VENDOR         = "xilinx";
-localparam P_SYS_FREQ       = 100_000_000;      // System frequency - 100 MHz
+localparam P_SYS_FREQ       = 50_000_000;      // System frequency - 50 MHz
 localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
 localparam P_REF_VER_MINOR  = 0;     // Reference design minor
@@ -89,45 +88,49 @@ localparam P_PPC            = (P_DATA_MODE == "dual") ? 2 : 4;      // Pixels pe
 localparam P_BPC            = 8;                                    // Bits per component. Valid option - 8
 localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? 48 : 96;
 localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
-localparam P_SCALER         = 0;
+localparam P_APP_ROM_INIT   = "dp_app_amd_rom.mem";
+localparam P_APP_RAM_INIT   = "dp_app_amd_ram.mem";
+localparam P_SCALER         = (P_PPC == 4) ? 1 : 0; // The scaler only suport 4 pixels per clock
+localparam P_MST            = 0;
 
 // Interfaces
 
 // Local bus
-// DPTX
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
 dptx_if();
 
-// DPRX
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
 dprx_if();
 
-// VTB
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
-vtb_if();
+vtb_if[2]();
 
-// PHY config
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
 phy_if();
 
-// Scaler
 prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
 scaler_if();
+
+prt_dp_lb_if
+#(
+  .P_ADR_WIDTH  (16)
+)
+misc_if();
 
 // Signals
 // Clocks
@@ -166,11 +169,10 @@ wire [4:0]                      phytx_postcursor_from_app;
 wire                            phy_prbsen_from_app;
 wire                            phyrx_prbsclr_from_app;
 wire                            phytx_prbserr_from_app;
-wire                            phy_loopback_from_app;
+wire                            phyrx_equ_sel_from_app;
 wire [3:0]                      phyrx_prbslock_to_app;
 
 // PHY
-logic [2:0]                     loopback_to_phy;
 wire [3:0]                      pwrgd_from_phy;
 wire [3:0]                      tx_pmarst_done_from_phy;
 wire [3:0]                      tx_rst_done_from_phy;
@@ -184,7 +186,6 @@ wire [P_PHY_DAT_WIDTH-1:0]      gtwiz_userdata_tx_to_gt;
 wire [63:0]                     txctrl0_to_gt;
 wire [63:0]                     txctrl1_to_gt;
 wire [31:0]                     txctrl2_to_gt;
-logic [3:0]                     txpolarity_to_phy;
 
 wire [P_PHY_DAT_WIDTH-1:0]      gtwiz_userdata_rx_from_gt;
 wire [63:0]                     rxctrl0_from_gt;
@@ -203,7 +204,6 @@ wire                            rxprbsen_to_gt;
 logic [3:0]                     rxprbssel_to_gt;
 wire                            rxprbsclr_to_gt;
 wire [3:0]                      rxprbslock_from_gt;
-logic [3:0]                     rxpolarity_to_phy;
 
 // DPTX
 wire [(P_LANES*P_SPL*11)-1:0]   lnk_dat_from_dptx;
@@ -221,12 +221,13 @@ wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
 wire                            vid_vld_from_dprx;   // Valid
 
 // VTB
-wire                            vs_from_vtb;
-wire                            hs_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        r_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        g_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        b_from_vtb;
-wire                            de_from_vtb;
+wire [1:0]                      lock_from_vtb;
+wire [1:0]                      vs_from_vtb;
+wire [1:0]                      hs_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]        r_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]        g_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]        b_from_vtb[0:1];
+wire [1:0]                      de_from_vtb;
 
 // Scaler
 wire                            cke_from_scaler;
@@ -360,11 +361,13 @@ genvar i;
     dp_app_top
     #(
         .P_VENDOR           (P_VENDOR),
-        .P_SYS_FREQ         (P_SYS_FREQ),
+        .P_SYS_FREQ         (P_SYS_FREQ),       // System frequency
         .P_HW_VER_MAJOR     (P_REF_VER_MAJOR),   // Reference design version major
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_INIT         (P_APP_ROM_INIT),
+        .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
     )
     APP_INST
@@ -399,13 +402,17 @@ genvar i;
         .DPRX_IRQ_IN        (irq_from_dprx),
 
         // VTB interface
-        .VTB_IF             (vtb_if),
+        .VTB0_IF            (vtb_if[0]),
+        .VTB1_IF            (vtb_if[1]),
 
         // PHY interface
         .PHY_IF             (phy_if),
 
         // Scaler interface
         .SCALER_IF          (scaler_if),
+
+        // Scaler interface
+        .MISC_IF            (misc_if),
 
         // Aqua 
         .AQUA_SEL_IN        (1'b0),
@@ -445,14 +452,15 @@ genvar i;
     assign phy_prbsen_from_app          = pio_dat_from_app[23];
     assign phyrx_prbsclr_from_app       = pio_dat_from_app[24];
     assign phytx_prbserr_from_app       = pio_dat_from_app[25];
-    assign phy_loopback_from_app        = pio_dat_from_app[26];
+    assign phyrx_equ_sel_from_app       = pio_dat_from_app[26];
     
 // Displayport TX
     prt_dptx_top
     #(
         // System
         .P_VENDOR           (P_VENDOR),     // Vendor
-        .P_BEAT             (P_BEAT),       // Beat value. The system clock is 100 MHz
+        .P_BEAT             (P_BEAT),       // Beat value. The system clock is 50 MHz
+        .P_MST              (P_MST),        // MST support
 
         // Link
         .P_LANES            (P_LANES),      // Lanes
@@ -481,15 +489,25 @@ genvar i;
         .HPD_IN             (~DPTX_HPD_IN),             // Hot plug polarity is inverted
         .HB_OUT             (hb_from_dptx),
 
-        // Video
-        .VID_CLK_IN         (clk_from_vid_bufg),
-        .VID_CKE_IN         (1'b1),
-        .VID_VS_IN          (vs_from_vtb),              // Vsync
-        .VID_HS_IN          (hs_from_vtb),              // Hsync
-        .VID_R_IN           (r_from_vtb),               // Red
-        .VID_G_IN           (g_from_vtb),               // Green
-        .VID_B_IN           (b_from_vtb),               // Blue
-        .VID_DE_IN          (de_from_vtb),              // Data enable
+        // Video stream 0
+        .VID0_CLK_IN         (clk_from_vid_bufg),
+        .VID0_CKE_IN         (1'b1),
+        .VID0_VS_IN          (vs_from_scaler),           // Vsync
+        .VID0_HS_IN          (hs_from_scaler),           // Hsync
+        .VID0_R_IN           (r_from_scaler),            // Red
+        .VID0_G_IN           (g_from_scaler),            // Green
+        .VID0_B_IN           (b_from_scaler),            // Blue
+        .VID0_DE_IN          (de_from_scaler),           // Data enable
+
+        // Video stream 1
+        .VID1_CLK_IN         (clk_from_vid_bufg),
+        .VID1_CKE_IN         (1'b1),
+        .VID1_VS_IN          (vs_from_vtb[1]),           // Vsync
+        .VID1_HS_IN          (hs_from_vtb[1]),           // Hsync
+        .VID1_R_IN           (r_from_vtb[1]),            // Red
+        .VID1_G_IN           (g_from_vtb[1]),            // Green
+        .VID1_B_IN           (b_from_vtb[1]),            // Blue
+        .VID1_DE_IN          (de_from_vtb[1]),           // Data enable
 
         // Link
         .LNK_CLK_IN         (txclk_from_gt),
@@ -501,7 +519,7 @@ genvar i;
     #(
         // System
         .P_VENDOR           (P_VENDOR),   // Vendor
-        .P_BEAT             (P_BEAT),     // Beat value. The system clock is 125 MHz
+        .P_BEAT             (P_BEAT),     // Beat value. The system clock is 50 MHz
 
         // Link
         .P_LANES            (P_LANES),    // Lanes
@@ -605,9 +623,10 @@ generate
     end
 endgenerate
 
-// Video toolbox
+// Video toolbox (stream 0)
     prt_vtb_top
     #(
+        .P_VENDOR               (P_VENDOR),   // Vendor
         .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
         .P_PPC                  (P_PPC),        // Pixels per clock
         .P_BPC                  (P_BPC),        // Bits per component
@@ -620,7 +639,7 @@ endgenerate
         .SYS_CLK_IN             (sys_clk_from_pll),
 
         // Local bus
-        .LB_IF                  (vtb_if),
+        .LB_IF                  (vtb_if[0]),
 
         // Direct I2C Access
         .DIA_RDY_IN             (dia_rdy_from_app),
@@ -641,17 +660,132 @@ endgenerate
         // Native video
         .VID_CLK_IN             (clk_from_vid_bufg),
         .VID_CKE_IN             (cke_from_scaler),
-        .VID_VS_OUT             (vs_from_vtb),
-        .VID_HS_OUT             (hs_from_vtb),
-        .VID_R_OUT              (r_from_vtb),
-        .VID_G_OUT              (g_from_vtb),
-        .VID_B_OUT              (b_from_vtb),
-        .VID_DE_OUT             (de_from_vtb),
-
-        // Debug
-        .DBG_CR_SYNC_END_OUT    (),    // Sync end out
-        .DBG_CR_PIX_END_OUT     ()      // Pixel end out
+        .VID_LOCK_OUT           (lock_from_vtb[0]),
+        .VID_VS_OUT             (vs_from_vtb[0]),
+        .VID_HS_OUT             (hs_from_vtb[0]),
+        .VID_R_OUT              (r_from_vtb[0]),
+        .VID_G_OUT              (g_from_vtb[0]),
+        .VID_B_OUT              (b_from_vtb[0]),
+        .VID_DE_OUT             (de_from_vtb[0])
     );
+
+// Video toolbox (stream 1)
+generate
+    if (P_MST)
+    begin : gen_vtb1
+        prt_vtb_top
+        #(
+            .P_VENDOR               (P_VENDOR),
+            .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
+            .P_PPC                  (P_PPC),        // Pixels per clock
+            .P_BPC                  (P_BPC),        // Bits per component
+            .P_AXIS_DAT             (P_AXI_WIDTH)
+        )
+        VTB1_INST
+        (
+            // System
+            .SYS_RST_IN             (dptx_rst_from_app),
+            .SYS_CLK_IN             (sys_clk_from_pll),
+
+            // Local bus
+            .LB_IF                  (vtb_if[1]),
+
+            // Direct I2C Access
+            .DIA_RDY_IN             (),
+            .DIA_DAT_OUT            (),
+            .DIA_VLD_OUT            (),
+
+            // Link
+            .TX_LNK_CLK_IN          (txclk_from_gt),     // TX link clock
+            .RX_LNK_CLK_IN          (rxclk_from_gt),     // RX link clock
+            .LNK_SYNC_IN            (1'b0),
+
+            // Axi-stream Video
+            .AXIS_SOF_IN            (1'b0),      // Start of frame
+            .AXIS_EOL_IN            (1'b0),      // End of line
+            .AXIS_DAT_IN            (96'h0),      // Data
+            .AXIS_VLD_IN            (1'b0),      // Valid       
+
+            // Native video
+            .VID_CLK_IN             (clk_from_vid_bufg),
+            .VID_CKE_IN             (1'b1),
+            .VID_LOCK_OUT           (lock_from_vtb[1]),
+            .VID_VS_OUT             (vs_from_vtb[1]),
+            .VID_HS_OUT             (hs_from_vtb[1]),
+            .VID_R_OUT              (r_from_vtb[1]),
+            .VID_G_OUT              (g_from_vtb[1]),
+            .VID_B_OUT              (b_from_vtb[1]),
+            .VID_DE_OUT             (de_from_vtb[1])
+        );
+    end
+
+    else
+    begin : gen_no_vtb1
+        assign lock_from_vtb[1] = 0;
+        assign vs_from_vtb[1] = 0;
+        assign hs_from_vtb[1] = 0;
+        assign r_from_vtb[1] = 0;
+        assign g_from_vtb[1] = 0;
+        assign b_from_vtb[1] = 0;
+        assign de_from_vtb[1] = 0;
+    end
+endgenerate
+
+// Scaler
+generate
+    if (P_SCALER)
+    begin : gen_scaler_4ppc
+        prt_scaler_top
+        #(
+            .P_VENDOR               (P_VENDOR),   // Vendor
+            .P_PPC                  (4),          // Pixels per clock
+            .P_BPC                  (8)           // Bits per component
+        )
+        SCALER_INST
+        (
+             // System
+            .SYS_RST_IN             (dptx_rst_from_app),
+            .SYS_CLK_IN             (sys_clk_from_pll),
+
+            // Local bus interface
+            .LB_IF                  (scaler_if),
+
+            // Video
+            .VID_CLK_IN             (clk_from_vid_bufg),
+
+             // Video in
+            .VID_CKE_IN             (cke_from_scaler),      // Clock enable
+            .VID_LOCK_IN            (lock_from_vtb[0]),     // Lock
+            .VID_VS_IN              (vs_from_vtb[0]),       // Vertical sync
+            .VID_HS_IN              (hs_from_vtb[0]),       // Horizontal sync    
+            .VID_R_IN               (r_from_vtb[0]),        // Red
+            .VID_G_IN               (g_from_vtb[0]),        // Green
+            .VID_B_IN               (b_from_vtb[0]),        // Blue
+            .VID_DE_IN              (de_from_vtb[0]),       // Data enable
+
+             // Video out
+            .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
+            .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
+            .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
+            .VID_R_OUT              (r_from_scaler),        // Red
+            .VID_G_OUT              (g_from_scaler),        // Green
+            .VID_B_OUT              (b_from_scaler),        // Blue
+            .VID_DE_OUT             (de_from_scaler)        // Data enable
+        );
+    end
+
+    // In 2 pixels per clock mode the scaler is by-passed
+    else
+    begin : gen_scaler_2ppc
+        assign cke_from_scaler = 1;
+        assign vs_from_scaler = vs_from_vtb[0];
+        assign hs_from_scaler = hs_from_vtb[0];
+        assign r_from_scaler = r_from_vtb[0];
+        assign g_from_scaler = g_from_vtb[0];
+        assign b_from_scaler = b_from_vtb[0];
+        assign de_from_scaler = de_from_vtb[0];
+    end
+endgenerate
 
 // DRP bridge
     prt_xil_drp
@@ -678,59 +812,6 @@ endgenerate
         .DRP_DAT_IN         (dat_to_drp),
         .DRP_RDY_IN         (rdy_to_drp)
     );
-
-// Scaler
-generate
-    if (P_SCALER == 1)
-    begin : gen_scaler
-        prt_scaler_top
-        #(
-            .P_PPC (4),          // Pixels per clock
-            .P_BPC (8)           // Bits per component
-        )
-        SCALER_INST
-        (
-             // System
-            .SYS_RST_IN             (dptx_rst_from_app),
-            .SYS_CLK_IN             (sys_clk_from_pll),
-
-            // Local bus interface
-            .LB_IF                  (scaler_if),
-
-            // Video
-            .VID_CLK_IN             (clk_from_vid_bufg),
-
-            // Video in
-            .VID_CKE_IN             (cke_from_scaler),      // Clock enable
-            .VID_VS_IN              (vs_from_vtb),          // Vertical sync
-            .VID_HS_IN              (hs_from_vtb),          // Horizontal sync    
-            .VID_R_IN               (r_from_vtb),           // Red
-            .VID_G_IN               (g_from_vtb),           // Green
-            .VID_B_IN               (b_from_vtb),           // Blue
-            .VID_DE_IN              (de_from_vtb),          // Data enable
-
-             // Video out
-            .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
-            .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
-            .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
-            .VID_R_OUT              (r_from_scaler),        // Red
-            .VID_G_OUT              (g_from_scaler),        // Green
-            .VID_B_OUT              (b_from_scaler),        // Blue
-            .VID_DE_OUT             (de_from_scaler)        // Data enable
-        );
-    end
-
-    else
-    begin : gen_no_scaler
-        assign cke_from_scaler = 1;
-        assign vs_from_scaler = vs_from_vtb;
-        assign hs_from_scaler = hs_from_vtb;
-        assign r_from_scaler = r_from_vtb;
-        assign g_from_scaler = g_from_vtb;
-        assign b_from_scaler = b_from_vtb;
-        assign de_from_scaler = de_from_vtb;
-    end
-endgenerate
 
 // PHY
 generate
@@ -813,14 +894,15 @@ generate
             .txctrl1_in                                 (txctrl1_to_gt),
             .txctrl2_in                                 (txctrl2_to_gt),
             .tx8b10ben_in                               (4'b1111),
-            .txpolarity_in                              (txpolarity_to_phy),  
+            .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted),  
 
             // TX PRBS
-            .txprbssel_in                               ({4{txprbssel_to_gt}}),
-            .txprbsforceerr_in                          ({4{txprbserr_re_to_gt}}),
+            //.txprbssel_in                               ({4{txprbssel_to_gt}}),
+            //.txprbsforceerr_in                          ({4{txprbserr_re_to_gt}}),
             
             // RX control
-            .rxpolarity_in                              (rxpolarity_to_phy), 
+            .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
+            .rxlpmen_in                                 ({4{phyrx_equ_sel_from_app}}),
 
             // RX datapath
             .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_gt), // 64 bits
@@ -834,9 +916,9 @@ generate
             .rxpcommaalignen_in                         (4'b1111),
 
             // RX PRBS
-            .rxprbssel_in                               ({4{rxprbssel_to_gt}}),
-            .rxprbscntreset_in                          ({4{rxprbsclr_to_gt}}),
-            .rxprbslocked_out                           (rxprbslock_from_gt),
+            //.rxprbssel_in                               ({4{rxprbssel_to_gt}}),
+            //.rxprbscntreset_in                          ({4{rxprbsclr_to_gt}}),
+            //.rxprbslocked_out                           (rxprbslock_from_gt),
 
             // DRP
             .drpclk_in                                  ({4{drp_clk_from_pll}}),
@@ -853,17 +935,14 @@ generate
             .drpen_common_in                            (en_from_drp[4]),
             .drpwe_common_in                            (wr_from_drp[4]),
             .drpdo_common_out                           (dat_to_drp[(4*16)+:16]),
-            .drprdy_common_out                          (rdy_to_drp[4]),
-
-            // Debug
-            .loopback_in                                ({4{loopback_to_phy}})
+            .drprdy_common_out                          (rdy_to_drp[4])
         );
     end
 
     // Two symbols per lane
     else 
     begin : phy_2spl
-        zcu102_gth
+        zcu102_gth_2spl
         PHY_INST
         (
             // High speed serial
@@ -939,14 +1018,14 @@ generate
             .txctrl1_in                                 (txctrl1_to_gt),
             .txctrl2_in                                 (txctrl2_to_gt),
             .tx8b10ben_in                               (4'b1111),
-            .txpolarity_in                              (txpolarity_to_phy), 
+            .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted, 
 
             // TX PRBS
             .txprbssel_in                               ({4{txprbssel_to_gt}}),
             .txprbsforceerr_in                          ({4{txprbserr_re_to_gt}}),
             
             // RX control
-            .rxpolarity_in                              (rxpolarity_to_phy), 
+            .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
 
             // RX datapath
             .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_gt), // 64 bits
@@ -1073,34 +1152,6 @@ generate
         );
     end
 endgenerate
-
-// Loopback
-    always_ff @ (posedge sys_clk_from_pll)
-    begin
-        if (phy_loopback_from_app)
-            loopback_to_phy <= 'b010;   // Near-end PMA loopback
-        else
-            loopback_to_phy <= 0;
-    end
-
-// TX Polarity
-    always_ff @ (posedge sys_clk_from_pll)
-    begin
-        if (phy_loopback_from_app)
-            txpolarity_to_phy <= 'b0000;
-        else
-            txpolarity_to_phy <= 'b1001; // Lanes 0 & 3 are inverted
-    end
-
-// RX Polarity
-    always_ff @ (posedge sys_clk_from_pll)
-    begin
-        if (phy_loopback_from_app)
-            rxpolarity_to_phy <= 'b0000;
-        else
-            rxpolarity_to_phy <= 'b1111;    // All lanes are inverted
-    end
-
 
 /*
     CPLL calibration block
@@ -1249,17 +1300,6 @@ endgenerate
     assign LED_OUT[6]   = 0; 
     assign LED_OUT[7]   = 0; 
     
-/*
-assign DEBUG_OUT[0] = lnk_sync_from_dprx;
-assign DEBUG_OUT[1] = hs_from_vtb;
-assign DEBUG_OUT[2] = de_from_vtb;
-assign DEBUG_OUT[3] = 0;
-assign DEBUG_OUT[4] = 0;
-assign DEBUG_OUT[5] = 0;
-assign DEBUG_OUT[6] = 0;
-assign DEBUG_OUT[7] = 0;
-*/
-
 endmodule
 
 `default_nettype wire

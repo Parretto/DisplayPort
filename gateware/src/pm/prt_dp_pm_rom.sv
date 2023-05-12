@@ -152,6 +152,7 @@ generate
     begin : gen_intel
         altera_syncram
         #( 
+            .init_file                          (P_INIT_FILE),
             .outdata_reg_a                      ("UNREGISTERED"),
             .clock_enable_input_a               ("BYPASS"),
             .clock_enable_input_b               ("BYPASS"),

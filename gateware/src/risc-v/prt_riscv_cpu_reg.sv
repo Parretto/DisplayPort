@@ -10,8 +10,7 @@
     History
     =======
     v1.0 - Initial release
-	v1.1 - Added ramstyle property
-		
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -30,8 +29,9 @@
 
 module prt_riscv_cpu_reg
 #(
-	parameter P_REGS = 16,				// Number of registers
-	parameter P_IDX = 4
+    parameter P_VENDOR 	= "none",       // Vendor "xilinx", "lattice" or "intel"
+	parameter P_REGS 	= 16,				// Number of registers
+	parameter P_IDX 	= 4
 )
 (
 	// Clock
@@ -51,49 +51,160 @@ module prt_riscv_cpu_reg
 	output wire [31:0]			RS2_DAT_OUT
 );
 
+// Parameters
+localparam P_ADR         = P_IDX;               // Data bits
+localparam P_DAT         = 32;                  // Data bits
+localparam P_WRDS        = P_REGS;   	        // Words
+localparam P_MEMORY_SIZE = P_WRDS * P_DAT;      // Memory size in bits
+
 // Signals
-// The ram style is needed for Lattice.
-// If not set Lattice Radiant 2022.1 will map the registers into block rams (EBR)
-// and this results in unknown read outputs.
-(* syn_ramstyle = "distributed" *) logic [31:0]	clk_reg[0:P_REGS-1];
-//(* ramstyle = "no_rw_check" *) logic [31:0]	clk_reg[0:P_REGS-1];
-logic [31:0]	clk_rs1_dat;
-logic [31:0]	clk_rs2_dat;
+wire [P_IDX-1:0]	clk_rs_idx[0:1];
+wire [31:0]			clk_rs_dat[0:1];
 
-// Write
-// The destination register is always updated.
-// In case of idle the first register is written.
-// This register is hardwired to zero when read.
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Write
-		if (RD_WR_IN)
-			clk_reg[RD_IDX_IN] <= RD_DAT_IN;
-	end
+genvar i;
 
-// RS1
-	always_comb
-	begin
-		// First register is hardwired to zero
-		if (RS1_IDX_IN == 0)
-			clk_rs1_dat = 0;
+// Map addresses
+	assign clk_rs_idx[0] = RS1_IDX_IN;
+	assign clk_rs_idx[1] = RS2_IDX_IN;
+
+generate
+	for (i = 0; i < 2; i++)
+	begin : gen_reg
+		if (P_VENDOR == "xilinx")
+		begin : gen_xilinx
+			// XPM memory
+			xpm_memory_sdpram
+			#(
+				.ADDR_WIDTH_A               (P_ADR),            // DECIMAL
+				.ADDR_WIDTH_B               (P_ADR),            // DECIMAL
+				.AUTO_SLEEP_TIME            (0),                // DECIMAL
+				.BYTE_WRITE_WIDTH_A         (P_DAT), 	        // DECIMAL
+				.CASCADE_HEIGHT             (0),                // DECIMAL
+				.CLOCKING_MODE              ("common_clock"),   // String
+				.ECC_MODE                   ("no_ecc"),         // String
+				.MEMORY_INIT_FILE           ("none"), 		    // String
+				.MEMORY_INIT_PARAM          ("0"),              // String
+				.MEMORY_OPTIMIZATION        ("false"),          // String
+				.MEMORY_PRIMITIVE           ("distributed"),    // String
+				.MEMORY_SIZE                (P_MEMORY_SIZE),    // DECIMAL
+				.MESSAGE_CONTROL            (0),                // DECIMAL
+				.READ_DATA_WIDTH_B          (P_DAT),            // DECIMAL
+				.READ_LATENCY_B             (0),                // DECIMAL
+				.READ_RESET_VALUE_B         ("0"),              // String
+				.RST_MODE_A                 ("SYNC"),           // String
+				.RST_MODE_B                 ("SYNC"),           // String
+				.SIM_ASSERT_CHK             (0),                // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+				.USE_EMBEDDED_CONSTRAINT    (0),                // DECIMAL
+				.USE_MEM_INIT               (0),                // DECIMAL
+				.WAKEUP_TIME                ("disable_sleep"),  // String
+				.WRITE_DATA_WIDTH_A         (P_DAT),            // DECIMAL
+				.WRITE_MODE_B               ("read_first")      // String
+			)
+			REG_INST
+			(
+				.doutb            (clk_rs_dat[i]),        // READ_DATA_WIDTH_B-bit output: Data output for port B read operations.
+				.addra            (RD_IDX_IN),            // ADDR_WIDTH_A-bit input: Address for port A write operations.
+				.addrb            (clk_rs_idx[i]),        // ADDR_WIDTH_B-bit input: Address for port B read operations.
+				.clka             (CLK_IN),               // 1-bit input: Clock signal for port A. Also clocks port B when parameter CLOCKING_MODE is "common_clock".
+				.clkb             (CLK_IN),               // 1-bit input: Clock signal for port B when parameter CLOCKING_MODE is "independent_clock". Unused when parameter CLOCKING_MODE is "common_clock".
+				.dina             (RD_DAT_IN),            // WRITE_DATA_WIDTH_A-bit input: Data input for port A write operations.
+				.ena              (1'b1),   	          // 1-bit input: Memory enable signal for port A. Must be high on clock cycles when write operations are initiated. Pipelined internally.
+				.enb              (1'b1),                 // 1-bit input: Memory enable signal for port B. Must be high on clock cycles when read operations are initiated. Pipelined internally.
+				.injectdbiterra   (1'b0),                 // 1-bit input: Controls double bit error injection on input data when
+				.injectsbiterra   (1'b0),                 // 1-bit input: Controls single bit error injection on input data when
+				.regceb           (1'b1),                 // 1-bit input: Clock Enable for the last register stage on the output data path.
+				.rstb             (1'b0),                 // 1-bit input: Reset signal for the final port B output register stage.
+				.sleep            (1'b0),                 // 1-bit input: sleep signal to enable the dynamic power saving feature.
+				.wea              (RD_WR_IN),             // WRITE_DATA_WIDTH_A-bit input: Write enable vector for port A input
+				.sbiterrb         (),                     // 1-bit output: Status signal to indicate single bit error occurrenceon the data output of port B.
+				.dbiterrb         ()                      // 1-bit output: Status signal to indicate double bit error occurrence on the data output of port B.
+			);
+		end
+
+		else if (P_VENDOR == "lattice")
+		begin : gen_lattice
+			pmi_distributed_dpram
+			#(
+				.pmi_addr_depth       	(P_WRDS), 		// integer       
+				.pmi_addr_width       	(P_ADR), 		// integer       
+				.pmi_data_width       	(P_DAT), 		// integer       
+				.pmi_regmode          	("noreg"), 		// "reg"|"noreg"     
+				.pmi_init_file        	("none"), 		// string        
+				.pmi_init_file_format 	("hex"), 		// "binary"|"hex"    
+				.pmi_family           	("common")  	// "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+			) 
+			REG_INST
+			(
+				.Reset     			(1'b0),  
+				
+				.WrClock   			(CLK_IN),  
+				.WrClockEn 			(1'b1),  
+				.WrAddress 			(RD_IDX_IN),  
+				.WE        			(RD_WR_IN),  
+				.Data      			(RD_DAT_IN),  
+
+				.RdClock   			(CLK_IN),  
+				.RdClockEn 			(1'b1),  
+				.RdAddress 			(clk_rs_idx[i]),  
+				.Q         			(clk_rs_dat[i])   
+			);
+		end
+
+		else if (P_VENDOR == "intel")
+		begin : gen_int
+			altdpram
+			#(
+				.indata_aclr 						("OFF"),
+				.indata_reg  						("INCLOCK"),
+				.intended_device_family  			("Cyclone 10 GX"),
+				.lpm_type  							("altdpram"),
+				.ram_block_type  					("MLAB"),
+				.outdata_aclr  						("OFF"),
+				.outdata_sclr  						("OFF"),
+				.outdata_reg   						("UNREGISTERED"),
+				.rdaddress_aclr  					("OFF"),
+				.rdaddress_reg  					("UNREGISTERED"),
+				.rdcontrol_aclr  					("OFF"),
+				.rdcontrol_reg  					("UNREGISTERED"),
+				.read_during_write_mode_mixed_ports	("DONT_CARE"),
+				.width 								(P_DAT),
+				.widthad  							(P_ADR),
+				.width_byteena 						(1),
+				.wraddress_aclr  					("OFF"),
+				.wraddress_reg  					("INCLOCK"),
+				.wrcontrol_aclr  					("OFF"),
+				.wrcontrol_reg  					("INCLOCK")
+			)
+			REG_INST				
+			(
+				.inclock 			(CLK_IN),
+				.outclock 			(CLK_IN),
+				.wraddress 			(RD_IDX_IN),
+				.data 				(RD_DAT_IN),
+				.wren 				(RD_WR_IN),
+				.rdaddress 			(clk_rs_idx[i]),
+				.q 					(clk_rs_dat[i]),
+				.aclr 				(1'b0),
+				.sclr 				(1'b0),
+				.byteena 			(1'b1),
+				.inclocken 			(1'b1),
+				.outclocken 		(1'b1),
+				.rdaddressstall 	(1'b0),
+				.rden 				(1'b1),
+				.wraddressstall 	(1'b0)
+			);
+		end
+
 		else
-			clk_rs1_dat = clk_reg[RS1_IDX_IN];
+		begin
+			$error ("No Vendor specified!");
+		end
 	end
-
-// RS2
-	always_comb
-	begin
-		// First register is hardwired to zero
-		if (RS2_IDX_IN == 0)
-			clk_rs2_dat = 0;
-		else
-			clk_rs2_dat = clk_reg[RS2_IDX_IN];
-	end
+endgenerate
 
 // Outputs
-	assign RS1_DAT_OUT = clk_rs1_dat;
-	assign RS2_DAT_OUT = clk_rs2_dat;
+	assign RS1_DAT_OUT = (RS1_IDX_IN == 0) ? 0 : clk_rs_dat[0]; // First register is hardwired to zero
+	assign RS2_DAT_OUT = (RS2_IDX_IN == 0) ? 0 : clk_rs_dat[1]; // First register is hardwired to zero
 
 endmodule
 

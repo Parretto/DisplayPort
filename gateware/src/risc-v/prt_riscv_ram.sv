@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Updated Intel memory instantiation
 
     License
     =======
@@ -141,7 +142,7 @@ generate
             .clk_en_i           (1'b1), 
             .wr_en_i            (clk_wr), 
             .addr_i             (clk_adr), 
-            .ben_i              (~clk_be),  // The byte lane polarity is inverterd
+            .ben_i              (~clk_be),  // The byte lane polarity is inverted
             .wr_data_i          (clk_din),
             .rd_data_o          (RAM_IF.rd_dat),
             .lramready_o        (), 
@@ -153,9 +154,10 @@ generate
     begin : gen_int
         altera_syncram
         #( 
+            .init_file                          (P_INIT_FILE),
             .address_aclr_b                     ("NONE"),
-            .address_reg_b                      ("CLOCK0"),
-            .outdata_reg_b                      ("CLOCK0"),
+           // .address_reg_a                      ("CLOCK0"),
+            .outdata_reg_a                      ("CLOCK0"),
             .clock_enable_input_a               ("BYPASS"),
             .clock_enable_input_b               ("BYPASS"),
             .enable_force_to_zero               ("FALSE"),

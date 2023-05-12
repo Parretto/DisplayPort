@@ -10,7 +10,8 @@
     History
     =======
     v1.0 - Initial release
-	
+	v1.1 - Added vendor parameter
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -37,6 +38,9 @@
 
 // Module
 module prt_riscv_cpu
+# (
+    parameter                   P_VENDOR    = "none"   // Vendor "xilinx", "lattice" or "intel"
+)
 (
 	// Clocks and reset
   	input wire					RST_IN,			// Reset
@@ -1205,6 +1209,7 @@ irq_struct		clk_irq;	// Interrupt
 */
 	prt_riscv_cpu_reg
 	#(
+		.P_VENDOR 			(P_VENDOR),			// Vendor
 		.P_REGS				(P_REGS),			// Number of registers
 		.P_IDX				(P_REG_IDX_BITS)	// Register idx width
 	)

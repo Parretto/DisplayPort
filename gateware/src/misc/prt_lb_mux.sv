@@ -12,6 +12,8 @@
     v1.0 - Initial release
     v1.1 - Added downstream port 8
     v1.2 - Fixed issue with Parretto RISC-V
+    v1.3 - Added downstream port 9
+    v1.4 - Added downstream port 10
 
     License
     =======
@@ -32,7 +34,7 @@
 // Module
 module prt_lb_mux
 #(
-     parameter P_PORTS = 8
+     parameter P_PORTS = 10
 )
 (
      // Reset and clock
@@ -51,7 +53,9 @@ module prt_lb_mux
      prt_dp_lb_if.lb_out           LB_DWN_IF5,
      prt_dp_lb_if.lb_out           LB_DWN_IF6,
      prt_dp_lb_if.lb_out           LB_DWN_IF7,
-     prt_dp_lb_if.lb_out           LB_DWN_IF8
+     prt_dp_lb_if.lb_out           LB_DWN_IF8,
+     prt_dp_lb_if.lb_out           LB_DWN_IF9,
+     prt_dp_lb_if.lb_out           LB_DWN_IF10
 );
 
 // Parameters
@@ -222,6 +226,20 @@ endgenerate
      assign LB_DWN_IF8.rd = clk_dwn[8].rd;
      assign clk_dwn[8].din = LB_DWN_IF8.dout; // For the outport the data directions are swapped
      assign clk_dwn[8].vld = LB_DWN_IF8.vld; 
+
+     assign LB_DWN_IF9.adr = clk_dwn[9].adr;
+     assign LB_DWN_IF9.din = clk_dwn[9].dout; // For the out port the data directions are swapped
+     assign LB_DWN_IF9.wr = clk_dwn[9].wr;
+     assign LB_DWN_IF9.rd = clk_dwn[9].rd;
+     assign clk_dwn[9].din = LB_DWN_IF9.dout; // For the outport the data directions are swapped
+     assign clk_dwn[9].vld = LB_DWN_IF9.vld; 
+
+     assign LB_DWN_IF10.adr = clk_dwn[10].adr;
+     assign LB_DWN_IF10.din = clk_dwn[10].dout; // For the out port the data directions are swapped
+     assign LB_DWN_IF10.wr = clk_dwn[10].wr;
+     assign LB_DWN_IF10.rd = clk_dwn[10].rd;
+     assign clk_dwn[10].din = LB_DWN_IF10.dout; // For the outport the data directions are swapped
+     assign clk_dwn[10].vld = LB_DWN_IF10.vld; 
 
      assign LB_UP_IF.dout = clk_up.dout;
      assign LB_UP_IF.vld = clk_up.vld;

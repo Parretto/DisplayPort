@@ -176,6 +176,7 @@ generate
     begin : gen_int
         altera_syncram
         #( 
+            .init_file                          (P_INIT_FILE),
             .address_aclr_b                     ("NONE"),
             .address_reg_b                      ("CLOCK0"),
             .outdata_reg_b                      ("UNREGISTERED"),

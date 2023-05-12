@@ -4,7 +4,7 @@
 ###
 
 # Create project
-create_project dp_ref_xlx_zcu102 -part xczu9eg-ffvb1156-2-e -force
+create_project dp_ref_amd_zcu102 -part xczu9eg-ffvb1156-2-e -force
 
 # Add sources
 set SRC "../../src"
@@ -84,14 +84,19 @@ add_files $SRC/misc/prt_hb.sv
 add_files $SRC/misc/prt_uart.sv
 
 # Top
-add_files ../../ref/xilinx/zcu102/dp_ref_xlx_zcu102.sv
+add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.sv
 
 # Constraint
-add_files ../../ref/xilinx/zcu102/dp_ref_xlx_zcu102.xdc
+add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.xdc
+
+# Memory
+add_files ../../ref/amd/zcu102/dp_app_amd_rom.mem
+add_files ../../ref/amd/zcu102/dp_app_amd_ram.mem
 
 # IPs
-import_ip ../../ref/xilinx/zcu102/sys_pll.xci 
-import_ip ../../ref/xilinx/zcu102/zcu102_gth.xci 
+import_ip ../../ref/amd/zcu102/sys_pll.xci 
+import_ip ../../ref/amd/zcu102/zcu102_gth_2spl.xci 
+import_ip ../../ref/amd/zcu102/zcu102_gth_4spl.xci 
 
 # Update IPs 
 upgrade_ip [get_ips]

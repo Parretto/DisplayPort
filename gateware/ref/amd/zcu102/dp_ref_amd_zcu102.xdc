@@ -10,11 +10,13 @@ create_clock -period 8.000 -name sys_clk -waveform {0.000 4.000} [get_ports CLK_
 # Link clock 2.7 Gbps @ 2 sublanes = 135 MHz
 #create_clock -period 7.407 -name tx_lnk_clk -waveform {0.000 3.704} [get_pins {GT_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
 
-# Link clock 8.1 Gbps @ 4 sublanes = 270 MHz
+# Link clock 8.1 Gbps @ 4 sublanes = 202.5 MHz
+create_clock -period 4.938 -name tx_lnk_clk -waveform {0.000 2.469} [get_pins {phy_4spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
+create_clock -period 4.938 -name rx_lnk_clk -waveform {0.000 2.469} [get_pins {phy_4spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
 
 # Link clock 8.1 Gbps @ 2 sublanes = 405 MHz
-create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-create_clock -period 2.469 -name rx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
+#create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
+#create_clock -period 2.469 -name rx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
 
 # Video clock 4K60p @ 2 pixel per clock = 297 MHz
 create_clock -period 3.367 -name tx_vid_clk -waveform {0.000 1.683} [get_ports TENTIVA_VID_CLK_IN_P]
@@ -96,35 +98,10 @@ set_property PACKAGE_PIN AH13 [get_ports {LED_OUT[5]}]
 set_property PACKAGE_PIN AH14 [get_ports {LED_OUT[6]}]
 set_property PACKAGE_PIN AL12 [get_ports {LED_OUT[7]}]
 
-# DEBUG
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[0]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[1]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[2]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[3]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[4]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[5]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[6]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[7]}]
-set_property PACKAGE_PIN H14 [get_ports {DEBUG_OUT[0]}]
-set_property PACKAGE_PIN J14 [get_ports {DEBUG_OUT[1]}]
-set_property PACKAGE_PIN G14 [get_ports {DEBUG_OUT[2]}]
-set_property PACKAGE_PIN G15 [get_ports {DEBUG_OUT[3]}]
-set_property PACKAGE_PIN J15 [get_ports {DEBUG_OUT[4]}]
-set_property PACKAGE_PIN J16 [get_ports {DEBUG_OUT[5]}]
-set_property PACKAGE_PIN G16 [get_ports {DEBUG_OUT[6]}]
-set_property PACKAGE_PIN H16 [get_ports {DEBUG_OUT[7]}]
-
-#set_property IOSTANDARD LVCMOS33 [get_ports DEBUG_REF_CLK_OUT]
-#set_property PACKAGE_PIN H13 [get_ports DEBUG_REF_CLK_OUT]
-#set_property IOSTANDARD LVCMOS33 [get_ports DEBUG_LNK_CLK_OUT]
-#set_property PACKAGE_PIN G13 [get_ports DEBUG_LNK_CLK_OUT]
-
-# Reset
-
 # UART
+# ZCU102
 set_property IOSTANDARD LVCMOS33 [get_ports UART_TX_OUT]
 set_property PACKAGE_PIN F13 [get_ports UART_TX_OUT]
-
 set_property IOSTANDARD LVCMOS33 [get_ports UART_RX_IN]
 set_property PACKAGE_PIN E13 [get_ports UART_RX_IN]
 
@@ -146,40 +123,30 @@ set_property PACKAGE_PIN G21 [get_ports CLK_IN_P]
 set_property PACKAGE_PIN G7 [get_ports GT_REFCLK_IN_N]
 set_property PACKAGE_PIN G8 [get_ports GT_REFCLK_IN_P]
 
-# Aqua
-set_property IOSTANDARD LVCMOS33 [get_ports AQUA_SEL_IN]
-set_property PACKAGE_PIN A20 [get_ports AQUA_SEL_IN]
-set_property IOSTANDARD LVCMOS33 [get_ports AQUA_CTL_IN]
-set_property PACKAGE_PIN B20 [get_ports AQUA_CTL_IN]
-set_property IOSTANDARD LVCMOS33 [get_ports AQUA_CLK_IN]
-set_property PACKAGE_PIN A22 [get_ports AQUA_CLK_IN]
-set_property IOSTANDARD LVCMOS33 [get_ports AQUA_DAT_IN]
-set_property PACKAGE_PIN A21 [get_ports AQUA_DAT_IN]
-
 ###
 # Timing
 ###
 
 # PRT_DP_LIB_RST
-set _xlnx_shared_i0 [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_dclk_rst_reg*}]
-set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_sclk_rst_reg*}] -to $_xlnx_shared_i0
+set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_sclk_rst_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_dclk_rst_reg*}]
 
 # PRT_DP_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
-set _xlnx_shared_i1 [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_bclk_dout_reg*}]
-set _xlnx_shared_i2 [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_aclk_ram_reg*}]
-set_false_path -through $_xlnx_shared_i2 -to $_xlnx_shared_i1
+#set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_aclk_ram_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_bclk_dout_reg*}]
 
 # PRT_DP_LIB_CDC_GRAY
-set _xlnx_shared_i3 [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_gray_dclk_cap_reg[0]*}]
-set_false_path -to $_xlnx_shared_i3
+#set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_gray_dclk_cap_reg[0]*}]
+set_max_delay -datapath_only -from [get_cells -hierarchical -filter {NAME =~ "*prt_dp_lib_cdc_gray_sclk_enc_reg[*]"}] -to [get_cells -hierarchical -filter {NAME =~ "*prt_dp_lib_cdc_gray_dclk_cap1_reg[*]"}] 1.000
 
 # PRT_DP_LIB_CDC_VEC
-set _xlnx_shared_i4 [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_dclk_cap_reg[0]*}]
-set_false_path -to $_xlnx_shared_i4
+set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_dclk_cap_reg[0]*}]
 set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_dclk_hs_reg[0]*}]
 set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_sclk_hs_reg[0]*}]
 
 # PRT_DP_LIB_CDC_BIT
 set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_bit_dclk_dat_reg[0]*}]
 
+# PRT_SCALER_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
+#set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_mem_aclk_ram_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_mem_bclk_dout_reg*}]
 
+# PRT_SCALER_LIB_CDC_BIT
+set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_cdc_bit_dclk_dat_reg[0]*}]

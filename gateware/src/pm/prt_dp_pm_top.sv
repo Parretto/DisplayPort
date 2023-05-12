@@ -5,11 +5,12 @@
 
 
     Module: DP PM Top
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021-  2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added MST feature
 
     License
     =======
@@ -42,7 +43,8 @@ module prt_dp_pm_top
     parameter                           P_RAM_INIT_FILE = "none",
     parameter                           P_PIO_IN_WIDTH  = 8,
     parameter                           P_PIO_OUT_WIDTH = 8,
-    parameter                           P_SPL = 2                    // Symbols per lane
+    parameter                           P_SPL = 2,                   // Symbols per lane
+    parameter                           P_MST = 0                    // MST
 )
 (
     // Reset and clock
@@ -87,12 +89,12 @@ localparam P_AUX_BASE       = 'h6;      // 0xc600
 localparam P_MSG_BASE       = 'h7;      // 0xc700
 localparam P_MUTEX_BASE     = 'h8;      // 0xc800
 
-localparam P_ROM_SIZE       = 16*1024;              // ROM size : 16KBytes
+localparam P_ROM_SIZE       = 20*1024;              // ROM size : 20KBytes
 localparam P_ROM_ADR        = $clog2(P_ROM_SIZE)-2; // ROM address in words
 localparam P_RAM_SIZE       = 4*1024;               // RAM size : 4KBytes
 localparam P_RAM_ADR        = $clog2(P_RAM_SIZE)-2; // RAM address in words
 
-localparam P_PIO_IN_WIDTH_INT  = P_PIO_IN_WIDTH + 2;    // Internal PIO in width
+localparam P_PIO_IN_WIDTH_INT  = P_PIO_IN_WIDTH + 3;    // Internal PIO in width
 localparam P_PIO_OUT_WIDTH_INT = P_PIO_OUT_WIDTH + 3;   // Internal PIO out width
 
 // Signals
@@ -206,6 +208,9 @@ mutex_lb();
 
 // HART
     prt_dp_pm_hart
+    #(
+        .P_VENDOR              (P_VENDOR)
+    )
     HART_INST
     (
     	// Clocks and reset
@@ -360,8 +365,11 @@ mutex_lb();
 // PIO bit 1 is set according to the symbols per lane
     assign dat_to_pio[1] = (P_SPL == 4) ? 1 : 0;
 
+// PIO bit 2 is set according when the MST feature is enable
+    assign dat_to_pio[2] = (P_MST) ? 1 : 0;
+
 // External PIO inputs
-    assign dat_to_pio[2+:P_PIO_IN_WIDTH] = PIO_IN[0+:P_PIO_IN_WIDTH];
+    assign dat_to_pio[3+:P_PIO_IN_WIDTH] = PIO_IN[0+:P_PIO_IN_WIDTH];
 
 // Timer
     prt_dp_pm_tmr

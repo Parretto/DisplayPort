@@ -4,7 +4,7 @@
 ###
 
 # Create project
-prj_create -name dp_ref_lat_lfcpnx_evn -impl impl1 -dev LFCPNX-100-9LFG672C
+prj_create -name dp_ref_lsc_lfcpnx_evn -impl impl1 -dev LFCPNX-100-9LFG672C
 
 # Add sources
 set SRC "../../src"
@@ -100,36 +100,36 @@ prj_add_source $SRC/scaler/prt_scaler_tg.sv
 prj_add_source $SRC/scaler/prt_scaler_top.sv
 
 # Top
-prj_add_source ../../ref/lattice/lfcpnx_evn/dp_ref_lat_lfcpnx_evn.sv
+prj_add_source ../../ref/lsc/lfcpnx_evn/dp_ref_lsc_lfcpnx_evn.sv
 
 # Constraint files
-prj_add_source ../../ref/lattice/lfcpnx_evn/dp_ref_lat_lfcpnx_evn.sdc
-prj_add_source ../../ref/lattice/lfcpnx_evn/dp_ref_lat_lfcpnx_evn.pdc
+prj_add_source ../../ref/lsc/lfcpnx_evn/dp_ref_lsc_lfcpnx_evn.sdc
+prj_add_source ../../ref/lsc/lfcpnx_evn/dp_ref_lsc_lfcpnx_evn.pdc
 
 # IP
 file mkdir ./phy
-file copy -force ../../ref/lattice/lfcpnx_evn/phy.ipx ./phy/.
-file copy -force ../../ref/lattice/lfcpnx_evn/phy.cfg ./phy/.
+file copy -force ../../ref/lsc/lfcpnx_evn/phy.ipx ./phy/.
+file copy -force ../../ref/lsc/lfcpnx_evn/phy.cfg ./phy/.
 prj_add_source ./phy/phy.ipx
 
 file mkdir ./sys_pll
-file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.ipx ./sys_pll/.
-file copy -force ../../ref/lattice/lfcpnx_evn/sys_pll.cfg ./sys_pll/.
+file copy -force ../../ref/lsc/lfcpnx_evn/sys_pll.ipx ./sys_pll/.
+file copy -force ../../ref/lsc/lfcpnx_evn/sys_pll.cfg ./sys_pll/.
 prj_add_source ./sys_pll/sys_pll.ipx
 
 # RISC-V ROM
 file mkdir ./prt_riscv_rom_lat
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
 prj_add_source ./prt_riscv_rom_lat/prt_riscv_rom_lat.ipx
 
 # RISC-V RAM
 file mkdir ./prt_riscv_ram_lat
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_evn/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
 prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
 
 # Set top level
-prj_set_impl_opt -impl impl1 top dp_ref_lat_lfcpnx_evn
+prj_set_impl_opt -impl impl1 top dp_ref_lsc_lfcpnx_evn

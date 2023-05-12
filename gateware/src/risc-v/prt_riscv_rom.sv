@@ -150,6 +150,7 @@ generate
     begin : gen_int
         altera_syncram
         #( 
+            .init_file                          (P_INIT_FILE),
             .outdata_reg_a                      ("CLOCK0"),
             .clock_enable_input_a               ("BYPASS"),
             .clock_enable_input_b               ("BYPASS"),

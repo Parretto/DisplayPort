@@ -1,37 +1,18 @@
 ###
 # Timing
 ###
+#create_clock -name {tx_lnk_clk} -period 7.407407407 [get_nets tx_clk_from_phy]
+#create_clock -name {rx_lnk_clk} -period 7.407407407 [get_nets rx_clk_from_phy]
 
 # PRT_DP_LIB_RST
 #set_false_path -to [get_pins -hierarchical *prt_dp_lib_dclk_rst_i*.ff_inst/LSR]
 
-# PRT_DP_LIB_CDC_VEC
-#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_sclk_hs_i0.ff_inst/DF]
-#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_dclk_hs_i0.ff_inst/DF]
-#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_vec_dclk_cap\[0\]_i*.ff_inst/DF]
-
 # PRT_DP_LIB_CDC_BIT
 #set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
-
+ 
 # PRT_DP_LIB_CDC_GRAY
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_cdc_gray_sclk_enc_i*.ff_inst/Q] -to [get_pins -hierarchical *prt_dp_lib_cdc_gray_dclk_cap1_i*.ff_inst/DF] -datapath_only 1
-
-# PRT_DP_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
-#set_false_path -from [get_pins *prt_dp_lib_mem_aclk_ram_*.ramw_inst/DO] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout*.ff_inst/DF]
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.dpram_inst_*/DO0] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_i*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO0] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO1] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO2] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_dp_lib_mem_aclk_ram*.ramw_inst/WDO3] -to [get_pins -hierarchical *prt_dp_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-
-# PRT_SCALER_LIB_CDC_BIT
-#set_false_path -to [get_pins -hierarchical *prt_scaler_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
-
-# PRT_SCALER_LIB_MEM_RAM_DC / PRT_SCALER_LIB_MEM_FIFO
-#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO0] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO1] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO2] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
-#set_max_delay -from [get_pins -hierarchical *prt_scaler_lib_mem_aclk_ram*.ramw_inst/WDO3] -to [get_pins -hierarchical *prt_scaler_lib_mem_bclk_dout_*.ff_inst/DF] -datapath_only 2
+#set_max_delay -from [get_nets -hierarchical {*prt_dp_lib_cdc_gray_sclk_enc[*]}] -to [get_nets -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1[*]}] 1
+#set_max_delay -from [get_pins -hierarchical {prt_dp_lib_cdc_gray_sclk_enc_i*.ff_inst/Q}] -to [get_pins -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1_i*.ff_inst/DF}] 2
 
 ###
 # False path
@@ -54,7 +35,6 @@ set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks vid_clk]
 # RX link clock
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll]
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks vid_clk]
-
 
 ###
 # Pins
@@ -103,17 +83,17 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SCL_INOUT]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SDA_INOUT]
 
 # UART
-# On-board FTDI device
-ldc_set_location -site {L1} [get_ports UART_TX_OUT]
-ldc_set_location -site {L2} [get_ports UART_RX_IN]
+# On-board device
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_TX_OUT]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_RX_IN]
+ldc_set_location -site {L1} [get_ports UART_TX_OUT]
+ldc_set_location -site {L2} [get_ports UART_RX_IN]
 
 # Tentiva Base board
 ldc_set_location -site {AB23} [get_ports TENTIVA_CLK_SEL_OUT]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_CLK_SEL_OUT]
-ldc_set_location -site {AF6} [get_ports TENTIVA_PHY_CLK_LOCK_IN]
-ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_PHY_CLK_LOCK_IN]
+ldc_set_location -site {AF6} [get_ports TENTIVA_GT_CLK_LOCK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_GT_CLK_LOCK_IN]
 ldc_set_location -site {AA7} [get_ports TENTIVA_VID_CLK_LOCK_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports TENTIVA_VID_CLK_LOCK_IN]
 

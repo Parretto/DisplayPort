@@ -8,7 +8,7 @@ The thin host driver has a simple API, which is used by the application to inter
 - DisplayPort 1.4
 - Source (DPTX) and Sink (DPRX)
 	- RBR, HBR, HBR2 and HBR3 linerates
-	- Support for 2 and 4 DP lanes
+	- Support for 1, 2 and 4 DP lanes
 	- Native video and AXI stream video interfaces
 	- Single Stream transport mode (SST)
 	- Dual and quad pixels per clock 
@@ -17,8 +17,9 @@ The thin host driver has a simple API, which is used by the application to inter
 	- Test pattern generator
 	- Clock recovery
 - Supported devices
-	- Xilinx UltraScale+
+	- AMD UltraScale+
 	- Lattice CertusPro-NX
+	- Intel Cyclone 10 GX
 
 # Documentation
 The documentation is available online at https://displayport-manual.readthedocs.io/en/latest/

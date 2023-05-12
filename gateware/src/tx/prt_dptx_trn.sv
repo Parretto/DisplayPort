@@ -5,11 +5,12 @@
 
 
     Module: DP TX Training
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Updated interface
 
     License
     =======
@@ -39,7 +40,7 @@ module prt_dptx_trn
     // Message
     parameter P_MSG_IDX     = 5,          // Message index width
     parameter P_MSG_DAT     = 16,         // Message data width
-    parameter P_MSG_ID_TPS  = 0           // Message ID Training Pattern Sequence
+    parameter P_MSG_ID      = 0           // Message ID Training Pattern Sequence
 )
 (
     // Reset and clock
@@ -55,8 +56,8 @@ module prt_dptx_trn
     prt_dp_msg_if.src       MSG_SRC_IF,     // Source
 
     // Link 
-    prt_dp_tx_lnk_if.snk    LNK_SNK_IF,    // Sink
-    prt_dp_tx_lnk_if.src    LNK_SRC_IF     // Source
+    prt_dp_tx_phy_if.snk    LNK_SNK_IF,    // Sink
+    prt_dp_tx_phy_if.src    LNK_SRC_IF     // Source
 );
 
 // Parameters
@@ -114,7 +115,7 @@ genvar i;
 // Message Slave
     prt_dp_msg_slv_egr
     #(
-        .P_ID           (P_MSG_ID_TPS),   // Identifier
+        .P_ID           (P_MSG_ID),       // Identifier
         .P_IDX_WIDTH    (P_MSG_IDX),      // Index width
         .P_DAT_WIDTH    (P_MSG_DAT)       // Data width
     )

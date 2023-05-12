@@ -74,42 +74,42 @@ typedef struct {
 } lb_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [P_CTL_WIDTH-1:0]	r;
-	logic [3:0]			ig;
-	logic [3:0]			og;
-	logic [3:0]			vps;
+	logic [3:0]				ig;
+	logic [3:0]				og;
+	logic [3:0]				vps;
 } ctl_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [31:0]			r[0:P_IG_PORTS-1];
 	logic [31:0]			dat;
 } ig_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [31:0]			r[0:P_OG_PORTS-1];
 	logic [31:0]			dat;
 } og_struct;
 
 typedef struct {
-	logic 				sel;
+	logic 					sel;
 	logic [P_RAM_ADR-1:0]	adr;
-	logic 				wr;
+	logic 					wr;
 	logic [P_RAM_DAT-1:0]	din;
 } vps_wr_struct;
 
 typedef struct {
 	logic [P_RAM_ADR-1:0]	adr[0:1];
-	logic 				rd;
+	logic 					rd;
 	logic [P_RAM_DAT-1:0]	dout;
-	logic 				vld;
+	logic 					vld;
 } vps_rd_struct;
 
 // Signals
 lb_struct		sclk_lb;	
-ctl_struct	sclk_ctl;
+ctl_struct		sclk_ctl;
 ig_struct		sclk_ig;
 og_struct		sclk_og;
 vps_wr_struct 	sclk_vps;
@@ -272,17 +272,17 @@ genvar i;
 		// Port A
 		.A_RST_IN		(SYS_RST_IN),		// Reset
 		.A_CLK_IN		(SYS_CLK_IN),		// Clock
-		.A_ADR_IN		(sclk_vps.adr),	// Address
+		.A_ADR_IN		(sclk_vps.adr),		// Address
 		.A_WR_IN		(sclk_vps.wr),		// Write in
-		.A_DAT_IN		(sclk_vps.din),	// Write data
+		.A_DAT_IN		(sclk_vps.din),		// Write data
 
 		// Port B
 		.B_RST_IN		(VID_RST_IN),		// Reset
 		.B_CLK_IN		(VID_CLK_IN),		// Clock
 		.B_ADR_IN		(vclk_vps.adr[0]),	// Address
 		.B_RD_IN		(vclk_vps.rd),		// Read in
-		.B_DAT_OUT	(vclk_vps.dout),	// Read data
-		.B_VLD_OUT	(vclk_vps.vld)		// Read data valid
+		.B_DAT_OUT		(vclk_vps.dout),	// Read data
+		.B_VLD_OUT		(vclk_vps.vld)		// Read data valid
 	);
 
 // VPS address

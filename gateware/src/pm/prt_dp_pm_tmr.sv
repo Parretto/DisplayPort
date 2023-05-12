@@ -5,11 +5,12 @@
 
 
     Module: DP PM Timer
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+	v1.1 - Increase width alarm counter to 32 bits
 
     License
     =======
@@ -100,7 +101,7 @@ typedef struct {
 
 typedef struct {
 	logic						sel;				// Select
-	logic	[15:0]				cnt;
+	logic	[31:0]				cnt;
 	logic						cnt_end;
 	logic						cnt_end_re;
 } alrm_struct;
