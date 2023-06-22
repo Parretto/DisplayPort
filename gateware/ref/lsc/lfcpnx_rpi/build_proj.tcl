@@ -92,35 +92,35 @@ prj_add_source $SRC/scaler/prt_scaler_top.sv
 prj_add_source $SRC/rpi/rpi_dpi.sv 
 
 # Top
-prj_add_source ../../ref/lattice/lfcpnx_rpi/dp_rpi_lfcpnx.sv
+prj_add_source ../../ref/lsc/lfcpnx_rpi/dp_rpi_lfcpnx.sv
 
 # Constraint files
-prj_add_source ../../ref/lattice/lfcpnx_rpi/dp_rpi_lfcpnx.sdc
-prj_add_source ../../ref/lattice/lfcpnx_rpi/dp_rpi_lfcpnx.pdc
+prj_add_source ../../ref/lsc/lfcpnx_rpi/dp_rpi_lfcpnx.sdc
+prj_add_source ../../ref/lsc/lfcpnx_rpi/dp_rpi_lfcpnx.pdc
 
 # IP
 file mkdir ./phy_tx
-file copy -force ../../ref/lattice/lfcpnx_rpi/phy_tx.ipx ./phy_tx/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/phy_tx.cfg ./phy_tx/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/phy_tx.ipx ./phy_tx/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/phy_tx.cfg ./phy_tx/.
 prj_add_source ./phy_tx/phy_tx.ipx
 
 file mkdir ./sys_pll
-file copy -force ../../ref/lattice/lfcpnx_rpi/sys_pll.ipx ./sys_pll/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/sys_pll.cfg ./sys_pll/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/sys_pll.ipx ./sys_pll/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/sys_pll.cfg ./sys_pll/.
 prj_add_source ./sys_pll/sys_pll.ipx
 
 # RISC-V ROM
 file mkdir ./prt_riscv_rom_lat
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
 prj_add_source ./prt_riscv_rom_lat/prt_riscv_rom_lat.ipx
 
 # RISC-V RAM
 file mkdir ./prt_riscv_ram_lat
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lattice/lfcpnx_rpi/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
+file copy -force ../../ref/lsc/lfcpnx_rpi/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
 prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
 
 # Set top level

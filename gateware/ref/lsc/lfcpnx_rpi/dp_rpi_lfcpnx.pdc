@@ -3,13 +3,10 @@
 ###
 #create_clock -name {tx_lnk_clk} -period 7.407407407 [get_nets tx_clk_from_phy]
 #create_clock -name {rx_lnk_clk} -period 7.407407407 [get_nets rx_clk_from_phy]
-
 # PRT_DP_LIB_RST
 #set_false_path -to [get_pins -hierarchical *prt_dp_lib_dclk_rst_i*.ff_inst/LSR]
-
 # PRT_DP_LIB_CDC_BIT
 #set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
- 
 # PRT_DP_LIB_CDC_GRAY
 #set_max_delay -from [get_nets -hierarchical {*prt_dp_lib_cdc_gray_sclk_enc[*]}] -to [get_nets -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1[*]}] 1
 #set_max_delay -from [get_pins -hierarchical {prt_dp_lib_cdc_gray_sclk_enc_i*.ff_inst/Q}] -to [get_pins -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1_i*.ff_inst/DF}] 2
@@ -17,7 +14,6 @@
 ###
 # False path
 ###
-
 # System clock
 set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks vid_clk]
 set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks tx_lnk_clk]
@@ -39,7 +35,6 @@ set_false_path -from [get_clocks dpi_clk] -to [get_clocks clk_from_sys_pll]
 ###
 # Pins
 ###
-
 # Bank VCCIO
 ldc_set_vcc -bank 1 3.3
 ldc_set_vcc -bank 3 1.8
@@ -80,6 +75,24 @@ ldc_set_location -site {J5} [get_ports SYS_RSTN_IN]
 ldc_set_location -site {J2} [get_ports {SW_IN[0]}]
 ldc_set_location -site {J3} [get_ports {SW_IN[1]}]
 
+# DEBUG
+ldc_set_location -site {R21} [get_ports {DEBUG_OUT[0]}]
+ldc_set_location -site {R20} [get_ports {DEBUG_OUT[1]}]
+ldc_set_location -site {R19} [get_ports {DEBUG_OUT[2]}]
+ldc_set_location -site {R18} [get_ports {DEBUG_OUT[3]}]
+ldc_set_location -site {P23} [get_ports {DEBUG_OUT[4]}]
+ldc_set_location -site {P24} [get_ports {DEBUG_OUT[5]}]
+ldc_set_location -site {P22} [get_ports {DEBUG_OUT[6]}]
+ldc_set_location -site {P21} [get_ports {DEBUG_OUT[7]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[0]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[1]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[2]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[3]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[4]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[5]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[6]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {DEBUG_OUT[7]}]
+
 # I2C
 ldc_set_location -site {H22} [get_ports I2C_SCL_INOUT]
 ldc_set_location -site {H23} [get_ports I2C_SDA_INOUT]
@@ -88,17 +101,16 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SDA_INOUT]
 
 # UART
 # On-board FTDI device
-ldc_set_location -site {L1} [get_ports UART_TX_OUT]
-ldc_set_location -site {L2} [get_ports UART_RX_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_TX_OUT]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_RX_IN]
+ldc_set_location -site {L1} [get_ports UART_TX_OUT]
+ldc_set_location -site {L2} [get_ports UART_RX_IN]
 
 # RPI DPI
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports RPI_DPI_CLK_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports RPI_DPI_VS_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports RPI_DPI_HS_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports RPI_DPI_DEN_IN]
-
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[0]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[1]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[2]}]
@@ -107,7 +119,6 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[4]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[5]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[6]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_R_IN[7]}]
-
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[0]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[1]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[2]}]
@@ -116,7 +127,6 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[4]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[5]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[6]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_G_IN[7]}]
-
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[0]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[1]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[2]}]
@@ -125,12 +135,11 @@ ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[4]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[5]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[6]}]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {RPI_DPI_B_IN[7]}]
-
+#ldc_set_location -site {P20} [get_ports RPI_DPI_CLK_IN]
 ldc_set_location -site {R6} [get_ports RPI_DPI_CLK_IN]
 ldc_set_location -site {K26} [get_ports RPI_DPI_VS_IN]
 ldc_set_location -site {L26} [get_ports RPI_DPI_HS_IN]
 ldc_set_location -site {P19} [get_ports RPI_DPI_DEN_IN]
-
 ldc_set_location -site {N21} [get_ports {RPI_DPI_R_IN[0]}]
 ldc_set_location -site {P18} [get_ports {RPI_DPI_R_IN[1]}]
 ldc_set_location -site {L23} [get_ports {RPI_DPI_R_IN[2]}]
@@ -139,7 +148,6 @@ ldc_set_location -site {K21} [get_ports {RPI_DPI_R_IN[4]}]
 ldc_set_location -site {L22} [get_ports {RPI_DPI_R_IN[5]}]
 ldc_set_location -site {N20} [get_ports {RPI_DPI_R_IN[6]}]
 ldc_set_location -site {J21} [get_ports {RPI_DPI_R_IN[7]}]
-
 ldc_set_location -site {L21} [get_ports {RPI_DPI_G_IN[0]}]
 ldc_set_location -site {N23} [get_ports {RPI_DPI_G_IN[1]}]
 ldc_set_location -site {L25} [get_ports {RPI_DPI_G_IN[2]}]
@@ -148,7 +156,6 @@ ldc_set_location -site {N19} [get_ports {RPI_DPI_G_IN[4]}]
 ldc_set_location -site {L24} [get_ports {RPI_DPI_G_IN[5]}]
 ldc_set_location -site {N26} [get_ports {RPI_DPI_G_IN[6]}]
 ldc_set_location -site {N22} [get_ports {RPI_DPI_G_IN[7]}]
-
 ldc_set_location -site {K25} [get_ports {RPI_DPI_B_IN[0]}]
 ldc_set_location -site {L20} [get_ports {RPI_DPI_B_IN[1]}]
 ldc_set_location -site {L19} [get_ports {RPI_DPI_B_IN[2]}]
@@ -177,3 +184,12 @@ ldc_set_location -site {AF25} [get_ports DPTX_AUX_RX_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_RX_IN]
 ldc_set_location -site {W21} [get_ports DPTX_HPD_IN]
 ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_HPD_IN]
+
+# FALD
+ldc_set_location -site {J1} [get_ports FALD_PWR_EN_OUT]
+ldc_set_location -site {H2} [get_ports FALD_CLK_OUT]
+ldc_set_location -site {H1} [get_ports FALD_DAT_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports FALD_PWR_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H DRIVE=12 SLEWRATE=FAST} [get_ports FALD_CLK_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H DRIVE=12 SLEWRATE=FAST} [get_ports FALD_DAT_OUT]
+

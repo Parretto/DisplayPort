@@ -4,13 +4,14 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    DP reference design running on Lattice LFCPNX-EVN
+    DP Raspberry PI reference design running on Lattice LFCPNX-EVN
     (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Updated scaler and RPI DPI interface
+    v1.2 - Added full array local dimming (fald)
 
     License
     =======
@@ -143,6 +144,13 @@ prt_dp_lb_if
 )
 scaler_if();
 
+// FALD
+prt_dp_lb_if
+#(
+  .P_ADR_WIDTH  (16)
+)
+fald_if();
+
 
 /*
     Wires
@@ -153,6 +161,7 @@ scaler_if();
 (* syn_preserve=1 *) logic          sclk_rst;
 
 // Clocks
+wire                            clk_from_sys_buf;
 wire                            clk_from_sys_pll;
 wire                            lock_from_sys_pll;
 wire                            refclk0_from_diffclkio;
@@ -349,9 +358,9 @@ wire                            led_dat_from_fald;
         .I2C_SDA_INOUT      (I2C_SDA_INOUT),
 
         // Direct I2C Access
-        .DIA_RDY_OUT        (dia_rdy_from_app),
-        .DIA_DAT_IN         (dia_dat_from_vtb),
-        .DIA_VLD_IN         (dia_vld_from_vtb),
+        .DIA_RDY_OUT        (),
+        .DIA_DAT_IN         (0),
+        .DIA_VLD_IN         (0),
 
         // DPTX interface
         .DPTX_IF            (dptx_if),
@@ -371,11 +380,14 @@ wire                            led_dat_from_fald;
         // Scaler interface
         .SCALER_IF          (scaler_if),
 
+        // Misc interface
+        .MISC_IF            (fald_if),
+
         // Aqua 
-        .AQUA_SEL_IN        (0),
-        .AQUA_CTL_IN        (0),
-        .AQUA_CLK_IN        (0),
-        .AQUA_DAT_IN        (0)
+        .AQUA_SEL_IN        (1'b0),
+        .AQUA_CTL_IN        (1'b0),
+        .AQUA_CLK_IN        (1'b0),
+        .AQUA_DAT_IN        (1'b0)
     );
 
     // PIO in mapping
@@ -926,10 +938,48 @@ wire                            led_dat_from_fald;
         .LED_OUT    (led_from_vid_hb)
     );
 
+// FALD
+    prt_fald_top
+    #(
+        // System
+        .P_VENDOR               (P_VENDOR),    // Vendor "xilinx" or "lattice"
+        
+		// Video
+        .P_PPC                  (P_PPC),      // Pixels per clock
+        .P_BPC                  (P_BPC)       // Bits per component
+    )
+    FALD_INST
+    (
+        // Reset and clock
+        .SYS_RST_IN             (dptx_rst_from_app),
+        .SYS_CLK_IN             (clk_from_sys_pll),
+
+        // Local bus
+        .LB_IF                  (fald_if),
+
+        // Video
+        .VID_CLK_IN             (clk_from_vid_buf),     // Clock
+        .VID_VS_IN              (vs_from_vid_mux),      // Vsync
+        .VID_HS_IN              (hs_from_vid_mux),      // Hsync
+        .VID_R_IN               (r_from_vid_mux),       // Red
+        .VID_G_IN               (g_from_vid_mux),       // Green
+        .VID_B_IN               (b_from_vid_mux),       // Blue
+        .VID_DE_IN              (de_from_vid_mux),      // Data enable
+
+        // LED
+        .LED_CLK_OUT            (led_clk_from_fald),    // Clock
+        .LED_DAT_OUT            (led_dat_from_fald)     // Data
+    );
+
 // Outputs
 
     // Tentiva
     assign TENTIVA_VID_REF_CLK_OUT = ref_clk_from_rpi_dpi;
+
+    // FALD
+    assign FALD_PWR_EN_OUT = 1;
+    assign FALD_CLK_OUT = led_clk_from_fald;
+    assign FALD_DAT_OUT = led_dat_from_fald;
 
     // LED
     assign LED_OUT[0]   = led_from_sys_hb;
