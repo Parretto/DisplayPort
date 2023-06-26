@@ -4,7 +4,7 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    DP Raspberry PI reference design running on Lattice LFCPNX-EVN
+    DP reference design running on Lattice LFCPNX-EVN
     (c) 2021 - 2023 by Parretto B.V.
 
     History
@@ -106,6 +106,7 @@ localparam P_BPC            = 8;
 localparam P_AXI_WIDTH      = 96;
 localparam P_APP_ROM_INIT   = "none";
 localparam P_APP_RAM_INIT   = "none";
+localparam P_MST            = 0;
 
 // Interfaces
 
@@ -128,7 +129,7 @@ prt_dp_lb_if
 #(
   .P_ADR_WIDTH  (16)
 )
-vtb_if();
+vtb_if[2]();
 
 // PHY config 
 prt_dp_lb_if
@@ -359,8 +360,8 @@ wire                            led_dat_from_fald;
 
         // Direct I2C Access
         .DIA_RDY_OUT        (),
-        .DIA_DAT_IN         (0),
-        .DIA_VLD_IN         (0),
+        .DIA_DAT_IN         (32'h0),
+        .DIA_VLD_IN         (1'b0),
 
         // DPTX interface
         .DPTX_IF            (dptx_if),
@@ -372,7 +373,8 @@ wire                            led_dat_from_fald;
         .DPRX_IRQ_IN        (1'b0),
 
         // VTB interface
-        .VTB_IF             (vtb_if),
+        .VTB0_IF            (vtb_if[0]),
+        .VTB1_IF            (vtb_if[1]),
 
         // PHY interface
         .PHY_IF             (phy_if),
@@ -503,7 +505,7 @@ wire                            led_dat_from_fald;
         .SYS_CLK_IN             (clk_from_sys_pll),
 
         // Local bus
-        .LB_IF                  (vtb_if),
+        .LB_IF                  (vtb_if[0]),
 
         // Direct I2C Access
         .DIA_RDY_IN             (1'b1),
@@ -516,14 +518,15 @@ wire                            led_dat_from_fald;
         .LNK_SYNC_IN            (1'b0),
 
         // Axi-stream Video
-        .AXIS_SOF_IN            (1'b0),         // Start of frame
-        .AXIS_EOL_IN            (1'b0),         // End of line
-        .AXIS_DAT_IN            (0),            // Data
-        .AXIS_VLD_IN            (1'b0),         // Valid       
+        .AXIS_SOF_IN            (1'b0),                 // Start of frame
+        .AXIS_EOL_IN            (1'b0),                 // End of line
+        .AXIS_DAT_IN            ({P_AXI_WIDTH{1'b0}}),  // Data
+        .AXIS_VLD_IN            (1'b0),                 // Valid       
 
         // Native video
         .VID_CLK_IN             (clk_from_vid_buf),
         .VID_CKE_IN             (1'b1),
+        .VID_LOCK_OUT           (),
         .VID_VS_OUT             (vs_from_vtb),
         .VID_HS_OUT             (hs_from_vtb),
         .VID_R_OUT              (r_from_vtb),
@@ -574,6 +577,7 @@ wire                            led_dat_from_fald;
         // System
         .P_VENDOR           (P_VENDOR),   // Vendor
         .P_BEAT             (P_BEAT),     // Beat value. The system clock is 125 MHz
+        .P_MST              (P_MST),      // MST support
 
         // Link
         .P_LANES            (P_LANES),    // Lanes
@@ -602,15 +606,25 @@ wire                            led_dat_from_fald;
         .HPD_IN             (~DPTX_HPD_IN),             // Hot plug polarity is inverted
         .HB_OUT             (hb_from_dptx),
 
-        // Video
-        .VID_CLK_IN         (clk_from_vid_buf),
-        .VID_CKE_IN         (1'b1),
-        .VID_VS_IN          (vs_from_vid_mux),           // Vsync
-        .VID_HS_IN          (hs_from_vid_mux),           // Hsync
-        .VID_R_IN           (r_from_vid_mux),            // Red
-        .VID_G_IN           (g_from_vid_mux),            // Green
-        .VID_B_IN           (b_from_vid_mux),            // Blue
-        .VID_DE_IN          (de_from_vid_mux),           // Data enable
+        // Video stream 0
+        .VID0_CLK_IN        (clk_from_vid_buf),
+        .VID0_CKE_IN        (1'b1),
+        .VID0_VS_IN         (vs_from_vid_mux),           // Vsync
+        .VID0_HS_IN         (hs_from_vid_mux),           // Hsync
+        .VID0_R_IN          (r_from_vid_mux),            // Red
+        .VID0_G_IN          (g_from_vid_mux),            // Green
+        .VID0_B_IN          (b_from_vid_mux),            // Blue
+        .VID0_DE_IN         (de_from_vid_mux),           // Data enable
+
+        // Video stream 1
+        .VID1_CLK_IN        (clk_from_vid_buf),
+        .VID1_CKE_IN        (1'b1),
+        .VID1_VS_IN         (1'b0),                       // Vsync
+        .VID1_HS_IN         (1'b0),                       // Hsync
+        .VID1_R_IN          ({P_PPC*P_BPC{1'b0}}),        // Red
+        .VID1_G_IN          ({P_PPC*P_BPC{1'b0}}),        // Green
+        .VID1_B_IN          ({P_PPC*P_BPC{1'b0}}),        // Blue
+        .VID1_DE_IN         (1'b0),                       // Data enable
 
         // Link
         .LNK_CLK_IN         (clk_from_tx_buf),

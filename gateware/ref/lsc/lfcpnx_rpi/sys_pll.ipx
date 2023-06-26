@@ -1,16 +1,16 @@
 <?xml version="1.0" ?>
-<RadiantModule architecture="LFCPNX" date="2022 12 29 15:17:35" device="LFCPNX-100" generator="ipgen" library="module" module="pll" name="sys_pll" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.6.0">
+<RadiantModule architecture="LFCPNX" date="2023 06 26 15:25:02" device="LFCPNX-100" generator="ipgen" library="module" module="pll" name="sys_pll" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.7.0">
  <Package>
-  <File modified="2022 12 29 15:17:35" name="rtl/sys_pll_bb.v" type="black_box_verilog"/>
-  <File modified="2022 12 29 15:17:35" name="sys_pll.cfg" type="cfg"/>
-  <File modified="2022 12 29 15:17:35" name="misc/sys_pll_tmpl.v" type="template_verilog"/>
-  <File modified="2022 12 29 15:17:35" name="misc/sys_pll_tmpl.vhd" type="template_vhdl"/>
-  <File modified="2022 12 29 15:17:35" name="rtl/sys_pll.v" type="top_level_verilog"/>
-  <File modified="2022 12 29 15:17:35" name="constraints/sys_pll.ldc" type="timing_constraints"/>
-  <File modified="2022 12 29 15:17:35" name="testbench/dut_params.v" type="dependency_file"/>
-  <File modified="2022 12 29 15:17:35" name="testbench/dut_inst.v" type="dependency_file"/>
-  <File modified="2022 12 29 15:17:35" name="component.xml" type="IP-XACT_component"/>
-  <File modified="2022 12 29 15:17:35" name="design.xml" type="IP-XACT_design"/>
+  <File modified="2023 06 26 15:25:02" name="rtl/sys_pll_bb.v" type="black_box_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="sys_pll.cfg" type="cfg"/>
+  <File modified="2023 06 26 15:25:02" name="misc/sys_pll_tmpl.v" type="template_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="misc/sys_pll_tmpl.vhd" type="template_vhdl"/>
+  <File modified="2023 06 26 15:25:02" name="rtl/sys_pll.v" type="top_level_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="constraints/sys_pll.ldc" type="timing_constraints"/>
+  <File modified="2023 06 26 15:25:02" name="testbench/dut_params.v" type="dependency_file"/>
+  <File modified="2023 06 26 15:25:02" name="testbench/dut_inst.v" type="dependency_file"/>
+  <File modified="2023 06 26 15:25:02" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2023 06 26 15:25:02" name="design.xml" type="IP-XACT_design"/>
   <File modified="2021 05 20 17:57:55" name="testbench/tb_top.v" type="testbench_verilog"/>
  </Package>
 </RadiantModule>

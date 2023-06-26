@@ -1,15 +1,15 @@
 <?xml version="1.0" ?>
-<RadiantModule architecture="LFCPNX" date="2022 12 29 16:58:29" device="LFCPNX-100" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.2.0">
+<RadiantModule architecture="LFCPNX" date="2023 06 26 15:25:02" device="LFCPNX-100" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.2.0">
  <Package>
-  <File modified="2022 12 29 16:58:29" name="rtl/prt_riscv_rom_lat_bb.v" type="black_box_verilog"/>
-  <File modified="2022 12 29 16:58:29" name="prt_riscv_rom_lat.cfg" type="cfg"/>
-  <File modified="2022 12 29 16:58:29" name="misc/prt_riscv_rom_lat_tmpl.v" type="template_verilog"/>
-  <File modified="2022 12 29 16:58:29" name="misc/prt_riscv_rom_lat_tmpl.vhd" type="template_vhdl"/>
-  <File modified="2022 12 29 16:58:29" name="rtl/prt_riscv_rom_lat.v" type="top_level_verilog"/>
-  <File modified="2022 12 29 16:58:29" name="testbench/dut_params.v" type="dependency_file"/>
-  <File modified="2022 12 29 16:58:29" name="testbench/dut_inst.v" type="dependency_file"/>
-  <File modified="2022 12 29 16:58:29" name="component.xml" type="IP-XACT_component"/>
-  <File modified="2022 12 29 16:58:29" name="design.xml" type="IP-XACT_design"/>
+  <File modified="2023 06 26 15:25:02" name="rtl/prt_riscv_rom_lat_bb.v" type="black_box_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="prt_riscv_rom_lat.cfg" type="cfg"/>
+  <File modified="2023 06 26 15:25:02" name="misc/prt_riscv_rom_lat_tmpl.v" type="template_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="misc/prt_riscv_rom_lat_tmpl.vhd" type="template_vhdl"/>
+  <File modified="2023 06 26 15:25:02" name="rtl/prt_riscv_rom_lat.v" type="top_level_verilog"/>
+  <File modified="2023 06 26 15:25:02" name="testbench/dut_params.v" type="dependency_file"/>
+  <File modified="2023 06 26 15:25:02" name="testbench/dut_inst.v" type="dependency_file"/>
+  <File modified="2023 06 26 15:25:02" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2023 06 26 15:25:02" name="design.xml" type="IP-XACT_design"/>
   <File modified="2020 02 19 20:11:38" name="testbench/lscc_rstclk_gen.v" type="testbench_verilog"/>
   <File modified="2021 05 31 19:50:16" name="testbench/lram_mem_master.v" type="testbench_verilog"/>
   <File modified="2021 05 31 19:53:24" name="testbench/tb_top.v" type="testbench_verilog"/>

@@ -88,6 +88,14 @@ prj_add_source $SRC/scaler/prt_scaler_slw.sv
 prj_add_source $SRC/scaler/prt_scaler_tg.sv 
 prj_add_source $SRC/scaler/prt_scaler_top.sv
 
+# FALD
+prj_add_source $SRC/fald/prt_fald_lib.sv
+prj_add_source $SRC/fald/prt_fald_csc.sv
+prj_add_source $SRC/fald/prt_fald_ctl.sv
+prj_add_source $SRC/fald/prt_fald_dim.sv
+prj_add_source $SRC/fald/prt_fald_drv.sv
+prj_add_source $SRC/fald/prt_fald_top.sv
+
 # RPI
 prj_add_source $SRC/rpi/rpi_dpi.sv 
 
