@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Removed video global clock buffer
 
     License
     =======
@@ -134,8 +135,6 @@ misc_if();
 // Clocks
 wire                            clk_from_sys_pll;
 wire                            lock_from_sys_pll;
-wire                            clk_from_vid_bufg;
-//wire                            clk_from_ref_bufg;
 
 // Reset
 (* preserve *) logic [7:0]      clk_por_line = 0;
@@ -265,14 +264,6 @@ genvar i;
         end
     end
 
-// Video buffer
-    global 
-    VID_BUFG
-    (
-        .in     (TENTIVA_VID_CLK_IN), 
-        .out    (clk_from_vid_bufg)
-    );
-
 // Application
     dp_app_top
     #(
@@ -393,7 +384,7 @@ genvar i;
 
         // Video
         // Video stream 0
-        .VID0_CLK_IN        (clk_from_vid_bufg),
+        .VID0_CLK_IN        (TENTIVA_VID_CLK_IN),
         .VID0_CKE_IN        (1'b1),
         .VID0_VS_IN         (vs_from_vtb),              // Vsync
         .VID0_HS_IN         (hs_from_vtb),              // Hsync
@@ -403,7 +394,7 @@ genvar i;
         .VID0_DE_IN         (de_from_vtb),              // Data enable
 
         // Video stream 1
-        .VID1_CLK_IN        (clk_from_vid_bufg),
+        .VID1_CLK_IN        (TENTIVA_VID_CLK_IN),
         .VID1_CKE_IN        (1'b1),
         .VID1_VS_IN         (1'b0),                     // Vsync
         .VID1_HS_IN         (1'b0),                     // Hsync
@@ -483,7 +474,7 @@ genvar i;
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
 
         // Video
-        .VID_CLK_IN         (clk_from_vid_bufg),    // Clock
+        .VID_CLK_IN         (TENTIVA_VID_CLK_IN),   // Clock
         .VID_RDY_IN         (1'b1),                 // Ready
         .VID_SOF_OUT        (vid_sof_from_dprx),    // Start of frame
         .VID_EOL_OUT        (vid_eol_from_dprx),    // End of line
@@ -548,7 +539,7 @@ genvar i;
         .AXIS_VLD_IN            (vid_vld_from_dprx),      // Valid       
 
         // Native video
-        .VID_CLK_IN             (clk_from_vid_bufg),
+        .VID_CLK_IN             (TENTIVA_VID_CLK_IN),
         .VID_CKE_IN             (1'b1),
         .VID_LOCK_OUT           (lock_from_vtb),
         .VID_VS_OUT             (vs_from_vtb),
@@ -679,7 +670,7 @@ genvar i;
     )
     VID_HB_INST
     (
-        .CLK_IN     (clk_from_vid_bufg),
+        .CLK_IN     (TENTIVA_VID_CLK_IN),
         .LED_OUT    (led_from_vid_hb)
     );
 
