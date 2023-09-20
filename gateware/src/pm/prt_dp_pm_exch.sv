@@ -34,16 +34,16 @@ module prt_dp_pm_exch
 )
 (
 	// Reset and clock
- 	input wire 			RST_IN,		// System reset
-	input wire 			CLK_IN,		// System clock
+ 	input wire 				RST_IN,		// System reset
+	input wire 				CLK_IN,		// System clock
 
 	// Host local bus interface
 	prt_dp_lb_if.lb_in		HOST_IF,
-  	output wire			HOST_IRQ_OUT,	// Interrupt
+  	output wire				HOST_IRQ_OUT,	// Interrupt
 
 	// Policy maker local bus interface
 	prt_dp_lb_if.lb_in		PM_IF,
- 	output wire			PM_IRQ_OUT,	// Interrupt
+ 	output wire				PM_IRQ_OUT,	// Interrupt
  	output wire 			PM_RST_OUT,	// Reset
 
 	// Memory update
@@ -238,8 +238,8 @@ genvar i;
 	// AXI mapping
 	// name 		- order 	- box 
 	// mail out 	- 0 		- 0
-	// mail in 	- 1		- 1
-	// aux in 	- 2 		- 2
+	// mail in 		- 1			- 1
+	// aux in 		- 2 		- 2
 
 	assign clk_host.sta_r[1+:2] 			= {clk_box[0].of, clk_box[0].ep};
 	assign clk_host.sta_r[3+:2] 			= {clk_box[1].of, clk_box[1].ep};
@@ -325,7 +325,7 @@ genvar i;
 		end
 	end
 
-	assign clk_pm.ctl_ie 		= clk_pm.ctl_r[P_PM_CTL_IE];			// Interrupt enable
+	assign clk_pm.ctl_ie 			= clk_pm.ctl_r[P_PM_CTL_IE];			// Interrupt enable
 	assign clk_pm.ctl_box_en[0] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN+1]; 	// The mail boxes are swapped	
 	assign clk_pm.ctl_box_en[1] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN]; 
 	assign clk_pm.ctl_box_en[2] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN+2]; 
@@ -336,8 +336,8 @@ genvar i;
 	// LB mapping
 	// name 		- order 	- box 
 	// mail out 	- 0 		- 1
-	// mail in 	- 1		- 0
-	// aux out 	- 2 		- 2
+	// mail in 		- 1			- 0
+	// aux out 		- 2 		- 2
 
 	assign clk_pm.sta_r[1+2] = {clk_box[1].of, clk_box[1].ep};
 	assign clk_pm.sta_r[3+2] = {clk_box[0].of, clk_box[0].ep};
@@ -377,19 +377,20 @@ generate
 		RAM_INST
 		(
 			// Clocks and reset
-			.RST_IN		(RST_IN),			// Reset
-			.CLK_IN 		(CLK_IN),			// Clock
+			.RST_IN			(RST_IN),				// Reset
+			.CLK_IN 		(CLK_IN),				// Clock
 
 			// Port A
-			.A_ADR_IN 	(clk_ram[i].a_adr),		// Address
+			.A_ADR_IN 		(clk_ram[i].a_adr),		// Address
 			.A_WR_IN		(clk_ram[i].a_wr),		// Write in
 			.A_DAT_IN		(clk_ram[i].a_din),		// Write data
 
 			// Port B
-			.B_ADR_IN 	(clk_ram[i].b_adr),		// Address
+			.B_EN_IN 		(1'b1),					// Enable
+			.B_ADR_IN 		(clk_ram[i].b_adr),		// Address
 			.B_RD_IN 		(clk_ram[i].b_rd),		// Read in
-			.B_DAT_OUT 	(clk_ram[i].b_dout),	// Read data
-			.B_VLD_OUT 	(clk_ram[i].b_vld)		// Read data valid
+			.B_DAT_OUT 		(clk_ram[i].b_dout),	// Read data
+			.B_VLD_OUT 		(clk_ram[i].b_vld)		// Read data valid
 		);
 
 		// Mapping

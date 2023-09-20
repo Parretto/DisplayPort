@@ -5,11 +5,12 @@
 
 
     Module: DP RX Scrambler
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Initial MST support
 
     License
     =======
@@ -40,6 +41,7 @@ module prt_dprx_scrm
 
     // Control
     input wire              CTL_EN_IN,     // Enable
+    input wire              CTL_MST_IN,    // MST
 
     // Link 
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,     // Sink
@@ -71,11 +73,12 @@ endfunction
 
 // Signals
 logic                  clk_en;
+logic                  clk_mst;
 logic                  clk_lock_in;        // Input lock
 logic                  clk_lock;          // Locked
 logic [8:0]            clk_din[0:P_SPL-1];
 logic [8:0]            clk_dat[0:P_SPL-1];
-logic [P_SPL-1:0]      clk_sr_det;
+(* keep *) logic [P_SPL-1:0]      clk_sr_det;
 logic [23:0]           clk_wdg_cnt;
 logic                  clk_wdg_cnt_end;
 logic [P_SPL-1:0]      clk_lfsr_rst;
@@ -83,6 +86,9 @@ logic [15:0]           clk_lfsr_in[0:P_SPL-1];
 logic [15:0]           clk_lfsr[0:P_SPL-1];
 logic [15:0]           clk_lfsr_reg;
 logic [8:0]            clk_dout[0:P_SPL-1];
+
+(* keep *) logic [2:0]             clk_scrm_sidx[0:P_SPL-1];
+(* keep *) logic [7:0]             clk_scrm_idx[0:P_SPL-1];
 
 genvar i;
 
@@ -92,6 +98,7 @@ genvar i;
     always_ff @ (posedge CLK_IN)
     begin
         clk_en  <= CTL_EN_IN;
+        clk_mst  <= CTL_MST_IN;
     end
 
 // Sink lock
@@ -107,7 +114,7 @@ generate
         assign clk_din[i] = {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
     end
 endgenerate
-
+   
 // SR detector
     always_comb
     begin
@@ -116,8 +123,36 @@ endgenerate
 
         for (int i = 0; i < P_SPL; i++)
         begin
-            if (clk_din[i] == P_SYM_SR)
+            if (clk_din[i] == ((clk_mst) ? P_SYM_K28_5 : P_SYM_K28_0))
                 clk_sr_det[i] = 1;
+        end
+    end
+
+// Scrambler index
+    always_comb
+    begin
+        for (int i = 0; i < P_SPL; i++)
+        begin
+            case (clk_din[i])
+                P_SYM_K23_7 : clk_scrm_sidx[i] = 'd0;
+                P_SYM_K27_7 : clk_scrm_sidx[i] = 'd1;
+                P_SYM_K28_0 : clk_scrm_sidx[i] = 'd2;
+                P_SYM_K28_2 : clk_scrm_sidx[i] = 'd3;
+                P_SYM_K28_3 : clk_scrm_sidx[i] = 'd4;
+                P_SYM_K28_6 : clk_scrm_sidx[i] = 'd5;
+                P_SYM_K29_7 : clk_scrm_sidx[i] = 'd6;
+                P_SYM_K30_7 : clk_scrm_sidx[i] = 'd7;
+                default : clk_scrm_sidx[i] = 'd0;
+            endcase
+        end
+    end
+
+// Scrambler index
+    always_comb
+    begin
+        for (int i = 0; i < P_SPL; i++)
+        begin
+            clk_scrm_idx[i] = clk_scrm_sidx[i] ^ {clk_lfsr[i][13], clk_lfsr[i][14], clk_lfsr[i][15]}; 
         end
     end
 
@@ -127,7 +162,8 @@ endgenerate
         for (int i = 0; i < P_SPL; i++)
         begin
             // Replace SR symbol with BS symbol
-            if (clk_sr_det[i])
+            // Only in SST 
+            if (!clk_mst && clk_sr_det[i])
                 clk_dat[i] = P_SYM_BS;
             else
                 clk_dat[i] = clk_din[i];
@@ -207,7 +243,15 @@ generate
 
                     // Don't scramble k symbols
                     if (clk_din[i][8])
-                        clk_dout[i][j] <= clk_dat[i][j];
+                    begin
+                        // MST
+                        if (clk_mst)
+                            clk_dout[i][j] <= clk_scrm_idx[i][j];
+
+                        // SST    
+                        else
+                            clk_dout[i][j] <= clk_dat[i][j];
+                    end
 
                     // Scramble
                     else

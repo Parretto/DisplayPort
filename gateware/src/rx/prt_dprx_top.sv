@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Initial MST support
 
     License
     =======
@@ -25,13 +26,14 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
 module prt_dprx_top
 #(
     // System
-    parameter                                   P_VENDOR    = "none",     // Vendor "xilinx", "lattice" or "intel"
+    parameter                                   P_VENDOR    = "none",       // Vendor "xilinx", "lattice" or "intel"
     parameter                                   P_BEAT      = 'd125,        // Beat value
+    parameter                                   P_MST       = 0,            // MST support
 
     // Link
     parameter                                   P_LANES     = 4,            // Lanes
@@ -85,8 +87,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_rom.hex" : "none" : "none";
-localparam P_RAM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_ram.hex" : "none" : "none";
+localparam P_ROM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none" : "none";
+localparam P_RAM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none" : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -247,6 +249,7 @@ genvar i, j;
         // System
         .P_VENDOR           (P_VENDOR),         // Vendor
         .P_SIM              (P_SIM),            // Simulation
+        .P_MST              (P_MST),            // MST support
 
         // Link
         .P_LANES            (P_LANES),          // Lanes

@@ -30,8 +30,8 @@
 
 module prt_dp_pm_tmr
 #(
-	parameter 			P_SIM 	= 0,
-	parameter               	P_BEAT 	= 'd125     // Beat value
+	parameter 				P_SIM 	= 0,
+	parameter               P_BEAT 	= 'd125     // Beat value
 )
 (
 	// Reset and clock
@@ -454,7 +454,7 @@ endgenerate
 	assign LB_IF.dout 		= clk_lb.dout;
 	assign LB_IF.vld		= clk_lb.vld;
 	assign BEAT_OUT 		= clk_tmr.beat;		// 1 MHz output
-	assign IRQ_OUT 		= clk_sta.irq;
+	assign IRQ_OUT 			= clk_sta.irq;
 
 endmodule
 

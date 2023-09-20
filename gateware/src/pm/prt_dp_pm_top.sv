@@ -89,13 +89,13 @@ localparam P_AUX_BASE       = 'h6;      // 0xc600
 localparam P_MSG_BASE       = 'h7;      // 0xc700
 localparam P_MUTEX_BASE     = 'h8;      // 0xc800
 
-localparam P_ROM_SIZE       = 20*1024;              // ROM size : 20KBytes
-localparam P_ROM_ADR        = $clog2(P_ROM_SIZE)-2; // ROM address in words
-localparam P_RAM_SIZE       = 4*1024;               // RAM size : 4KBytes
-localparam P_RAM_ADR        = $clog2(P_RAM_SIZE)-2; // RAM address in words
+localparam P_ROM_SIZE       = (P_MST) ? 32*1024 : 16*1024;  // ROM size : MST - 32KBytes / SST - 16KBytes
+localparam P_ROM_ADR        = $clog2(P_ROM_SIZE)-2;         // ROM address in words
+localparam P_RAM_SIZE       = 4*1024;                       // RAM size : 4KBytes
+localparam P_RAM_ADR        = $clog2(P_RAM_SIZE)-2;         // RAM address in words
 
-localparam P_PIO_IN_WIDTH_INT  = P_PIO_IN_WIDTH + 3;    // Internal PIO in width
-localparam P_PIO_OUT_WIDTH_INT = P_PIO_OUT_WIDTH + 3;   // Internal PIO out width
+localparam P_PIO_IN_WIDTH_INT  = P_PIO_IN_WIDTH + 3;        // Internal PIO in width
+localparam P_PIO_OUT_WIDTH_INT = P_PIO_OUT_WIDTH + 3;       // Internal PIO out width
 
 // Signals
 

@@ -5,11 +5,12 @@
 
 
     Module: DP RX Link
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Initial MST support
 
     License
     =======
@@ -25,13 +26,14 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
 module prt_dprx_lnk
 #(
     // System
-    parameter               P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
+    parameter               P_VENDOR      = "none",  // Vendor "xilinx", "intel" or "lattice"
     parameter               P_SIM         = 0,       // Simulation
+    parameter               P_MST         = 0,       // MST support
 
     // Link
     parameter               P_LANES       = 2,       // Lanes
@@ -87,6 +89,7 @@ module prt_dprx_lnk
 wire        lnk_en_from_ctl;
 wire [1:0]  lanes_from_ctl;
 wire        scrm_en_from_ctl;
+wire        mst_en_from_ctl;
 
 // Message
 prt_dp_msg_if
@@ -228,7 +231,8 @@ genvar i;
         // Control output
         .CTL_LNK_EN_OUT     (lnk_en_from_ctl),      // Link enable
         .CTL_LANES_OUT      (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
-        .CTL_SCRM_EN_OUT    (scrm_en_from_ctl)      // Scrambler enable
+        .CTL_SCRM_EN_OUT    (scrm_en_from_ctl),     // Scrambler enable
+        .CTL_MST_EN_OUT     (mst_en_from_ctl)       // MST enable
     );
 
 // Training
@@ -263,31 +267,44 @@ genvar i;
     // Lock
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        // 4 lanes
-        if (lanes_from_ctl == 'd3)
+        // Currently in MST force lock low
+        if (mst_en_from_ctl)
         begin
-            lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[2].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[3].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[0].lock <= 0;
+                lnk_to_pars_lane[1].lock <= 0;
+                lnk_to_pars_lane[2].lock <= 0;
+                lnk_to_pars_lane[3].lock <= 0;
         end
 
-        // 2 lanes
-        else if (lanes_from_ctl == 'd2)
+        // SST
+        else
         begin
-            lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[2].lock <= 0;
-            lnk_to_pars_lane[3].lock <= 0;
-        end
+            // 4 lanes
+            if (lanes_from_ctl == 'd3)
+            begin
+                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[2].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[3].lock <= lnk_en_from_ctl;
+            end
 
-        // 1 lanes
-        else 
-        begin
-            lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-            lnk_to_pars_lane[1].lock <= 0;
-            lnk_to_pars_lane[2].lock <= 0;
-            lnk_to_pars_lane[3].lock <= 0;
+            // 2 lanes
+            else if (lanes_from_ctl == 'd2)
+            begin
+                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[2].lock <= 0;
+                lnk_to_pars_lane[3].lock <= 0;
+            end
+
+            // 1 lanes
+            else 
+            begin
+                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
+                lnk_to_pars_lane[1].lock <= 0;
+                lnk_to_pars_lane[2].lock <= 0;
+                lnk_to_pars_lane[3].lock <= 0;
+            end
         end
     end
 
@@ -343,7 +360,8 @@ generate
             .CLK_IN             (LNK_CLK_IN),         // Clock
 
             // Control
-            .CTL_EN_IN          (1'b1),         // Enable
+            .CTL_EN_IN          (1'b1),                 // Enable
+            .CTL_MST_IN         (mst_en_from_ctl),      // MST
 
             // Link
             .LNK_SNK_IF         (lnk_from_pars_lane[i]),    // Sink
@@ -382,6 +400,43 @@ generate
             lnk_from_scrm.lock <= 0;
     end
 
+endgenerate
+
+// MST
+generate
+    if (P_MST)
+    begin : gen_mst
+
+        // Interface
+        prt_dp_rx_lnk_if
+        #(
+            .P_LANES  (1),
+            .P_SPL    (P_SPL)
+        )
+        lnk_to_mst_lane[0:P_LANES-1]();
+
+        prt_dprx_mst
+        #(
+            // Link
+            .P_SPL              (P_SPL)               // Symbols per lane
+        )
+        MST_INST
+        (
+            // Reset and clock
+            .RST_IN             (LNK_RST_IN),         // Reset
+            .CLK_IN             (LNK_CLK_IN),         // Clock
+
+            // Control
+            .CTL_MST_IN         (mst_en_from_ctl),      // MST
+
+            // Link 
+            .LNK_SNK_IF         (lnk_to_mst_lane[0])   // Sink
+        );
+
+        assign lnk_to_mst_lane[0].k[0]   = lnk_from_scrm_lane[0].k[0];
+        assign lnk_to_mst_lane[0].dat[0] = lnk_from_scrm_lane[0].dat[0];
+
+    end
 endgenerate
 
 // MSA

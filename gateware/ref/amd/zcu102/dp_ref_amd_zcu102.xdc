@@ -127,26 +127,26 @@ set_property PACKAGE_PIN G8 [get_ports GT_REFCLK_IN_P]
 # Timing
 ###
 
-# PRT_DP_LIB_RST
-set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_sclk_rst_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_dclk_rst_reg*}]
 
-# PRT_DP_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
-#set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_aclk_ram_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_mem_bclk_dout_reg*}]
+###
+# False path
+###
+# System clock
+set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks tx_vid_clk]
+set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks tx_lnk_clk]
+set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks rx_lnk_clk]
 
-# PRT_DP_LIB_CDC_GRAY
-#set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_gray_dclk_cap_reg[0]*}]
-set_max_delay -datapath_only -from [get_cells -hierarchical -filter {NAME =~ "*prt_dp_lib_cdc_gray_sclk_enc_reg[*]"}] -to [get_cells -hierarchical -filter {NAME =~ "*prt_dp_lib_cdc_gray_dclk_cap1_reg[*]"}] 1.000
+# Video clock
+set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
+set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks tx_lnk_clk]
+set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks rx_lnk_clk]
 
-# PRT_DP_LIB_CDC_VEC
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_dclk_cap_reg[0]*}]
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_dclk_hs_reg[0]*}]
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_vec_sclk_hs_reg[0]*}]
+# TX link clock
+set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
+set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks tx_vid_clk]
 
-# PRT_DP_LIB_CDC_BIT
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_dp_lib_cdc_bit_dclk_dat_reg[0]*}]
+# RX link clock
+set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
+set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks rx_vid_clk]
 
-# PRT_SCALER_LIB_MEM_RAM_DC / PRT_DP_LIB_MEM_FIFO
-#set_false_path -through [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_mem_aclk_ram_reg*}] -to [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_mem_bclk_dout_reg*}]
 
-# PRT_SCALER_LIB_CDC_BIT
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ */prt_scaler_lib_cdc_bit_dclk_dat_reg[0]*}]

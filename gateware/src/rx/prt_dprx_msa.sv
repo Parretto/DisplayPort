@@ -196,6 +196,7 @@ generate
                 .A_DAT_IN   (clk_ram.din[i][j]),   // Write data
 
                 // Port B
+                .B_EN_IN    (1'b1),                // Enable
                 .B_ADR_IN   (clk_ram.rp[i][j]),    // Read pointer
                 .B_RD_IN    (clk_ram.rd[i][j]),    // Read in
                 .B_DAT_OUT  (clk_ram.dout[i][j]),  // Data out

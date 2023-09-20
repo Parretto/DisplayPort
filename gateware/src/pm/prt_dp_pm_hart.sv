@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
 	v1.1 - Updated register inference 
+	v1.2 - Fixed issue with SRAI instruction / Added SNEZ instruction
 
     License
     =======
@@ -54,8 +55,8 @@ module prt_dp_pm_hart
 // Parameters
 localparam P_THREADS		= 4;					// Number of threads
 localparam P_THEAD_BITS 	= $clog2(P_THREADS);	// Thread bits
-localparam P_REGS			= 16;				// Number of registers
-localparam P_REG_IDX_BITS = $clog2(P_REGS);		// Register index bits
+localparam P_REGS			= 16;					// Number of registers
+localparam P_REG_IDX_BITS 	= $clog2(P_REGS);		// Register index bits
 localparam P_MEM_ADR_BITS	= 16;
 localparam P_PC_BITS 		= P_MEM_ADR_BITS;		// Program counter width
 
@@ -94,121 +95,121 @@ typedef enum {
 typedef struct {
 	logic signed	[P_PC_BITS-1:0]				r[0:P_THREADS-1];	// Register
 	logic signed	[P_PC_BITS-1:0]				off;				// Offset
-	logic signed	[P_PC_BITS-1:0]				base;			// Base
+	logic signed	[P_PC_BITS-1:0]				base;				// Base
 	logic signed	[P_PC_BITS-1:0]				nxt;				// Next
 } pc_struct;
 
 typedef struct {
-	logic			[P_REG_IDX_BITS-1:0]		rd_idx;					// Destination register index
-	logic			[31:0]					rd_dat;					// Destination register data
-	logic									rd_wr[P_THREADS-1:0];		// Destination register write
-	logic			[P_REG_IDX_BITS-1:0]		rs1_idx[P_THREADS-1:0];	// Source register 1 index
-	logic			[P_REG_IDX_BITS-1:0]		rs2_idx[P_THREADS-1:0];	// Source register 2 index
-	logic			[31:0]					rs1[0:P_THREADS-1];			// Source register 1
-	logic			[31:0]					rs2[0:P_THREADS-1];			// Source register 2
+	logic			[P_REG_IDX_BITS-1:0]		rd_idx;						// Destination register index
+	logic			[31:0]						rd_dat;						// Destination register data
+	logic										rd_wr[P_THREADS-1:0];		// Destination register write
+	logic			[P_REG_IDX_BITS-1:0]		rs1_idx[P_THREADS-1:0];		// Source register 1 index
+	logic			[P_REG_IDX_BITS-1:0]		rs2_idx[P_THREADS-1:0];		// Source register 2 index
+	logic			[31:0]						rs1[0:P_THREADS-1];			// Source register 1
+	logic			[31:0]						rs2[0:P_THREADS-1];			// Source register 2
 } reg_struct;
 
 typedef struct {
-	logic									br;				// Branch
-	logic									err;				// Error
+	logic										br;				// Branch
+	logic										err;			// Error
 } flag_struct;
 
 typedef struct {
-	alu_sel									a_sel;			// Input A select
-	alu_sel									b_sel;			// Input B select
-	alu_op									op;				// Operation
+	alu_sel										a_sel;			// Input A select
+	alu_sel										b_sel;			// Input B select
+	alu_op										op;				// Operation
 } alu_dec_struct;
 
 typedef struct {
-	alu_sel									a_sel;			// Input A select
-	alu_sel									b_sel;			// Input B select
-	alu_op									op;				// Operation
+	alu_sel										a_sel;			// Input A select
+	alu_sel										b_sel;			// Input B select
+	alu_op										op;				// Operation
 	logic signed	[31:0]						a;				// Input A
 	logic signed	[31:0]						b;				// Input B
 	logic signed	[31:0]						c;				// Output C
 } alu_exe_struct;
 
 typedef struct {
-	bs_sel									b_sel;			// Input B select
-	bs_op									op;				// Operation
+	bs_sel										b_sel;			// Input B select
+	bs_op										op;				// Operation
 } bs_dec_struct;
 
 typedef struct {
-	bs_sel									b_sel;			// Input B select
-	bs_op									op;				// Operation
-	logic									msb;
-	logic 			[31:0]					a;				// Input A
-	logic 			[4:0]					b;				// Input B
-	logic 			[31:0]					c;				// Output A
+	bs_sel										b_sel;			// Input B select
+	bs_op										op;				// Operation
+	logic										msb;
+	logic 			[31:0]						a;				// Input A
+	logic 			[4:0]						b;				// Input B
+	logic 			[31:0]						c;				// Output A
 } bs_exe_struct;
 
 typedef struct {
-	logic									run;				// Run
+	logic										run;			// Run
 	logic			[P_THEAD_BITS-1:0]			thread;			// Active thread
-	logic			[P_PC_BITS-1:0]			pc;				// Program counter
+	logic			[P_PC_BITS-1:0]				pc;				// Program counter
 } fetch_struct;
 
 typedef struct {
-	logic									run;				// Run
-	is_type									is;				// Instruction
+	logic										run;			// Run
+	is_type										is;				// Instruction
 	logic			[P_THEAD_BITS-1:0]			thread;			// Active thread
 	logic			[P_REG_IDX_BITS-1:0]		rd_idx;			// Destination index
 	logic			[P_REG_IDX_BITS-1:0]		rs1_idx;		// Source register 1 index
 	logic			[P_REG_IDX_BITS-1:0]		rs2_idx;		// Source register 2 index
-	logic signed	[19:0]						imm;				// Immediate data (20 bits)
-	alu_dec_struct								alu;				// ALU
+	logic signed	[19:0]						imm;			// Immediate data (20 bits)
+	alu_dec_struct								alu;			// ALU
 	bs_dec_struct								bs;				// Barrel shifter
 } dec_struct;
 
 typedef struct {
-	logic									run;				// Run
-	is_type									is;				// Instruction
+	logic										run;			// Run
+	is_type										is;				// Instruction
 	logic			[P_THEAD_BITS-1:0]			thread;			// Active thread
-	logic			[P_PC_BITS-1:0]			pc;				// Program counter
+	logic			[P_PC_BITS-1:0]				pc;				// Program counter
 	logic			[P_REG_IDX_BITS-1:0]		rd_idx;			// Destination index
 	logic			[P_REG_IDX_BITS-1:0]		rs1_idx;		// Source register 1 index
 	logic			[P_REG_IDX_BITS-1:0]		rs2_idx;		// Source register 2 index
-	logic signed	[31:0]						rs1;				// Source register 1
-	logic signed	[31:0]						rs2;				// Source register 2
-	logic signed	[19:0]						imm;				// Immediate data (20 bits)
-	alu_exe_struct								alu;				// ALU
+	logic signed	[31:0]						rs1;			// Source register 1
+	logic signed	[31:0]						rs2;			// Source register 2
+	logic signed	[19:0]						imm;			// Immediate data (20 bits)
+	alu_exe_struct								alu;			// ALU
 	bs_exe_struct								bs;				// Barrel shifter
-	flag_struct								flag;			// Flags
+	flag_struct									flag;			// Flags
 } exe_struct;
 
 typedef struct {
-	logic									run;				// Run
-	is_type									is;				// Instruction
+	logic										run;			// Run
+	is_type										is;				// Instruction
 	logic			[P_THEAD_BITS-1:0]			thread;			// Active thread
-	logic			[P_PC_BITS-1:0]			pc;				// Program counter
+	logic			[P_PC_BITS-1:0]				pc;				// Program counter
 	logic			[P_REG_IDX_BITS-1:0]		rd_idx;			// Destination index
 	logic			[P_REG_IDX_BITS-1:0]		rs1_idx;		// Source register 1 index
 	logic			[P_REG_IDX_BITS-1:0]		rs2_idx;		// Source register 2 index
-	logic signed	[31:0]						rs1;				// Source register 1
-	logic signed	[31:0]						rs2;				// Source register 2
-	logic signed	[19:0]						imm;				// Immediate data (20 bits)
-	logic			[1:0]					ram_rd_adr_lsb;	// Ram read address lower bits
+	logic signed	[31:0]						rs1;			// Source register 1
+	logic signed	[31:0]						rs2;			// Source register 2
+	logic signed	[19:0]						imm;			// Immediate data (20 bits)
+	logic			[1:0]						ram_rd_adr_lsb;	// Ram read address lower bits
 } wr_struct;
 
 typedef struct {
-	logic signed	[P_MEM_ADR_BITS-1:0]			wr_adr;
-	logic signed	[P_MEM_ADR_BITS-1:0]			rd_adr;
-	logic 									rd;
-	logic 									wr;
-	logic 			[31:0]					dout;
-	logic			[3:0]					strb;
+	logic signed	[P_MEM_ADR_BITS-1:0]		wr_adr;
+	logic signed	[P_MEM_ADR_BITS-1:0]		rd_adr;
+	logic 										rd;
+	logic 										wr;
+	logic 			[31:0]						dout;
+	logic			[3:0]						strb;
 } ram_struct;
 
 genvar i;
 
 // Signals
 pc_struct		clk_pc;		// Program counter
-reg_struct	clk_reg;		// Registers
+reg_struct		clk_reg;	// Registers
 fetch_struct	clk_fetch;	// Fetch
-dec_struct	clk_dec;		// Decoder
-exe_struct	clk_exe;		// Execute
+dec_struct		clk_dec;	// Decoder
+exe_struct		clk_exe;	// Execute
 wr_struct		clk_wr;		// Write
-ram_struct	clk_ram;		// RAM memory
+ram_struct		clk_ram;	// RAM memory
 
 // Logic
 
@@ -582,7 +583,7 @@ endgenerate
 				// OP-IMM
 				'b00100 :
 				begin
-					clk_dec.rd_idx 	= ROM_IF.dat[7+:P_REG_IDX_BITS];
+					clk_dec.rd_idx 		= ROM_IF.dat[7+:P_REG_IDX_BITS];
 					clk_dec.rs1_idx 	= ROM_IF.dat[15+:P_REG_IDX_BITS];
 					clk_dec.imm[11:0] 	= ROM_IF.dat[31:20];
 					clk_dec.alu.a_sel 	= alu_sel_rs1;
@@ -642,12 +643,24 @@ endgenerate
 							clk_dec.bs.op  		= bs_op_sll;
 						end
 
-						// SRLI
+						// SRLI / SRAI
 						'b101 :
 						begin
-							clk_dec.is 			= is_srli;
-							clk_dec.imm[4:0] 	= ROM_IF.dat[20+:5];
-							clk_dec.bs.op  		= bs_op_srl;
+							// Arithmetic
+							if (ROM_IF.dat[30])
+							begin
+								clk_dec.is 			= is_srai;
+								clk_dec.imm[4:0] 	= ROM_IF.dat[20+:5];
+								clk_dec.bs.op  		= bs_op_sra;
+							end
+
+							// Logical
+							else
+							begin
+								clk_dec.is 			= is_srli;
+								clk_dec.imm[4:0] 	= ROM_IF.dat[20+:5];
+								clk_dec.bs.op  		= bs_op_srl;
+							end
 						end
 
 						default : ;
@@ -657,7 +670,7 @@ endgenerate
 				// OP
 				'b01100 :
 				begin
-					clk_dec.rd_idx 	= ROM_IF.dat[7+:P_REG_IDX_BITS];
+					clk_dec.rd_idx 		= ROM_IF.dat[7+:P_REG_IDX_BITS];
 					clk_dec.rs1_idx 	= ROM_IF.dat[15+:P_REG_IDX_BITS];
 					clk_dec.rs2_idx 	= ROM_IF.dat[20+:P_REG_IDX_BITS];
 					clk_dec.alu.a_sel 	= alu_sel_rs1;
@@ -701,7 +714,7 @@ endgenerate
 						// SLTU
 						'b011 :
 						begin
-							clk_dec.is			= is_slt;
+							clk_dec.is			= is_sltu;
 							clk_dec.alu.op  	= alu_op_set;
 						end
 
@@ -978,6 +991,15 @@ endgenerate
 				if ((clk_exe.is == is_sltiu) && (clk_exe.imm == 'd1))
 				begin
 					if (clk_exe.alu.a == 0)
+						clk_exe.alu.c <= 'd1;
+					else
+						clk_exe.alu.c <= 0;
+				end
+
+				// Pseudoinstruction SNEZ rd, rs
+				else if ((clk_exe.is == is_sltu) && (clk_exe.rs1_idx == 'd0))
+				begin
+					if (clk_exe.alu.b != 0)
 						clk_exe.alu.c <= 'd1;
 					else
 						clk_exe.alu.c <= 0;
@@ -1388,6 +1410,9 @@ begin
 		begin
 			if ($isunknown (clk_ram.rd_adr))
 				$display ("[@%0t] | Hart %s : RAM read addres is unknown!\n", $time, inst);
+
+			if (clk_ram.rd_adr < 'h8000)
+				$display ("[@%0t] | Hart %s : RAM read addres (%x) is out-of-range!\n", $time, inst, clk_ram.rd_adr);
 		end
 	end
 end

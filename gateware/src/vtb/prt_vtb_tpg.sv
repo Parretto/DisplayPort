@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added control format 
 
     License
     =======
@@ -41,7 +42,7 @@ module prt_vtb_tpg
 
 	// Control
 	input wire 								CTL_RUN_IN,		// Run
-	input wire 								CTL_RAMP_IN,	// Ramp. When this bit is set, only the ramp is outputted
+	input wire [2:0]						CTL_FMT_IN,		// Format. 0 - full, 1 - red, 2 - green, 3 - blue, 4 - ramp
 
 	// Video parameter set
 	input wire [3:0]						VPS_IDX_IN,		// Index
@@ -63,7 +64,7 @@ module prt_vtb_tpg
 
 // Signals
 logic 							clk_run;
-logic 							clk_ramp;
+logic [2:0]						clk_fmt;
 logic [15:0]					clk_hwidth;	
 logic [15:0]					clk_vheight;
 logic [15:0]					clk_vheight_quad;
@@ -88,7 +89,7 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 	always_ff @ (posedge CLK_IN)
 	begin
 		clk_run <= CTL_RUN_IN;
-		clk_ramp <= CTL_RAMP_IN;
+		clk_fmt <= CTL_FMT_IN;
 	end
 
 // Video Inputs
@@ -242,8 +243,32 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 		// Clock enable
 		if (CKE_IN)
 		begin
+			// Red only
+			if (clk_fmt == 'd1)
+			begin
+				clk_r <= {P_PPC{P_BPC'(180)}};
+				clk_g <= {P_PPC{P_BPC'(16)}};
+				clk_b <= {P_PPC{P_BPC'(16)}};
+			end
+
+			// Green only
+			else if (clk_fmt == 'd2)
+			begin
+				clk_r <= {P_PPC{P_BPC'(16)}};
+				clk_g <= {P_PPC{P_BPC'(180)}};
+				clk_b <= {P_PPC{P_BPC'(16)}};
+			end
+
+			// Blue only
+			else if (clk_fmt == 'd3)
+			begin
+				clk_r <= {P_PPC{P_BPC'(16)}};
+				clk_g <= {P_PPC{P_BPC'(16)}};
+				clk_b <= {P_PPC{P_BPC'(180)}};
+			end
+
 			// Ramp
-			if (clk_ramp || ((clk_lcnt >= clk_ramp_str) && (clk_lcnt < clk_lines_str)))
+			else if ((clk_fmt == 'd4) || ((clk_lcnt >= clk_ramp_str) && (clk_lcnt < clk_lines_str)))
 			begin
 				// Four pixels per clock
 				if (P_PPC == 4)

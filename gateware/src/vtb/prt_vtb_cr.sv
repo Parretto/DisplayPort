@@ -30,7 +30,7 @@
 
 module prt_vtb_cr
 #(
-	parameter				P_SIM = 0,			// Simualtion
+	parameter				P_SIM = 0,			// Simulation
 	parameter 				P_PPC = 2			// Pixels per clock
 )
 (

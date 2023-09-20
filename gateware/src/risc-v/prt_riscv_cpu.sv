@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
 	v1.1 - Added vendor parameter
+	v1.2 - Fixed issue with SRAI instruction / Added SNEZ instruction
 
     License
     =======
@@ -484,12 +485,24 @@ irq_struct		clk_irq;	// Interrupt
 							clk_pre.bs.op  		= bs_op_sll;
 						end
 
-						// SRLI
+						// SRLI / SRAI
 						'b101 :
 						begin
-							clk_pre.is 			= is_srli;
-							clk_pre.imm[4:0] 	= clk_pre.dat[20+:5];
-							clk_pre.bs.op  		= bs_op_srl;
+							// Arithmetic
+							if (clk_pre.dat[30])
+							begin
+								clk_pre.is 			= is_srai;
+								clk_pre.imm[4:0] 	= clk_pre.dat[20+:5];
+								clk_pre.bs.op  		= bs_op_sra;
+							end
+
+							// Logical
+							else
+							begin
+								clk_pre.is 			= is_srli;
+								clk_pre.imm[4:0] 	= clk_pre.dat[20+:5];
+								clk_pre.bs.op  		= bs_op_srl;
+							end
 						end
 
 						default : ;
@@ -543,7 +556,7 @@ irq_struct		clk_irq;	// Interrupt
 						// SLTU
 						'b011 :
 						begin
-							clk_pre.is			= is_slt;
+							clk_pre.is			= is_sltu;
 							clk_pre.alu.op  	= alu_op_set;
 						end
 
@@ -1055,6 +1068,15 @@ irq_struct		clk_irq;	// Interrupt
 							clk_exe.alu.c <= 0;
 					end
 
+					// Pseudoinstruction SNEZ rd, rs
+					else if ((clk_dec.is == is_sltu) && (clk_dec.rs1_idx == 'd0))
+					begin
+						if (clk_exe.alu.b != 0)
+							clk_exe.alu.c <= 'd1;
+						else
+							clk_exe.alu.c <= 0;
+					end
+					
 					else
 					begin
 						if (clk_exe.alu.a < clk_exe.alu.b)

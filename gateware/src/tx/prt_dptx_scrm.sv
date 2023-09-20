@@ -133,8 +133,19 @@ endgenerate
 
         for (int i = 0; i < P_SPL; i++)
         begin
-            if (clk_snk.sym[i] == TX_LNK_SYM_SR)
-                clk_scrm.sr_det[i] = 1;
+            // MST
+            if (clk_ctl.mst)
+            begin
+                if (clk_snk.sym[i] == TX_LNK_SYM_MTPH_SR)
+                    clk_scrm.sr_det[i] = 1;
+            end
+
+            // SST
+            else
+            begin
+                if (clk_snk.sym[i] == TX_LNK_SYM_SR) 
+                    clk_scrm.sr_det[i] = 1;
+            end
         end
     end
 
@@ -233,11 +244,11 @@ generate
             if (clk_ctl.mst)
             begin
                 // Scrambler reset
-                if (clk_snk.sym[i] == TX_LNK_SYM_SR)
-                    clk_src.dat[i] <= P_SYM_SR;
+                if (clk_snk.sym[i] == TX_LNK_SYM_MTPH_SR)
+                    clk_src.dat[i] <= P_SYM_K28_5;
 
                 // Data
-                else if (clk_snk.sym[i] == TX_LNK_SYM_NOP)
+                else if ((clk_snk.sym[i] == TX_LNK_SYM_MTPH_NOP) || (clk_snk.sym[i] == TX_LNK_SYM_DAT) || (clk_snk.sym[i] == TX_LNK_SYM_NOP))
                     clk_src.dat[i] <= {1'b0, clk_scrm.dat[i]};
                 
                 // Control symbols
@@ -256,17 +267,18 @@ generate
                 end
             end
 
+            // SST
             else
             begin
                 case (clk_snk.sym[i])
-                    TX_LNK_SYM_SR   : clk_src.dat[i] <= P_SYM_SR;
-                    TX_LNK_SYM_BS   : clk_src.dat[i] <= P_SYM_BS;
-                    TX_LNK_SYM_BE   : clk_src.dat[i] <= P_SYM_BE;
-                    TX_LNK_SYM_SS   : clk_src.dat[i] <= P_SYM_SS;
-                    TX_LNK_SYM_SE   : clk_src.dat[i] <= P_SYM_SE;
-                    TX_LNK_SYM_FS   : clk_src.dat[i] <= P_SYM_FS;
-                    TX_LNK_SYM_FE   : clk_src.dat[i] <= P_SYM_FE;
-                    TX_LNK_SYM_BF   : clk_src.dat[i] <= P_SYM_BF;
+                    TX_LNK_SYM_SR   : clk_src.dat[i] <= P_SYM_K28_0; //P_SYM_SR;
+                    TX_LNK_SYM_BS   : clk_src.dat[i] <= P_SYM_K28_5; //P_SYM_BS;
+                    TX_LNK_SYM_BE   : clk_src.dat[i] <= P_SYM_K27_7; //P_SYM_BE;
+                    TX_LNK_SYM_SS   : clk_src.dat[i] <= P_SYM_K28_2; //P_SYM_SS;
+                    TX_LNK_SYM_SE   : clk_src.dat[i] <= P_SYM_K29_7; //P_SYM_SE;
+                    TX_LNK_SYM_FS   : clk_src.dat[i] <= P_SYM_K30_7; //P_SYM_FS;
+                    TX_LNK_SYM_FE   : clk_src.dat[i] <= P_SYM_K23_7; //P_SYM_FE;
+                    TX_LNK_SYM_BF   : clk_src.dat[i] <= P_SYM_K28_3; //P_SYM_BF;
                     default         : clk_src.dat[i] <= {1'b0, clk_scrm.dat[i]};
                 endcase
             end

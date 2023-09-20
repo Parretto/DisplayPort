@@ -5,13 +5,14 @@
 
 
     Module: DP Library Memory
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Changed memory structures
     v1.2 - Added support for Intel FPGA 
+	v1.3 - Added read enable for prt_dp_lib_sdp_ram_sc
 
     License
     =======
@@ -36,8 +37,8 @@
 module prt_dp_lib_fifo_sc
 #(
 	parameter                       P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter						P_MODE         = "single",		// "single" or "burst"
-	parameter 						P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
+	parameter						P_MODE         	= "single",		// "single" or "burst"
+	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
 )
@@ -52,13 +53,13 @@ module prt_dp_lib_fifo_sc
 	input wire 	[P_DAT_WIDTH-1:0]	DAT_IN,		// Write data
 
 	// Read
-	input wire						RD_EN_IN,		// Read enable in
+	input wire						RD_EN_IN,	// Read enable in
 	input wire						RD_IN,		// Read in
-	output wire [P_DAT_WIDTH-1:0]	DAT_OUT,		// Data out
+	output wire [P_DAT_WIDTH-1:0]	DAT_OUT,	// Data out
 	output wire						DE_OUT,		// Data enable
 
 	// Status
-	output wire	[P_ADR_WIDTH:0]		WRDS_OUT,		// Used words
+	output wire	[P_ADR_WIDTH:0]		WRDS_OUT,	// Used words
 	output wire						EP_OUT,		// Empty
 	output wire						FL_OUT		// Full
 );
@@ -898,6 +899,7 @@ module prt_dp_lib_sdp_ram_sc
 	input wire [P_DAT_WIDTH-1:0]	A_DAT_IN,		// Write data
 
 	// Port B
+	input wire 						B_EN_IN,		// Enable
 	input wire [P_ADR_WIDTH-1:0]	B_ADR_IN,		// Address
 	input wire						B_RD_IN,		// Read in
 	output wire [P_DAT_WIDTH-1:0]	B_DAT_OUT,		// Read data
@@ -953,7 +955,7 @@ generate
 
 			.clkb					(CLK_IN),  
 			.addrb					(B_ADR_IN),  
-			.enb					(1'b1),    
+			.enb					(B_EN_IN),    
 			.doutb					(B_DAT_OUT), 
 
 			.injectdbiterra			(1'b0),
@@ -992,7 +994,7 @@ generate
 		  .Data      			(A_DAT_IN), 
 
 		  .RdClock   			(CLK_IN), 
-		  .RdClockEn 			(1'b1),  
+		  .RdClockEn 			(B_EN_IN),  
 		  .RdAddress 			(B_ADR_IN), 
 		  .Q         			(B_DAT_OUT) 
 		);
@@ -1009,7 +1011,7 @@ generate
 			.address_aclr_b 					("NONE"),
 			.address_reg_b  					("CLOCK0"),
 			.clock_enable_input_a 				("BYPASS"),
-			.clock_enable_input_b 				("BYPASS"),
+			.clock_enable_input_b 				("NORMAL"),
 			.clock_enable_output_b 				("BYPASS"),
 			.enable_force_to_zero 				("FALSE"),
 			.intended_device_family 			("Cyclone 10 GX"),
@@ -1039,7 +1041,7 @@ generate
 			.address2_a 		(1'b1),
 			.address2_b 		(1'b1),
 			.addressstall_a 	(1'b0),
-			.addressstall_b 	(1'b0),
+			.addressstall_b 	(~B_EN_IN),
 			.byteena_a 			(1'b1),
 			.byteena_b 			(1'b1),
 			.clock1 			(1'b1),
@@ -1062,9 +1064,12 @@ generate
 endgenerate
 
 	// Valid
+	// The memory has one clock read latency
    	always_ff @ (posedge CLK_IN)
    	begin
-   		clk_b_vld <= B_RD_IN;
+		// Enable
+		if (B_EN_IN)
+   			clk_b_vld <= B_RD_IN;
 	end
 
 	// Outputs

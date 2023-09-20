@@ -5,7 +5,7 @@
 
 
     Module: DP Library Interfaces
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
@@ -183,7 +183,7 @@ interface prt_dp_tx_lnk_if
 	parameter P_LANES = 2,			// Lanes
 	parameter P_SPL = 2				// Symbols per lane
 );
-	logic	[4:0]			sym[0:P_LANES-1][0:P_SPL-1];	// Symbol
+	logic	[5:0]			sym[0:P_LANES-1][0:P_SPL-1];	// Symbol
 	logic 	[7:0]			dat[0:P_LANES-1][0:P_SPL-1];	// Data
 	logic 					vld;							// Valid
 	logic 					rd;								// Read

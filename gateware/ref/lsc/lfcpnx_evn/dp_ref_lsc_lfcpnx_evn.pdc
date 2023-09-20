@@ -1,39 +1,28 @@
 ###
 # Timing
 ###
-#create_clock -name {tx_lnk_clk} -period 7.407407407 [get_nets tx_clk_from_phy]
-#create_clock -name {rx_lnk_clk} -period 7.407407407 [get_nets rx_clk_from_phy]
-
-# PRT_DP_LIB_RST
-#set_false_path -to [get_pins -hierarchical *prt_dp_lib_dclk_rst_i*.ff_inst/LSR]
-
-# PRT_DP_LIB_CDC_BIT
-#set_false_path -to [get_pins -hierarchical *prt_dp_lib_cdc_bit_dclk_dat_i1.ff_inst/DF]
- 
-# PRT_DP_LIB_CDC_GRAY
-#set_max_delay -from [get_nets -hierarchical {*prt_dp_lib_cdc_gray_sclk_enc[*]}] -to [get_nets -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1[*]}] 1
-#set_max_delay -from [get_pins -hierarchical {prt_dp_lib_cdc_gray_sclk_enc_i*.ff_inst/Q}] -to [get_pins -hierarchical {*prt_dp_lib_cdc_gray_dclk_cap1_i*.ff_inst/DF}] 2
 
 ###
 # False path
 ###
 
 # System clock
-set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks vid_clk]
-set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks tx_lnk_clk]
-set_false_path -from [get_clocks clk_from_sys_pll] -to [get_clocks rx_lnk_clk]
+# Synplify adds an index to the system clock name. Therefore a wildcard in the clock name is needed. 
+set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks vid_clk]
+set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks tx_lnk_clk]
+set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks rx_lnk_clk]
 
 # Video clock
-set_false_path -from [get_clocks vid_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks vid_clk] -to [get_clocks clk_from_sys_pll*]
 set_false_path -from [get_clocks vid_clk] -to [get_clocks tx_lnk_clk]
 set_false_path -from [get_clocks vid_clk] -to [get_clocks rx_lnk_clk]
 
 # TX link clock
-set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks clk_from_sys_pll*]
 set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks vid_clk]
 
 # RX link clock
-set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll]
+set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll*]
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks vid_clk]
 
 ###

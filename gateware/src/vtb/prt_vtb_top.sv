@@ -5,11 +5,13 @@
 
 
     Module: Video Toolbox Top
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added color format to TPG
+	v1.2 - Added overlay module
 
     License
     =======
@@ -29,11 +31,12 @@
 
 module prt_vtb_top
 #(
-    parameter P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
-	parameter P_SYS_FREQ = 'd125_000_000,	// System frequency
+    parameter P_VENDOR = "none",  			// Vendor "xilinx", "intel" or "lattice"
+	parameter P_SYS_FREQ = 'd50_000_000,	// System frequency
 	parameter P_PPC = 2,					// Pixels per clock
 	parameter P_BPC = 8,					// Bits per component
-    parameter P_AXIS_DAT = 48				// AXIS data width
+    parameter P_AXIS_DAT = 48,				// AXIS data width
+	parameter P_OVL = 0						// Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
 )
 (
 	// System
@@ -89,9 +92,11 @@ localparam P_CTL_CG_RUN 	= 2;
 localparam P_CTL_TG_RUN 	= 3;
 localparam P_CTL_TG_MODE 	= 4;
 localparam P_CTL_TPG_RUN 	= 5;
-localparam P_CTL_TPG_RAMP 	= 6;
-localparam P_CTL_FIFO_RUN 	= 7;
-localparam P_CTL_CR_RUN 	= 8;
+localparam P_CTL_TPG_FMT 	= 6;
+localparam P_CTL_FIFO_RUN 	= 9;
+localparam P_CTL_OVL_RUN 	= 10;
+localparam P_CTL_CR_RUN 	= 11;
+localparam P_CTL_WIDTH	 	= 12;
 
 // Signals
 
@@ -110,60 +115,69 @@ wire [15:0]						vps_dat_from_ctl;
 wire 							vps_vld_from_ctl;
 
 // CDC
-wire [5:0]						ctl_from_cdc;
+wire [P_CTL_WIDTH-1:0]			ctl_from_cdc;
 
 // Clock recovery
-wire						sync_from_cr;
-wire [7:0]					cur_err_from_cr;
-wire [7:0]					max_err_from_cr;
-wire [7:0]					min_err_from_cr;
-wire [15:0]					sum_from_cr;
-wire [28:0]					co_from_cr;
+wire							sync_from_cr;
+wire [7:0]						cur_err_from_cr;
+wire [7:0]						max_err_from_cr;
+wire [7:0]						min_err_from_cr;
+wire [15:0]						sum_from_cr;
+wire [28:0]						co_from_cr;
 
 // Clock generator
-wire 						run_to_cg;
+wire 							run_to_cg;
 
 // FIFO
-wire						run_to_fifo;
-wire						tg_run_from_fifo;
-wire [(P_BPC * P_PPC)-1:0] 	vid_r_from_fifo;
-wire [(P_BPC * P_PPC)-1:0] 	vid_g_from_fifo;
-wire [(P_BPC * P_PPC)-1:0] 	vid_b_from_fifo;
-wire 						vid_vs_from_fifo;
-wire 						vid_hs_from_fifo;
-wire						vid_de_from_fifo;
-wire 						lock_from_fifo;
-wire [9:0]					max_wrds_from_fifo;
-wire [9:0]					min_wrds_from_fifo;
+wire							run_to_fifo;
+wire							tg_run_from_fifo;
+wire [(P_BPC * P_PPC)-1:0] 		vid_r_from_fifo;
+wire [(P_BPC * P_PPC)-1:0] 		vid_g_from_fifo;
+wire [(P_BPC * P_PPC)-1:0] 		vid_b_from_fifo;
+wire 							vid_vs_from_fifo;
+wire 							vid_hs_from_fifo;
+wire							vid_de_from_fifo;
+wire 							lock_from_fifo;
+wire [9:0]						max_wrds_from_fifo;
+wire [9:0]						min_wrds_from_fifo;
 
 // Timing generator
-wire 						run_to_tg;
-wire 						mode_to_tg;
-wire 						vid_rdy_to_tg;
-wire 						vid_vs_from_tg;
-wire 						vid_hs_from_tg;
-wire 						vid_de_from_tg;
-logic 						vclk_tg_run;
+wire 							run_to_tg;
+wire 							mode_to_tg;
+wire 							vid_rdy_to_tg;
+wire 							vid_vs_from_tg;
+wire 							vid_hs_from_tg;
+wire 							vid_de_from_tg;
+logic 							vclk_tg_run;
 
 // Test pattern
-wire 						run_to_tpg;
-wire 						ramp_to_tpg;
-wire [(P_BPC * P_PPC)-1:0] 	vid_r_from_tpg;
-wire [(P_BPC * P_PPC)-1:0] 	vid_g_from_tpg;
-wire [(P_BPC * P_PPC)-1:0] 	vid_b_from_tpg;
-wire						vid_vs_from_tpg;
-wire						vid_hs_from_tpg;
-wire						vid_de_from_tpg;
+wire 							run_to_tpg;
+wire [2:0]						fmt_to_tpg;
+wire [(P_BPC * P_PPC)-1:0] 		vid_r_from_tpg;
+wire [(P_BPC * P_PPC)-1:0] 		vid_g_from_tpg;
+wire [(P_BPC * P_PPC)-1:0] 		vid_b_from_tpg;
+wire							vid_vs_from_tpg;
+wire							vid_hs_from_tpg;
+wire							vid_de_from_tpg;
 
 // Frequency counters
-wire [31:0]					freq_from_tx_lnk_clk_freq;
-wire [31:0]					freq_from_rx_lnk_clk_freq;
-wire [31:0]					freq_from_vid_ref_freq;
-wire [31:0]					freq_from_vid_clk_freq;
+wire [31:0]						freq_from_tx_lnk_clk_freq;
+wire [31:0]						freq_from_rx_lnk_clk_freq;
+wire [31:0]						freq_from_vid_ref_freq;
+wire [31:0]						freq_from_vid_clk_freq;
 
 // Monitor
-wire [15:0]					pix_from_mon;
-wire [15:0]					lin_from_mon;
+wire [15:0]						pix_from_mon;
+wire [15:0]						lin_from_mon;
+
+// Overlay
+wire 							run_to_ovl;
+wire [(P_BPC * P_PPC)-1:0] 		vid_r_from_ovl;
+wire [(P_BPC * P_PPC)-1:0] 		vid_g_from_ovl;
+wire [(P_BPC * P_PPC)-1:0] 		vid_b_from_ovl;
+wire							vid_vs_from_ovl;
+wire							vid_hs_from_ovl;
+wire							vid_de_from_ovl;
 
 genvar i;
 
@@ -239,8 +253,9 @@ endgenerate
 	assign run_to_tg 	= ctl_from_cdc[P_CTL_TG_RUN-2];
 	assign mode_to_tg 	= ctl_from_cdc[P_CTL_TG_MODE-2];
 	assign run_to_tpg 	= ctl_from_cdc[P_CTL_TPG_RUN-2];
-	assign ramp_to_tpg 	= ctl_from_cdc[P_CTL_TPG_RAMP-2];
+	assign fmt_to_tpg 	= ctl_from_cdc[P_CTL_TPG_FMT-2+:$size(fmt_to_tpg)];
 	assign run_to_fifo 	= ctl_from_cdc[P_CTL_FIFO_RUN-2];
+	assign run_to_ovl 	= ctl_from_cdc[P_CTL_OVL_RUN-2];
 
 // FIFO words clock domain crossing
 	prt_dp_lib_cdc_vec
@@ -461,7 +476,7 @@ endgenerate
 
 		// Control
 		.CTL_RUN_IN			(run_to_tpg),			// Run
-		.CTL_RAMP_IN		(ramp_to_tpg),			// Ramp
+		.CTL_FMT_IN			(fmt_to_tpg), 			// Format. 0 - full, 1 - red, 2 - green, 3 - blue, 4 - ramp
 
 		// Video parameter set
 		.VPS_IDX_IN			(vps_idx_from_ctl),		// Index
@@ -574,14 +589,62 @@ endgenerate
 		.STA_LIN_OUT	(lin_from_mon)
 	);
 
+// Overlay
+generate
+	if (P_OVL)
+	begin : gen_ovl
+		prt_vtb_ovl
+		#(
+			.P_IMG 				(P_OVL),				// Image
+			.P_PPC 				(P_PPC),				// Pixels per clock
+			.P_BPC 				(P_BPC)					// Bits per component
+		)
+		OVL_INST
+		(
+			// Clock
+			.CLK_IN				(VID_CLK_IN),			// Clock
+			
+			// Control
+			.CTL_RUN_IN			(run_to_ovl),			// Run
+
+			// Video in
+			.VID_R_IN			(vid_r_from_tpg),		// Red
+			.VID_G_IN			(vid_g_from_tpg),		// Green
+			.VID_B_IN			(vid_b_from_tpg),		// Blue
+			.VID_VS_IN			(vid_vs_from_tpg),		// Vsync
+			.VID_HS_IN			(vid_hs_from_tpg),		// Hsync
+			.VID_DE_IN			(vid_de_from_tpg),		// Data enable out
+
+			// Video out
+			.VID_R_OUT			(vid_r_from_ovl),		// Red
+			.VID_G_OUT			(vid_g_from_ovl),		// Green
+			.VID_B_OUT			(vid_b_from_ovl),		// Blue
+			.VID_VS_OUT			(vid_vs_from_ovl),		// Vsync
+			.VID_HS_OUT			(vid_hs_from_ovl),		// Hsync
+			.VID_DE_OUT			(vid_de_from_ovl)		// Data enable out
+		);
+	end
+
+	else
+	begin : no_ovl	
+		assign vid_vs_from_ovl 	= vid_vs_from_tpg;
+		assign vid_hs_from_ovl 	= vid_hs_from_tpg;
+		assign vid_de_from_ovl 	= vid_de_from_tpg;
+		assign vid_r_from_ovl 	= vid_r_from_tpg;
+		assign vid_g_from_ovl 	= vid_g_from_tpg;
+		assign vid_b_from_ovl 	= vid_b_from_tpg;
+	end
+
+endgenerate
+
 // Outputs
 	assign VID_LOCK_OUT = (run_to_tpg) ? 1'b1 : lock_from_fifo;
-	assign VID_VS_OUT   = (run_to_tpg) ? vid_vs_from_tpg : vid_vs_from_fifo;
-	assign VID_HS_OUT   = (run_to_tpg) ? vid_hs_from_tpg : vid_hs_from_fifo;
-	assign VID_R_OUT 	= (run_to_tpg) ? vid_r_from_tpg  : vid_r_from_fifo;
-	assign VID_G_OUT 	= (run_to_tpg) ? vid_g_from_tpg  : vid_g_from_fifo;
-	assign VID_B_OUT 	= (run_to_tpg) ? vid_b_from_tpg  : vid_b_from_fifo;
-	assign VID_DE_OUT 	= (run_to_tpg) ? vid_de_from_tpg : vid_de_from_fifo;
+	assign VID_VS_OUT   = (run_to_tpg) ? vid_vs_from_ovl : vid_vs_from_fifo;
+	assign VID_HS_OUT   = (run_to_tpg) ? vid_hs_from_ovl : vid_hs_from_fifo;
+	assign VID_R_OUT 	= (run_to_tpg) ? vid_r_from_ovl  : vid_r_from_fifo;
+	assign VID_G_OUT 	= (run_to_tpg) ? vid_g_from_ovl  : vid_g_from_fifo;
+	assign VID_B_OUT 	= (run_to_tpg) ? vid_b_from_ovl  : vid_b_from_fifo;
+	assign VID_DE_OUT 	= (run_to_tpg) ? vid_de_from_ovl : vid_de_from_fifo;
 
 endmodule
 

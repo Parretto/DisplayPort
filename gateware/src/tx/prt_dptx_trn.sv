@@ -162,6 +162,7 @@ generate
     		.A_DAT_IN	(clk_ram.din),		    // Write data
 
     		// Read
+            .B_EN_IN    (1'b1),                 // Enable
             .B_ADR_IN   (clk_ram.rp),           // Read pointer
     		.B_RD_IN	(clk_ram.rd),	    	// Read in
     		.B_DAT_OUT  (clk_ram.dout[i]),		// Data out

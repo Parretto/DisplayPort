@@ -4,14 +4,12 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP reference design running on Intel Cyclone 10GX
+    Module: DP reference design running on Intel Arria 10GX
     (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-    v1.1 - Removed video global clock buffer
-    v1.2 - Inverted PHY TX disparity signals
 
     License
     =======
@@ -29,7 +27,7 @@
 
 `default_nettype none
 
-module dp_ref_intel_dk_dev_10cx220
+module dp_ref_intel_dk_dev_10ax115s
 (
     // Clock
     input wire              CLK_IN,                     // 50 MHz
@@ -89,8 +87,10 @@ localparam P_PHY_TX_MST_CLK = 0;    // PHY TX master clock
 localparam P_PHY_RX_MST_CLK = 0;    // PHY RX master clock
 localparam P_APP_ROM_INIT   = "dp_app_int_rom.mif";
 localparam P_APP_RAM_INIT   = "dp_app_int_ram.mif";
-localparam P_MST            = 0;
 localparam P_RCFG_PORTS     = 5;
+
+localparam P_MST            = 0;                        // MST support
+localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
 
 // Interfaces
 
@@ -136,6 +136,7 @@ misc_if();
 // Clocks
 wire                            clk_from_sys_pll;
 wire                            lock_from_sys_pll;
+wire                            clk_from_vid_bufg;
 
 // Reset
 (* preserve *) logic [7:0]      clk_por_line = 0;
@@ -195,13 +196,13 @@ wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
 wire                            vid_vld_from_dprx;   // Valid
 
 // VTB
-wire                            lock_from_vtb;
-wire                            vs_from_vtb;
-wire                            hs_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        r_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        g_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        b_from_vtb;
-wire                            de_from_vtb;
+wire [1:0]                      lock_from_vtb;
+wire [1:0]                      vs_from_vtb;
+wire [1:0]                      hs_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]        r_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]        g_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]        b_from_vtb[0:1];
+wire [1:0]                      de_from_vtb;
 
 // DIA
 wire                            dia_rdy_from_app;
@@ -387,22 +388,22 @@ genvar i;
         // Video stream 0
         .VID0_CLK_IN        (TENTIVA_VID_CLK_IN),
         .VID0_CKE_IN        (1'b1),
-        .VID0_VS_IN         (vs_from_vtb),              // Vsync
-        .VID0_HS_IN         (hs_from_vtb),              // Hsync
-        .VID0_R_IN          (r_from_vtb),               // Red
-        .VID0_G_IN          (g_from_vtb),               // Green
-        .VID0_B_IN          (b_from_vtb),               // Blue
-        .VID0_DE_IN         (de_from_vtb),              // Data enable
+        .VID0_VS_IN         (vs_from_vtb[0]),           // Vsync
+        .VID0_HS_IN         (hs_from_vtb[0]),           // Hsync
+        .VID0_R_IN          (r_from_vtb[0]),            // Red
+        .VID0_G_IN          (g_from_vtb[0]),            // Green
+        .VID0_B_IN          (b_from_vtb[0]),            // Blue
+        .VID0_DE_IN         (de_from_vtb[0]),           // Data enable
 
         // Video stream 1
         .VID1_CLK_IN        (TENTIVA_VID_CLK_IN),
         .VID1_CKE_IN        (1'b1),
-        .VID1_VS_IN         (1'b0),                     // Vsync
-        .VID1_HS_IN         (1'b0),                     // Hsync
-        .VID1_R_IN          (0),                        // Red
-        .VID1_G_IN          (0),                        // Green
-        .VID1_B_IN          (0),                        // Blue
-        .VID1_DE_IN         (1'b0),                     // Data enable
+        .VID1_VS_IN         (vs_from_vtb[1]),           // Vsync
+        .VID1_HS_IN         (hs_from_vtb[1]),           // Hsync
+        .VID1_R_IN          (r_from_vtb[1]),            // Red
+        .VID1_G_IN          (g_from_vtb[1]),            // Green
+        .VID1_B_IN          (b_from_vtb[1]),            // Blue
+        .VID1_DE_IN         (de_from_vtb[1]),           // Data enable
 
         // Link
         .LNK_CLK_IN         (tx_clk_from_phy[P_PHY_TX_MST_CLK]),
@@ -439,7 +440,8 @@ genvar i;
     #(
         // System
         .P_VENDOR           (P_VENDOR),   // Vendor
-        .P_BEAT             (P_BEAT),     // Beat value. The system clock is 125 MHz
+        .P_BEAT             (P_BEAT),     // Beat value. 
+        .P_MST              (P_MST),      // MST support
 
         // Link
         .P_LANES            (P_LANES),    // Lanes
@@ -475,7 +477,7 @@ genvar i;
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
 
         // Video
-        .VID_CLK_IN         (TENTIVA_VID_CLK_IN),   // Clock
+        .VID_CLK_IN         (TENTIVA_VID_CLK_IN),    // Clock
         .VID_RDY_IN         (1'b1),                 // Ready
         .VID_SOF_OUT        (vid_sof_from_dprx),    // Start of frame
         .VID_EOL_OUT        (vid_eol_from_dprx),    // End of line
@@ -505,16 +507,17 @@ genvar i;
     assign lnk_dat_to_dprx[(0*9)+8] = rx_datk_from_phy[(3*2)+0];
     assign lnk_dat_to_dprx[(1*9)+8] = rx_datk_from_phy[(3*2)+1];
 
-// Video toolbox
+// Video toolbox 0
     prt_vtb_top
     #(
         .P_VENDOR               (P_VENDOR),     // Vendor
         .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
         .P_PPC                  (P_PPC),        // Pixels per clock
         .P_BPC                  (P_BPC),        // Bits per component
-        .P_AXIS_DAT             (P_AXI_WIDTH)
+        .P_AXIS_DAT             (P_AXI_WIDTH),  // AXIS data width
+        .P_OVL                  (P_VTB_OVL)     // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
     )
-    VTB_INST
+    VTB0_INST
     (
         // System
         .SYS_RST_IN             (dptx_rst_from_app),
@@ -542,14 +545,79 @@ genvar i;
         // Native video
         .VID_CLK_IN             (TENTIVA_VID_CLK_IN),
         .VID_CKE_IN             (1'b1),
-        .VID_LOCK_OUT           (lock_from_vtb),
-        .VID_VS_OUT             (vs_from_vtb),
-        .VID_HS_OUT             (hs_from_vtb),
-        .VID_R_OUT              (r_from_vtb),
-        .VID_G_OUT              (g_from_vtb),
-        .VID_B_OUT              (b_from_vtb),
-        .VID_DE_OUT             (de_from_vtb)
+        .VID_LOCK_OUT           (lock_from_vtb[0]),
+        .VID_VS_OUT             (vs_from_vtb[0]),
+        .VID_HS_OUT             (hs_from_vtb[0]),
+        .VID_R_OUT              (r_from_vtb[0]),
+        .VID_G_OUT              (g_from_vtb[0]),
+        .VID_B_OUT              (b_from_vtb[0]),
+        .VID_DE_OUT             (de_from_vtb[0])
     );
+
+// Video toolbox 1
+generate
+    // MST mode
+    if (P_MST)  
+    begin : gen_vtb1
+        prt_vtb_top
+        #(
+            .P_VENDOR               (P_VENDOR),     // Vendor
+            .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
+            .P_PPC                  (P_PPC),        // Pixels per clock
+            .P_BPC                  (P_BPC),        // Bits per component
+            .P_AXIS_DAT             (P_AXI_WIDTH),  // AXIS data width
+            .P_OVL                  (2)             // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
+        )
+        VTB1_INST
+        (
+            // System
+            .SYS_RST_IN             (dptx_rst_from_app),
+            .SYS_CLK_IN             (clk_from_sys_pll),
+
+            // Local bus
+            .LB_IF                  (vtb_if[1]),
+
+            // Direct I2C Access
+            .DIA_RDY_IN             (1'b0),
+            .DIA_DAT_OUT            (),
+            .DIA_VLD_OUT            (),
+
+            // Link
+            .TX_LNK_CLK_IN          (1'b0),        // TX link clock
+            .RX_LNK_CLK_IN          (1'b0),        // RX link clock
+            .LNK_SYNC_IN            (1'b0),
+            
+            // Axi-stream Video
+            .AXIS_SOF_IN            (1'b0),      // Start of frame
+            .AXIS_EOL_IN            (1'b0),      // End of line
+            .AXIS_DAT_IN            (0),      // Data
+            .AXIS_VLD_IN            (1'b0),      // Valid       
+
+            // Native video
+            .VID_CLK_IN             (TENTIVA_VID_CLK_IN),
+            .VID_CKE_IN             (1'b1),
+            .VID_LOCK_OUT           (lock_from_vtb[1]),
+            .VID_VS_OUT             (vs_from_vtb[1]),
+            .VID_HS_OUT             (hs_from_vtb[1]),
+            .VID_R_OUT              (r_from_vtb[1]),
+            .VID_G_OUT              (g_from_vtb[1]),
+            .VID_B_OUT              (b_from_vtb[1]),
+            .VID_DE_OUT             (de_from_vtb[1])
+        );
+    end
+
+    // SST mode
+    else
+    begin
+        assign lock_from_vtb[1] = 0;
+        assign vs_from_vtb[1] = 0;
+        assign hs_from_vtb[1] = 0;
+        assign r_from_vtb[1] = 0;
+        assign g_from_vtb[1] = 0;
+        assign b_from_vtb[1] = 0;
+        assign de_from_vtb[1] = 0;
+    end 
+endgenerate
 
 // Reconfig Bridge
     prt_int_rcfg

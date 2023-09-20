@@ -120,7 +120,6 @@ typedef struct {
 } ram_struct;
 
 typedef struct {
-    logic                           rd;                             // Read
     prt_dp_tx_lnk_sym               sym[0:P_LANES-1][0:P_SPL-1];    // Symbol
     logic   [7:0]                   dat[0:P_LANES-1][0:P_SPL-1];    // Data
     logic                           vld;                            // Valid
@@ -315,8 +314,8 @@ generate
         RAM_INST
         (
             // Clocks and reset
-            .RST_IN     (LNK_RST_IN),           // Reset
-            .CLK_IN     (LNK_CLK_IN),           // Clock
+            .RST_IN     (LNK_RST_IN),        // Reset
+            .CLK_IN     (LNK_CLK_IN),        // Clock
 
             // Port A
             .A_ADR_IN   (lclk_ram.wp),       // Write pointer
@@ -324,6 +323,7 @@ generate
             .A_DAT_IN   (lclk_ram.din),      // Write data
 
             // Port B
+            .B_EN_IN    (lclk_snk.vld),      // Enable
             .B_ADR_IN   (lclk_ram.rp),       // Read pointer
             .B_RD_IN    (lclk_ram.rd),       // Read in
             .B_DAT_OUT  (lclk_ram.dout[i]),  // Data out
@@ -723,291 +723,326 @@ generate
     // Four symbols per lane
     if (P_SPL == 4)
     begin : gen_mux_4spl
-        always_ff @ (posedge LNK_CLK_IN)
+        always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
         begin
-            // Valid
-            if (lclk_snk.vld)
+            // Reset
+            if (LNK_RST_IN)
             begin
-                // MSA data
-                if (lclk_ram.de[0])
+                for (int i = 0; i < P_LANES; i++)
                 begin
-                    for (int i = 0; i < P_LANES; i++)
+                    for (int j = 0; j < P_SPL; j++)
                     begin
-                        for (int j = 0; j < P_SPL; j++)
-                        begin
-                            // SS symbol
-                            if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SS)
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_SS;               
-                                lclk_src.dat[i][j] <= 0; 
-                            end
-
-                            // SE symbol
-                            else if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SE)
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_SE;               
-                                lclk_src.dat[i][j] <= 0; 
-                            end
-
-                            // Data
-                            else
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_NOP;
-                                lclk_src.dat[i][j] <= lclk_ins.dat[(i*P_SPL)+j][7:0];
-                            end
-                        end
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS sequence phase 1 (SST)
-                else if (!lclk_ctl.mst && lclk_msa.bs_det[0])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
-                        lclk_src.dat[i][0] <= 0;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_BF;
-                        lclk_src.dat[i][1] <= 0;
-                        
-                        // Sublane 2
-                        lclk_src.sym[i][2] <= TX_LNK_SYM_BF;
-                        lclk_src.dat[i][2] <= 0;
-                        
-                        // Sublane 3
-                        lclk_src.sym[i][3] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
-                        lclk_src.dat[i][3] <= 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS sequence phase 2 (SST)
-                else if (!lclk_ctl.mst && lclk_msa.bs_det[1])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][0] <= lclk_msa.vbid;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][1] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
-                        
-                        // Sublane 2
-                        lclk_src.sym[i][2] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][2] <= 0;
-                        
-                        // Sublane 3
-                        lclk_src.sym[i][3] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][3] <= 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS sequence phase 0 (MST)
-                else if (lclk_ctl.mst && lclk_msa.bs_det[0])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_BS;
-                        lclk_src.dat[i][0] <= 0;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][1] <= lclk_msa.vbid;
-                        
-                        // Sublane 2
-                        lclk_src.sym[i][2] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][2] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
-                        
-                        // Sublane 3
-                        lclk_src.sym[i][3] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][3] <= 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // Video data
-                else
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        for (int j = 0; j < P_SPL; j++)
-                        begin
-                            lclk_src.sym[i][j]  <= lclk_snk.sym[i][j]; 
-                            lclk_src.dat[i][j]  <= lclk_snk.dat[i][j];
-                            lclk_src.vld        <= 1;
-                        end
+                        lclk_src.sym[i][j] <= TX_LNK_SYM_NOP;               
+                        lclk_src.dat[i][j] <= 0; 
                     end
                 end
             end
-
-            // Idle
+            
             else
-                lclk_src.vld <= 0;
+            begin
+                // Valid
+                if (lclk_snk.vld)
+                begin
+                    // MSA data
+                    if (lclk_ram.de[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            for (int j = 0; j < P_SPL; j++)
+                            begin
+                                // SS symbol
+                                if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SS)
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_SS;               
+                                    lclk_src.dat[i][j] <= 0; 
+                                end
+
+                                // SE symbol
+                                else if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SE)
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_SE;               
+                                    lclk_src.dat[i][j] <= 0; 
+                                end
+
+                                // Data
+                                else
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_DAT;
+                                    lclk_src.dat[i][j] <= lclk_ins.dat[(i*P_SPL)+j][7:0];
+                                end
+                            end
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS sequence phase 1 (SST)
+                    else if (!lclk_ctl.mst && lclk_msa.bs_det[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
+                            lclk_src.dat[i][0] <= 0;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_BF;
+                            lclk_src.dat[i][1] <= 0;
+                            
+                            // Sublane 2
+                            lclk_src.sym[i][2] <= TX_LNK_SYM_BF;
+                            lclk_src.dat[i][2] <= 0;
+                            
+                            // Sublane 3
+                            lclk_src.sym[i][3] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
+                            lclk_src.dat[i][3] <= 0;
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS sequence phase 2 (SST)
+                    else if (!lclk_ctl.mst && lclk_msa.bs_det[1])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][0] <= lclk_msa.vbid;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][1] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
+                            
+                            // Sublane 2
+                            lclk_src.sym[i][2] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][2] <= 0;
+                            
+                            // Sublane 3
+                            lclk_src.sym[i][3] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][3] <= 0;
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS sequence phase 0 (MST)
+                    else if (lclk_ctl.mst && lclk_msa.bs_det[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_BS;
+                            lclk_src.dat[i][0] <= 0;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][1] <= lclk_msa.vbid;
+                            
+                            // Sublane 2
+                            lclk_src.sym[i][2] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][2] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0; // Mvid [7:0]
+                            
+                            // Sublane 3
+                            lclk_src.sym[i][3] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][3] <= 0;    // Maud [7:0]
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // Video data
+                    else
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            for (int j = 0; j < P_SPL; j++)
+                            begin
+                                lclk_src.sym[i][j]  <= lclk_snk.sym[i][j]; 
+                                lclk_src.dat[i][j]  <= lclk_snk.dat[i][j];
+                                lclk_src.vld        <= 1;
+                            end
+                        end
+                    end
+                end
+
+                // Idle
+                else
+                    lclk_src.vld <= 0;
+            end
         end
     end
 
     // Two symbols per lane
     else
     begin : gen_mux_2spl
-        always_ff @ (posedge LNK_CLK_IN)
+        always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
         begin
-            // Valid
-            if (lclk_snk.vld)
+            // Reset
+            if (LNK_RST_IN)
             begin
-                // Main stream attribute
-                if (lclk_ram.de[0])
+                for (int i = 0; i < P_LANES; i++)
                 begin
-                    for (int i = 0; i < P_LANES; i++)
+                    for (int j = 0; j < P_SPL; j++)
                     begin
-                        for (int j = 0; j < P_SPL; j++)
-                        begin
-                            // SS symbol
-                            if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SS)
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_SS;               
-                                lclk_src.dat[i][j] <= 0; 
-                            end
-
-                            // SE symbol
-                            else if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SE)
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_SE;               
-                                lclk_src.dat[i][j] <= 0; 
-                            end
-
-                            // Data
-                            else
-                            begin
-                                lclk_src.sym[i][j] <= TX_LNK_SYM_NOP;
-                                lclk_src.dat[i][j] <= lclk_ins.dat[(i*P_SPL)+j][7:0];
-                            end
-                        end
-                    end
-                end
-                
-                // BS phase 0 (SST)
-                else if (!lclk_ctl.mst && lclk_msa.bs_det[0])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
-                        lclk_src.dat[i][0] <= 0;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_BF;
-                        lclk_src.dat[i][1] <= 0;                           
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS phase 1 (SST)
-                else if (!lclk_ctl.mst && lclk_msa.bs_det[1])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_BF;
-                        lclk_src.dat[i][0] <= 0;
-                        
-                        // Sublane 3
-                        lclk_src.sym[i][1] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
-                        lclk_src.dat[i][1] <= 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS phase 2 (SST)
-                else if (!lclk_ctl.mst && lclk_msa.bs_det[2])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][0] <= lclk_msa.vbid;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][1] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS phase 0 (MST)
-                else if (lclk_ctl.mst && lclk_msa.bs_det[0])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_BS;
-                        lclk_src.dat[i][0] <= 0;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][1] <= lclk_msa.vbid;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // BS phase 1 (MST)
-                else if (lclk_ctl.mst && lclk_msa.bs_det[1])
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        // Sublane 0
-                        lclk_src.sym[i][0] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][0] <= lclk_msa.vbid;
-                        
-                        // Sublane 1
-                        lclk_src.sym[i][1] <= TX_LNK_SYM_NOP;
-                        lclk_src.dat[i][1] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
-                    end
-
-                    // Valid
-                    lclk_src.vld <= 1;
-                end
-
-                // Link sink 
-                else
-                begin
-                    for (int i = 0; i < P_LANES; i++)
-                    begin
-                        for (int j = 0; j < P_SPL; j++)
-                        begin
-                            lclk_src.sym[i][j]  <= lclk_snk.sym[i][j];    
-                            lclk_src.dat[i][j]  <= lclk_snk.dat[i][j];
-                            lclk_src.vld        <= 1;
-                        end
+                        lclk_src.sym[i][j] <= TX_LNK_SYM_NOP;               
+                        lclk_src.dat[i][j] <= 0; 
                     end
                 end
             end
-
-            // Idle
+            
             else
-                lclk_src.vld <= 0;
+            begin
+                // Valid
+                if (lclk_snk.vld)
+                begin
+                    // Main stream attribute
+                    if (lclk_ram.de[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            for (int j = 0; j < P_SPL; j++)
+                            begin
+                                // SS symbol
+                                if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SS)
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_SS;               
+                                    lclk_src.dat[i][j] <= 0; 
+                                end
+
+                                // SE symbol
+                                else if (lclk_ins.dat[(i*P_SPL)+j] == P_SYM_SE)
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_SE;               
+                                    lclk_src.dat[i][j] <= 0; 
+                                end
+
+                                // Data
+                                else
+                                begin
+                                    lclk_src.sym[i][j] <= TX_LNK_SYM_DAT;
+                                    lclk_src.dat[i][j] <= lclk_ins.dat[(i*P_SPL)+j][7:0];
+                                end
+                            end
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+                    
+                    // BS phase 0 (SST)
+                    else if (!lclk_ctl.mst && lclk_msa.bs_det[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
+                            lclk_src.dat[i][0] <= 0;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_BF;
+                            lclk_src.dat[i][1] <= 0;                           
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS phase 1 (SST)
+                    else if (!lclk_ctl.mst && lclk_msa.bs_det[1])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_BF;
+                            lclk_src.dat[i][0] <= 0;
+                            
+                            // Sublane 3
+                            lclk_src.sym[i][1] <= lclk_sr.sr_ins ? TX_LNK_SYM_SR : TX_LNK_SYM_BS;
+                            lclk_src.dat[i][1] <= 0;
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS phase 2 (SST)
+                    else if (!lclk_ctl.mst && lclk_msa.bs_det[2])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][0] <= lclk_msa.vbid;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][1] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS phase 0 (MST)
+                    else if (lclk_ctl.mst && lclk_msa.bs_det[0])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_BS;
+                            lclk_src.dat[i][0] <= 0;
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][1] <= lclk_msa.vbid;
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // BS phase 1 (MST)
+                    else if (lclk_ctl.mst && lclk_msa.bs_det[1])
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            // Sublane 0
+                            lclk_src.sym[i][0] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][0] <= (lclk_vid.run) ? {1'b0, lclk_mvid.val[7:0]} : 0;  // Mvid[7:0]
+                            
+                            // Sublane 1
+                            lclk_src.sym[i][1] <= TX_LNK_SYM_DAT;
+                            lclk_src.dat[i][1] <= 0;    // Maud[7:0]
+                        end
+
+                        // Valid
+                        lclk_src.vld <= 1;
+                    end
+
+                    // Link sink 
+                    else
+                    begin
+                        for (int i = 0; i < P_LANES; i++)
+                        begin
+                            for (int j = 0; j < P_SPL; j++)
+                            begin
+                                lclk_src.sym[i][j]  <= lclk_snk.sym[i][j];    
+                                lclk_src.dat[i][j]  <= lclk_snk.dat[i][j];
+                                lclk_src.vld        <= 1;
+                            end
+                        end
+                    end
+                end
+
+                // Idle
+                else
+                    lclk_src.vld <= 0;
+            end
         end
     end
 endgenerate

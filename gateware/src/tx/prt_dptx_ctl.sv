@@ -52,20 +52,22 @@ module prt_dptx_ctl
     output wire [1:0]   CTL_LANES_OUT,          // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
     output wire         CTL_TRN_SEL_OUT,        // Training select
     output wire [1:0]   CTL_VID_EN_OUT,         // Video enable
-    output wire         CTL_MST_OUT,            // MST
+    output wire         CTL_MST_EN_OUT,         // MST enable
+    output wire         CTL_MST_ACT_OUT,        // MST allocation change trigger (ACT)
     output wire         CTL_SCRM_EN_OUT,        // Scrambler enable
-    output wire [5:0]   CTL_VC0_LEN_OUT,        // VC0 length
-    output wire [5:0]   CTL_VC1_LEN_OUT         // VC1 length
+    output wire [5:0]   CTL_VC0_TS_OUT,         // VC0 time slots
+    output wire [5:0]   CTL_VC1_TS_OUT          // VC1 time slots
 );
 
 // Parameters
-localparam P_CTL_WIDTH          = 7;
+localparam P_CTL_WIDTH          = 8;
 localparam P_CTL_LANES          = 0;
 localparam P_CTL_TRN_SEL        = 2;
 localparam P_CTL_VID0_EN        = 3;
 localparam P_CTL_VID1_EN        = 4;
-localparam P_CTL_MST            = 5;
-localparam P_CTL_SCRM_EN        = 6;
+localparam P_CTL_MST_EN         = 5;
+localparam P_CTL_MST_ACT        = 6;
+localparam P_CTL_SCRM_EN        = 7;
 
 // Structures
 typedef struct {
@@ -80,7 +82,7 @@ typedef struct {
 msg_struct                  clk_msg;
 logic [P_CTL_WIDTH-1:0]     clk_msk;        // Mask
 logic [P_CTL_WIDTH-1:0]     clk_ctl;        // Control register
-logic [15:0]                clk_vc_len;     // Virtual channel length
+logic [15:0]                clk_vc_ts;      // Virtual channel time slots
 
 // Message Slave
     prt_dp_msg_slv_egr
@@ -146,30 +148,30 @@ logic [15:0]                clk_vc_len;     // Virtual channel length
         end
     end
 
-// VC length register
+// VC time slots register
 // Only in MST 
 generate
     if (P_MST)
-    begin : gen_vc_len
+    begin : gen_vc_ts
         always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
             // Reset
             if (RST_IN)
-                clk_vc_len <= 0;
+                clk_vc_ts <= 0;
 
             else
             begin
                 // Write
                 if (clk_msg.vld && (clk_msg.idx == 'd2))
                 begin
-                    clk_vc_len <= clk_msg.dat; 
+                    clk_vc_ts <= clk_msg.dat; 
                 end
             end
         end
     end
 
     else
-        assign clk_vc_len = 0;
+        assign clk_vc_ts = 0;
 endgenerate
 
 // Outputs
@@ -177,10 +179,11 @@ endgenerate
     assign CTL_TRN_SEL_OUT      = clk_ctl[P_CTL_TRN_SEL];
     assign CTL_VID_EN_OUT[0]    = clk_ctl[P_CTL_VID0_EN];
     assign CTL_VID_EN_OUT[1]    = clk_ctl[P_CTL_VID1_EN];
-    assign CTL_MST_OUT          = clk_ctl[P_CTL_MST];
+    assign CTL_MST_EN_OUT       = clk_ctl[P_CTL_MST_EN];
+    assign CTL_MST_ACT_OUT      = clk_ctl[P_CTL_MST_ACT];
     assign CTL_SCRM_EN_OUT      = clk_ctl[P_CTL_SCRM_EN];
-    assign CTL_VC0_LEN_OUT      = clk_vc_len[0+:$size(CTL_VC0_LEN_OUT)];
-    assign CTL_VC1_LEN_OUT      = clk_vc_len[8+:$size(CTL_VC1_LEN_OUT)];
+    assign CTL_VC0_TS_OUT      = clk_vc_ts[0+:$size(CTL_VC0_TS_OUT)];
+    assign CTL_VC1_TS_OUT      = clk_vc_ts[8+:$size(CTL_VC1_TS_OUT)];
 
 endmodule
 

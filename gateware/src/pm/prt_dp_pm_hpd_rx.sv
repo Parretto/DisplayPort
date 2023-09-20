@@ -5,11 +5,12 @@
 
 
     Module: DP PM HPD RX
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Changed naming HPD Pulse to HPD IRQ. Fixed issue with HPD IRQ generation.
 
     License
     =======
@@ -51,19 +52,18 @@ module prt_dp_pm_hpd_rx
 );
 
 // Local parameters
-localparam P_HPD_CNT_VAL        = P_SIM ? 512 : 1;
 localparam P_CTL_RUN 		    = 0;
 localparam P_CTL_HPD_UNPLUG     = 1;
 localparam P_CTL_HPD_PLUG 	    = 2;
-localparam P_CTL_HPD_PULSE 	    = 3;
+localparam P_CTL_HPD_IRQ 	    = 3;
 localparam P_CTL_WIDTH 	        = 4;
 
-localparam P_HMS_VAL            = 'd2000;     // 2 ms
-localparam P_IPW_VAL            = 'd500;      // 500 us
+localparam P_HMS_VAL            = P_SIM ? 'd10 : 'd2000;    // 2 ms
+localparam P_IPW_VAL            = P_SIM ? 'd5 : 'd500;      // 500 us
 
 // State machine
 typedef enum {
-	sm_rst, sm_idle, sm_pulse
+	sm_rst, sm_idle, sm_irq
 } state_type; 
 
 // Structure
@@ -84,8 +84,8 @@ typedef struct {
 	logic					    hpd_unplug_clr;	    // Unplug event clear
 	logic					    hpd_plug;			// Plug event
 	logic					    hpd_plug_clr;		// Plug event clear
-	logic					    hpd_pulse;			// IRQ event
-	logic					    hpd_pulse_clr;		// IRQ event clear
+	logic					    hpd_irq;			// IRQ event
+	logic					    hpd_irq_clr;		// IRQ event clear
 } ctl_struct;
 
 typedef struct {
@@ -97,15 +97,15 @@ typedef struct {
     logic                       pin;
     logic                       pin_set;
     logic                       pin_clr;
-    logic   [17:0]              cnt;                // The threshold register is 8 bits and the value is multiplied by 1024 (10 bits)
-    logic   [17:0]              cnt_in;             // The threshold register is 8 bits and the value is multiplied by 1024 (10 bits)
+    logic   [15:0]              cnt;             
+    logic   [15:0]              cnt_in;          
     logic                       cnt_ld;
     logic                       cnt_end;
 } hpd_struct;
 
 // Signals
 state_type          clk_sm_cur, clk_sm_nxt;
-logic               clk_beat_re;
+wire                clk_beat_re;
 lb_struct           clk_lb;         // Local bus
 ctl_struct          clk_ctl;        // Control register
 hpd_struct          clk_hpd;
@@ -191,15 +191,15 @@ hpd_struct          clk_hpd;
             else if (clk_ctl.hpd_plug_clr)
                 clk_ctl.r[P_CTL_HPD_PLUG] <= 0;
 
-            else if (clk_ctl.hpd_pulse_clr)
-                clk_ctl.r[P_CTL_HPD_PULSE] <= 0;
+            else if (clk_ctl.hpd_irq_clr)
+                clk_ctl.r[P_CTL_HPD_IRQ] <= 0;
         end
     end
 
     assign clk_ctl.run          = clk_ctl.r[P_CTL_RUN];
     assign clk_ctl.hpd_unplug   = clk_ctl.r[P_CTL_HPD_UNPLUG];
     assign clk_ctl.hpd_plug     = clk_ctl.r[P_CTL_HPD_PLUG];
-    assign clk_ctl.hpd_pulse    = clk_ctl.r[P_CTL_HPD_PULSE];
+    assign clk_ctl.hpd_irq      = clk_ctl.r[P_CTL_HPD_IRQ];
 
 // State machine
     always_ff @ (posedge RST_IN, posedge CLK_IN)
@@ -228,7 +228,7 @@ hpd_struct          clk_hpd;
         clk_hpd.pin_set         = 0;
         clk_ctl.hpd_unplug_clr  = 0;
         clk_ctl.hpd_plug_clr    = 0;
-        clk_ctl.hpd_pulse_clr   = 0;
+        clk_ctl.hpd_irq_clr     = 0;
         clk_sm_nxt              = sm_rst;
 
         case (clk_sm_cur)
@@ -259,20 +259,20 @@ hpd_struct          clk_hpd;
                 end
 
                 // IRQ event
-                else if (clk_ctl.hpd_pulse && clk_hpd.cnt_end)
+                else if (clk_ctl.hpd_irq && clk_hpd.cnt_end)
                 begin
-                    clk_ctl.hpd_pulse_clr   = 1;
+                    clk_ctl.hpd_irq_clr     = 1;
                     clk_hpd.pin_clr         = 1;
                     clk_hpd.cnt_ld          = 1;
                     clk_hpd.cnt_in          = P_IPW_VAL;    // Load counter with IRQ pulse width
-                    clk_sm_nxt              = sm_pulse;
+                    clk_sm_nxt              = sm_irq;
                 end
 
                 else
                     clk_sm_nxt              = sm_idle;
             end
 
-            sm_pulse :
+            sm_irq :
             begin
                 if (clk_hpd.cnt_end)
                 begin
@@ -283,7 +283,7 @@ hpd_struct          clk_hpd;
                 end
 
                 else
-                    clk_sm_nxt              = sm_pulse;
+                    clk_sm_nxt              = sm_irq;
             end
 
             default : ;
@@ -298,11 +298,11 @@ hpd_struct          clk_hpd;
         begin
             // Load
             if (clk_hpd.cnt_ld)
-                clk_hpd.cnt <= {clk_hpd.cnt_in, 9'h0};
+                clk_hpd.cnt <= clk_hpd.cnt_in;
 
             // Decrement
             else if (!clk_hpd.cnt_end && clk_beat_re)
-                clk_hpd.cnt <= clk_hpd.cnt - P_HPD_CNT_VAL;
+                clk_hpd.cnt <= clk_hpd.cnt - 'd1;
         end
 
         // Idle

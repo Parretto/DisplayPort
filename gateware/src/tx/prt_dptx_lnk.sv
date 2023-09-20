@@ -97,9 +97,10 @@ localparam P_VID_MSG_IF = 2;
 wire [1:0]  lanes_from_ctl;
 wire        trn_sel_from_ctl;
 wire [1:0]  vid_en_from_ctl;
-wire        mst_from_ctl;
+wire        mst_en_from_ctl;
+wire        mst_act_from_ctl;
 wire        scrm_en_from_ctl;
-wire [5:0]  vc_len_from_ctl[0:1];
+wire [5:0]  vc_ts_from_ctl[0:1];
 
 // Message
 prt_dp_msg_if
@@ -377,10 +378,11 @@ endgenerate
         .CTL_LANES_OUT      (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
         .CTL_TRN_SEL_OUT    (trn_sel_from_ctl),     // Training select
         .CTL_VID_EN_OUT     (vid_en_from_ctl),      // Video enable
-        .CTL_MST_OUT        (mst_from_ctl),         // MST
+        .CTL_MST_EN_OUT     (mst_en_from_ctl),      // MST enable / disable
+        .CTL_MST_ACT_OUT    (mst_act_from_ctl),     // MST allocation change trigger (ACT)
         .CTL_SCRM_EN_OUT    (scrm_en_from_ctl),     // Scrambler enable
-        .CTL_VC0_LEN_OUT    (vc_len_from_ctl[0]),   // VC0 length
-        .CTL_VC1_LEN_OUT    (vc_len_from_ctl[1])    // VC1 length
+        .CTL_VC0_TS_OUT     (vc_ts_from_ctl[0]),    // VC0 time slots
+        .CTL_VC1_TS_OUT     (vc_ts_from_ctl[1])     // VC1 time slots
     );
 
 // Video stream 0
@@ -407,9 +409,9 @@ endgenerate
     (
         // Control
         .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
-        .CTL_EN_IN          (vid_en_from_ctl[0]),   // Enable
-        .CTL_MST_IN         (mst_from_ctl),         // MST
-        .CTL_VC_LEN_IN      (vc_len_from_ctl[0]),   // VC length
+        .CTL_EN_IN          (vid_en_from_ctl[0]),   // Video enable
+        .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
+        .CTL_VC_LEN_IN      (vc_ts_from_ctl[0]),    // VC time slots
 
         // Video message
         .VID_MSG_SNK_IF     (vid0_msg_if[0]),       // Sink
@@ -456,9 +458,9 @@ generate
         (
             // Control
             .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
-            .CTL_EN_IN          (vid_en_from_ctl[1]),   // Enable
-            .CTL_MST_IN         (mst_from_ctl),         // MST
-            .CTL_VC_LEN_IN      (vc_len_from_ctl[1]),   // VC length
+            .CTL_EN_IN          (vid_en_from_ctl[1]),   // Video enable
+            .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
+            .CTL_VC_LEN_IN      (vc_ts_from_ctl[1]),    // VC time slots
 
             // Video message
             .VID_MSG_SNK_IF     (vid1_msg_if[0]),        // Sink
@@ -509,7 +511,7 @@ endgenerate
         .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
         .CTL_VID_EN_IN      (vid_en_from_ctl[0]),   // Video Enable
         .CTL_SCRM_EN_IN     (scrm_en_from_ctl),     // Scrambler Enable
-        .CTL_MST_IN         (mst_from_ctl),         // MST
+        .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
 
         // Message
         .MSG_SNK_IF         (lnk_msg_if[2]),        // Sink
@@ -556,19 +558,19 @@ generate
             .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
             .CTL_VID_EN_IN      (vid_en_from_ctl[1]),   // Video Enable
             .CTL_SCRM_EN_IN     (scrm_en_from_ctl),     // Scrambler Enable
-            .CTL_MST_IN         (mst_from_ctl),         // MST
+            .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
 
             // Message
             .MSG_SNK_IF         (lnk_msg_if[3]),        // Sink
             .MSG_SRC_IF         (lnk_msg_if[4]),        // Source
 
             // Video
-            .LNK_VS_IN          (vs_from_vid[1]),         // Vsync
-            .LNK_VBF_IN         (vbf_from_vid[1]),        // Vertical blanking flag
+            .LNK_VS_IN          (vs_from_vid[1]),       // Vsync
+            .LNK_VBF_IN         (vbf_from_vid[1]),      // Vertical blanking flag
 
             // Link
-            .LNK_SNK_IF         (lnk_from_vid[1]),        // Sink    
-            .LNK_SRC_IF         (lnk_from_msa[1])         // Source
+            .LNK_SNK_IF         (lnk_from_vid[1]),      // Sink    
+            .LNK_SRC_IF         (lnk_from_msa[1])       // Source
         );
     end
 endgenerate
@@ -593,10 +595,10 @@ generate
             .CLK_IN             (LNK_CLK_IN),
 
             // Control
-            .CTL_MST_IN         (mst_from_ctl),         // MST
-            .CTL_VID_EN_IN      (vid_en_from_ctl),      // Video enable
-            .CTL_VC0_LEN_IN     (vc_len_from_ctl[0]),   // VC0 length
-            .CTL_VC1_LEN_IN     (vc_len_from_ctl[1]),   // VC1 length
+            .CTL_MST_EN_IN      (mst_en_from_ctl),      // MST enable
+            .CTL_MST_ACT_IN     (mst_act_from_ctl),     // MST ACT
+            .CTL_VC0_TS_IN      (vc_ts_from_ctl[0]),    // VC0 time slots
+            .CTL_VC1_TS_IN      (vc_ts_from_ctl[1]),    // VC1 time slots
 
             // Sink stream 0
             .LNK0_SNK_IF        (lnk_from_msa[0]),      // Sink0
@@ -638,7 +640,7 @@ generate
 
             // Control
             .CTL_EN_IN      (scrm_en_from_ctl),         // Enable
-            .CTL_MST_IN     (mst_from_ctl),             // MST
+            .CTL_MST_IN     (mst_en_from_ctl),          // MST enable
 
             // Link
             .LNK_SNK_IF     (lnk_to_scrm_lane[i]),      // Sink

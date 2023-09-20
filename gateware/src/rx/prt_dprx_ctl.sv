@@ -5,12 +5,13 @@
 
 
     Module: DP RX Control
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2023 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added support for single lane
+    v1.2 - Added MST support
 
     License
     =======
@@ -47,14 +48,16 @@ module prt_dprx_ctl
     // Control output
     output wire         CTL_LNK_EN_OUT,         // Link enable 
     output wire [1:0]   CTL_LANES_OUT,          // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
-    output wire         CTL_SCRM_EN_OUT         // Scrambler enable
+    output wire         CTL_SCRM_EN_OUT,        // Scrambler enable
+    output wire         CTL_MST_EN_OUT          // MST enable
 );
 
 // Parameters
-localparam P_CTL_WIDTH          = 4;
+localparam P_CTL_WIDTH          = 5;
 localparam P_CTL_LNK_EN         = 0;
 localparam P_CTL_LANES          = 1;
 localparam P_CTL_SCRM_EN        = 3;
+localparam P_CTL_MST_EN         = 4;
 
 // Structures
 typedef struct {
@@ -138,6 +141,7 @@ logic [P_CTL_WIDTH-1:0]     clk_ctl;    // Control register
     assign CTL_LNK_EN_OUT       = clk_ctl[P_CTL_LNK_EN];
     assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES+:2];
     assign CTL_SCRM_EN_OUT      = clk_ctl[P_CTL_SCRM_EN];
+    assign CTL_MST_EN_OUT       = clk_ctl[P_CTL_MST_EN];
 
 endmodule
 
