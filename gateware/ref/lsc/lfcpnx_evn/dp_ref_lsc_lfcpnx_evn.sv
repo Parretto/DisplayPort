@@ -269,10 +269,11 @@ wire                            led_from_vid_hb;
 // Global reset 
 // This is needed to insert manually.
 // Else Radiant might select one of the internal DP reset signals.
+// In combination with SynplifyPro the GSR input must be disabled.
     GSR
     GSR_INST
     (
-        .GSR_N (~sclk_rst),  
+        .GSR_N (1'b1),  
         .CLK   (clk_from_sys_buf)  
     );
 
