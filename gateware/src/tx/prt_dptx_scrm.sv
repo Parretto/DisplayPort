@@ -14,6 +14,7 @@
            Dropped support for non enhanced framing mode
     v1.2 - Updated interfaces
     v1.3 - Added MST support
+    v1.4 - Added TPS4 
 
     License
     =======
@@ -45,6 +46,7 @@ module prt_dptx_scrm
     // Control
     input wire              CTL_EN_IN,      // Enable
     input wire              CTL_MST_IN,     // MST 
+    input wire              CTL_TPS4_IN,    // TPS4
 
     // Link 
     prt_dp_tx_lnk_if.snk    LNK_SNK_IF,     // Sink (link interface)
@@ -53,6 +55,9 @@ module prt_dptx_scrm
 
 // Package
 import prt_dp_pkg::*;
+
+// Parameters
+localparam P_TPS4_CNT_VAL = (P_SPL == 2) ? 125 : 62;
 
 // Function
 function logic [15:0] calc_lfsr (logic [15:0] lfsr_in);
@@ -78,6 +83,7 @@ endfunction
 typedef struct {
     logic                   en;
     logic                   mst;
+    logic                   tps4;
 } ctl_struct;
 
 typedef struct {
@@ -94,15 +100,27 @@ typedef struct {
     logic [15:0]            lfsr[0:P_SPL-1];
     logic [15:0]            lfsr_reg;
     logic [7:0]             dat[0:P_SPL-1];
-    } scrm_struct;
+} scrm_struct;
 
 typedef struct {
+    logic [6:0]             cnt;
+    logic                   cnt_end;
+    logic                   lfsr_rst;
     logic [8:0]             dat[0:P_SPL-1];
+    logic [P_SPL-1:0]       disp_ctl;
+    logic [P_SPL-1:0]       disp_val;
+} tps4_struct;
+
+typedef struct {
+    logic [8:0]             dat[0:P_SPL-1];     // Data
+    logic [P_SPL-1:0]       disp_ctl;           // Disparity control (0-automatic / 1-force)
+    logic [P_SPL-1:0]       disp_val;           // Disparity value (0-negative / 1-postive)
 } src_struct;
 
 ctl_struct  clk_ctl;
 snk_struct  clk_snk;
 scrm_struct clk_scrm;
+tps4_struct clk_tps4;
 src_struct  clk_src;
 
 genvar i, j;
@@ -112,16 +130,31 @@ genvar i, j;
 // Control
     always_ff @ (posedge CLK_IN)
     begin
-        clk_ctl.en  <= CTL_EN_IN;
-        clk_ctl.mst <= CTL_MST_IN;
+        clk_ctl.en      <= CTL_EN_IN;
+        clk_ctl.mst     <= CTL_MST_IN;
+        clk_ctl.tps4    <= CTL_TPS4_IN;
     end
 
 // Link input
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_lnk
-        assign clk_snk.sym[i] = prt_dp_tx_lnk_sym'(LNK_SNK_IF.sym[0][i]);
-        assign clk_snk.dat[i] = LNK_SNK_IF.dat[0][i];
+        always_comb
+        begin
+            // TPS4
+            if (clk_ctl.tps4)
+            begin
+                clk_snk.sym[i] = TX_LNK_SYM_NOP;
+                clk_snk.dat[i] = 0; 
+            end
+
+            // Normal operation
+            else
+            begin
+                clk_snk.sym[i] = prt_dp_tx_lnk_sym'(LNK_SNK_IF.sym[0][i]);
+                clk_snk.dat[i] = LNK_SNK_IF.dat[0][i];
+            end
+        end
     end
 endgenerate
 
@@ -151,28 +184,37 @@ endgenerate
 
 // LFSR reset sublane 0
 // Must be registered
-    always_ff @ (posedge CLK_IN)
-    begin
-        // Default
-        clk_scrm.lfsr_rst[0] <= 0;
+generate
+    for (i = 0; i < P_SPL; i++)
+    begin : gen_lfsr_rst
 
-        if (clk_scrm.sr_det[P_SPL-1])
-            clk_scrm.lfsr_rst[0] <= 1;
-    end
+        if (i == 0)
+        begin
+            always_ff @ (posedge CLK_IN)
+            begin
+                // Default
+                clk_scrm.lfsr_rst[0] <= 0;
 
-// LFSR reset other sublanes
-// Must be combinatorial
-    always_comb
-    begin
-        for (int i = 1; i < P_SPL; i++)
-        begin : gen_lfsr_rst
-            // Default
-            clk_scrm.lfsr_rst[i] = 0;
+                if (clk_scrm.sr_det[P_SPL-1] || clk_tps4.lfsr_rst)
+                    clk_scrm.lfsr_rst[0] <= 1;
+            end
+        end
 
-            if (clk_scrm.sr_det[i-1])
-                clk_scrm.lfsr_rst[i] = 1;
+        else
+        begin
+            // LFSR reset other sublanes
+            // Must be combinatorial
+            always_comb
+            begin
+                // Default
+                clk_scrm.lfsr_rst[i] = 0;
+
+                if (clk_scrm.sr_det[i-1])
+                    clk_scrm.lfsr_rst[i] = 1;
+            end
         end
     end
+endgenerate
 
 // LFSR in
     assign clk_scrm.lfsr_in[0] = clk_scrm.lfsr_reg;
@@ -191,7 +233,8 @@ generate
         always_comb
         begin
             // Enabled
-            if (clk_ctl.en)
+            // During normal operation or force it in TPS4
+            if (clk_ctl.en || clk_ctl.tps4)
             begin
                 // Clear
                 if (clk_scrm.lfsr_rst[i])
@@ -234,15 +277,172 @@ generate
     end
 endgenerate
 
+// TPS4 counter
+// This counter is used in TPS4 mode to generate the training pattern
+    always_ff @ (posedge CLK_IN)
+    begin
+        // Enable
+        if (clk_ctl.tps4)
+        begin
+            // Load
+            if (clk_tps4.cnt_end)
+                clk_tps4.cnt <= P_TPS4_CNT_VAL;
+
+            // Decrement
+            else 
+                clk_tps4.cnt <= clk_tps4.cnt - 'd1;
+        end
+
+
+        // Idle
+        else
+            clk_tps4.cnt <= 0;
+    end
+
+// TPS4 counter end
+    always_comb
+    begin
+        if (clk_tps4.cnt == 0)
+            clk_tps4.cnt_end = 1;
+        else
+            clk_tps4.cnt_end = 0;
+    end
+
+// TPS4 LFSR reset
+generate
+    // Four lanes
+    if (P_SPL == 4)
+    begin : gen_tps4_lfsr_rst_4spl
+        always_comb
+        begin
+            if (clk_tps4.cnt == 'd62)
+                clk_tps4.lfsr_rst = 1;
+            else
+                clk_tps4.lfsr_rst = 0;
+        end
+    end
+
+    // Two lanes
+    else
+    begin : gen_tps4_lfsr_rst_2spl
+        always_comb
+        begin
+            if (clk_tps4.cnt == 'd124)
+                clk_tps4.lfsr_rst = 1;
+            else
+                clk_tps4.lfsr_rst = 0;
+        end
+    end
+
+endgenerate
+
+// TPS4 data
+generate
+    // Four lanes
+    if (P_SPL == 4)
+    begin : gen_tps4_dat_4spl
+        always_ff @ (posedge CLK_IN)
+        begin
+            if (clk_tps4.cnt == 'd62)
+            begin
+                // Sublane 0
+                clk_tps4.disp_ctl[0]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[0]    <= 0;               // Force disparity value
+                clk_tps4.dat[0]         <= P_SYM_K28_0;     // K28.0-
+
+                // Sublane 1
+                clk_tps4.disp_ctl[1]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[1]    <= 0;               // Force disparity value
+                clk_tps4.dat[1]         <= P_SYM_K28_5;     // K28.5-
+
+                // Sublane 2
+                clk_tps4.disp_ctl[2]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[2]    <= 1;               // Force disparity value
+                clk_tps4.dat[2]         <= P_SYM_K28_5;     // K28.5+
+
+                // Sublane 3
+                clk_tps4.disp_ctl[3]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[3]    <= 0;               // Force disparity value
+                clk_tps4.dat[3]         <= P_SYM_K28_0;     // K28.0-
+            end
+
+            else
+            begin
+                for (int i = 0; i < P_SPL; i++)
+                begin
+                    clk_tps4.disp_ctl[i] <= 0;
+                    clk_tps4.disp_val[i] <= 0;
+                    clk_tps4.dat[i] <= {1'b0, clk_scrm.dat[i]};
+                end
+            end
+        end
+    end
+
+    // Two lanes
+    else
+    begin : gen_tps4_dat_2spl
+        always_ff @ (posedge CLK_IN)
+        begin
+            if (clk_tps4.cnt == 'd125)
+            begin
+                // Sublane 0
+                clk_tps4.disp_ctl[0]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[0]    <= 0;               // Force disparity value
+                clk_tps4.dat[0]         <= P_SYM_K28_0;     // K28.0-
+
+                // Sublane 1
+                clk_tps4.disp_ctl[1]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[1]    <= 0;               // Force disparity value
+                clk_tps4.dat[1]         <= P_SYM_K28_5;     // K28.5-
+            end
+
+            else if (clk_tps4.cnt == 'd124)
+            begin
+                // Sublane 0
+                clk_tps4.disp_ctl[0]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[0]    <= 1;               // Force disparity value
+                clk_tps4.dat[0]         <= P_SYM_K28_5;     // K28.5+
+
+                // Sublane 1
+                clk_tps4.disp_ctl[1]    <= 1;               // Force disparity control
+                clk_tps4.disp_val[1]    <= 0;               // Force disparity value
+                clk_tps4.dat[1]         <= P_SYM_K28_0;     // K28.0-
+            end
+
+            else
+            begin
+                for (int i = 0; i < P_SPL; i++)
+                begin
+                    clk_tps4.disp_ctl[i] <= 0;
+                    clk_tps4.disp_val[i] <= 0;
+                    clk_tps4.dat[i] <= {1'b0, clk_scrm.dat[i]};
+                end
+            end
+        end
+    end
+endgenerate
+
 // Data output
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_dout
         always_ff @ (posedge CLK_IN)
         begin
-            // MST
-            if (clk_ctl.mst)
+            // TPS4
+            if (clk_ctl.tps4)
             begin
+                clk_src.dat[i] <= clk_tps4.dat[i];
+                clk_src.disp_ctl[i] <= clk_tps4.disp_ctl[i];
+                clk_src.disp_val[i] <= clk_tps4.disp_val[i];
+            end
+
+            // MST
+            else if (clk_ctl.mst)
+            begin
+                // Disparity is not used
+                clk_src.disp_ctl[i] <= 0;
+                clk_src.disp_val[i] <= 0;
+                
                 // Scrambler reset
                 if (clk_snk.sym[i] == TX_LNK_SYM_MTPH_SR)
                     clk_src.dat[i] <= P_SYM_K28_5;
@@ -270,6 +470,10 @@ generate
             // SST
             else
             begin
+                // Disparity is not used
+                clk_src.disp_ctl[i] <= 0;
+                clk_src.disp_val[i] <= 0;
+
                 case (clk_snk.sym[i])
                     TX_LNK_SYM_SR   : clk_src.dat[i] <= P_SYM_K28_0; //P_SYM_SR;
                     TX_LNK_SYM_BS   : clk_src.dat[i] <= P_SYM_K28_5; //P_SYM_BS;
@@ -290,9 +494,9 @@ endgenerate
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_src
-        assign LNK_SRC_IF.disp_ctl[0][i] = 0; // Not used
-        assign LNK_SRC_IF.disp_val[0][i] = 0; // Not used
-        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = {clk_src.dat[i]};
+        assign LNK_SRC_IF.disp_ctl[0][i] = clk_src.disp_ctl[i]; 
+        assign LNK_SRC_IF.disp_val[0][i] = clk_src.disp_val[i]; 
+        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_src.dat[i];
     end
 endgenerate
 

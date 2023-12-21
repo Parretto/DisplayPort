@@ -100,6 +100,7 @@ wire [1:0]  vid_en_from_ctl;
 wire        mst_en_from_ctl;
 wire        mst_act_from_ctl;
 wire        scrm_en_from_ctl;
+wire        tps4_from_ctl;
 wire [5:0]  vc_ts_from_ctl[0:1];
 
 // Message
@@ -381,6 +382,7 @@ endgenerate
         .CTL_MST_EN_OUT     (mst_en_from_ctl),      // MST enable / disable
         .CTL_MST_ACT_OUT    (mst_act_from_ctl),     // MST allocation change trigger (ACT)
         .CTL_SCRM_EN_OUT    (scrm_en_from_ctl),     // Scrambler enable
+        .CTL_TPS4_OUT       (tps4_from_ctl),        // TPS4
         .CTL_VC0_TS_OUT     (vc_ts_from_ctl[0]),    // VC0 time slots
         .CTL_VC1_TS_OUT     (vc_ts_from_ctl[1])     // VC1 time slots
     );
@@ -641,6 +643,7 @@ generate
             // Control
             .CTL_EN_IN      (scrm_en_from_ctl),         // Enable
             .CTL_MST_IN     (mst_en_from_ctl),          // MST enable
+            .CTL_TPS4_IN    (tps4_from_ctl),            // TPS4
 
             // Link
             .LNK_SNK_IF     (lnk_to_scrm_lane[i]),      // Sink

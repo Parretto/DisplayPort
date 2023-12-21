@@ -370,13 +370,13 @@ endgenerate
 	always_ff @ (posedge CLK_IN)
 	begin
 		if (clk_wp > clk_rp)
-			clk_wrds = clk_wp - clk_rp;
+			clk_wrds <= clk_wp - clk_rp;
 
 		else if (clk_wp < clk_rp)
-			clk_wrds = (P_WRDS - clk_rp) + clk_wp;
+			clk_wrds <= (P_WRDS - clk_rp) + clk_wp;
 
 		else
-			clk_wrds = 0;
+			clk_wrds <= 0;
 	end
 	
 // Outputs

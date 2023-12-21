@@ -1,25 +1,22 @@
 ###
 # Clocks
 ###
+
 # System clock 125 MHz
-create_clock -period 8.000 -name sys_clk -waveform {0.000 4.000} [get_ports CLK_IN_P]
+create_clock -period 8.000 -name sys_clk_in -waveform {0.000 4.000} [get_ports CLK_IN_P]
 
-# Link clock 1.62 Gbps @ 2 sublanes = 81 MHz
-#create_clock -period 12.345 -name tx_lnk_clk -waveform {0.000 6.1725} [get_pins {GT_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-
-# Link clock 2.7 Gbps @ 2 sublanes = 135 MHz
-#create_clock -period 7.407 -name tx_lnk_clk -waveform {0.000 3.704} [get_pins {GT_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-
-# Link clock 8.1 Gbps @ 4 sublanes = 202.5 MHz
-create_clock -period 4.938 -name tx_lnk_clk -waveform {0.000 2.469} [get_pins {phy_4spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-create_clock -period 4.938 -name rx_lnk_clk -waveform {0.000 2.469} [get_pins {phy_4spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
+# GT reference clock
+create_clock -period 7.407 -name gt_ref_clk -waveform {0.000 3.703} [get_ports {GT_REFCLK_IN_P[0]}]
 
 # Link clock 8.1 Gbps @ 2 sublanes = 405 MHz
-#create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-#create_clock -period 2.469 -name rx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
+create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
+create_clock -period 2.469 -name rx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
 
 # Video clock 4K60p @ 2 pixel per clock = 297 MHz
-create_clock -period 3.367 -name tx_vid_clk -waveform {0.000 1.683} [get_ports TENTIVA_VID_CLK_IN_P]
+create_clock -period 3.367 -name vid_clk -waveform {0.000 1.683} [get_ports TENTIVA_VID_CLK_IN_P]
+
+# Rename auto generated clocks
+create_generated_clock -name sys_clk [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]
 
 # This constraint is required, else the drp pll can't be placed.
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets clk_from_sys_ibuf_BUFGCE]
@@ -120,33 +117,17 @@ set_property PACKAGE_PIN G21 [get_ports CLK_IN_P]
 #set_property DIFF_TERM_ADV TERM_100 [get_ports CLK_IN_P]
 
 # GT reference clock
-set_property PACKAGE_PIN G7 [get_ports GT_REFCLK_IN_N]
-set_property PACKAGE_PIN G8 [get_ports GT_REFCLK_IN_P]
+set_property PACKAGE_PIN G8 [get_ports GT_REFCLK_IN_P[0]]
+set_property PACKAGE_PIN G7 [get_ports GT_REFCLK_IN_N[0]]
+set_property PACKAGE_PIN L8 [get_ports GT_REFCLK_IN_P[1]]
+set_property PACKAGE_PIN L7 [get_ports GT_REFCLK_IN_N[1]]
 
 ###
 # Timing
 ###
 
-
-###
-# False path
-###
-# System clock
-set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks tx_vid_clk]
-set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks tx_lnk_clk]
-set_false_path -from [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks rx_lnk_clk]
-
-# Video clock
-set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
-set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks tx_lnk_clk]
-set_false_path -from [get_clocks tx_vid_clk] -to [get_clocks rx_lnk_clk]
-
-# TX link clock
-set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
-set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks tx_vid_clk]
-
-# RX link clock
-set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks -of_objects [get_pins PLL_INST/inst/mmcme4_adv_inst/CLKOUT0]]
-set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks rx_vid_clk]
-
-
+# Set asynchronous clock groups
+set_clock_groups -asynchronous -group sys_clk
+set_clock_groups -asynchronous -group tx_lnk_clk
+set_clock_groups -asynchronous -group rx_lnk_clk
+set_clock_groups -asynchronous -group vid_clk

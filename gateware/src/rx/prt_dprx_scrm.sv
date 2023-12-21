@@ -170,30 +170,39 @@ endgenerate
         end
     end
 
-// LFSR reset sublane 0
-// Must be registered
-    always_ff @ (posedge CLK_IN)
-    begin
-        // Default
-        clk_lfsr_rst[0] <= 0;
-
-        if (clk_sr_det[P_SPL-1])
-            clk_lfsr_rst[0] <= 1;
-    end
-
-// LFSR reset sublane 1
-// Must be combinatorial
-    always_comb
-    begin
-        for (int i = 1; i < P_SPL; i++)
+// LFSR reset
+generate
+    for (i = 0; i < P_SPL; i++)
+    begin : gen_lfsr_rst
+        if (i == 0)
         begin
-            // Default
-            clk_lfsr_rst[i] = 0;
+            // LFSR reset sublane 0
+            // Must be registered
+            always_ff @ (posedge CLK_IN)
+            begin
+                // Default
+                clk_lfsr_rst[0] <= 0;
 
-            if (clk_sr_det[i-1])
-                clk_lfsr_rst[i] = 1;
+                if (clk_sr_det[P_SPL-1])
+                    clk_lfsr_rst[0] <= 1;
+            end
+        end
+
+        else
+        begin
+            // LFSR reset other sublanes
+            // Must be combinatorial
+            always_comb
+            begin
+                // Default
+                clk_lfsr_rst[i] = 0;
+
+                if (clk_sr_det[i-1])
+                    clk_lfsr_rst[i] = 1;
+            end
         end
     end
+endgenerate
 
 // LFSR in
     assign clk_lfsr_in[0] = clk_lfsr_reg;

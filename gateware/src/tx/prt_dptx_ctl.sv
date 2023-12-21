@@ -55,12 +55,13 @@ module prt_dptx_ctl
     output wire         CTL_MST_EN_OUT,         // MST enable
     output wire         CTL_MST_ACT_OUT,        // MST allocation change trigger (ACT)
     output wire         CTL_SCRM_EN_OUT,        // Scrambler enable
+    output wire         CTL_TPS4_OUT,           // TPS4
     output wire [5:0]   CTL_VC0_TS_OUT,         // VC0 time slots
     output wire [5:0]   CTL_VC1_TS_OUT          // VC1 time slots
 );
 
 // Parameters
-localparam P_CTL_WIDTH          = 8;
+localparam P_CTL_WIDTH          = 9;
 localparam P_CTL_LANES          = 0;
 localparam P_CTL_TRN_SEL        = 2;
 localparam P_CTL_VID0_EN        = 3;
@@ -68,6 +69,7 @@ localparam P_CTL_VID1_EN        = 4;
 localparam P_CTL_MST_EN         = 5;
 localparam P_CTL_MST_ACT        = 6;
 localparam P_CTL_SCRM_EN        = 7;
+localparam P_CTL_TPS4           = 8;
 
 // Structures
 typedef struct {
@@ -182,8 +184,9 @@ endgenerate
     assign CTL_MST_EN_OUT       = clk_ctl[P_CTL_MST_EN];
     assign CTL_MST_ACT_OUT      = clk_ctl[P_CTL_MST_ACT];
     assign CTL_SCRM_EN_OUT      = clk_ctl[P_CTL_SCRM_EN];
-    assign CTL_VC0_TS_OUT      = clk_vc_ts[0+:$size(CTL_VC0_TS_OUT)];
-    assign CTL_VC1_TS_OUT      = clk_vc_ts[8+:$size(CTL_VC1_TS_OUT)];
+    assign CTL_TPS4_OUT         = clk_ctl[P_CTL_TPS4];
+    assign CTL_VC0_TS_OUT       = clk_vc_ts[0+:$size(CTL_VC0_TS_OUT)];
+    assign CTL_VC1_TS_OUT       = clk_vc_ts[8+:$size(CTL_VC1_TS_OUT)];
 
 endmodule
 

@@ -136,7 +136,7 @@ genvar i;
 		// Default
 		clk_ctl.sel 		= 0;
 		clk_sta.sel 		= 0;
-		clk_tmr.sel	 	= 0;
+		clk_tmr.sel	 		= 0;
 		clk_alrm[0].sel 	= 0;
 		clk_alrm[1].sel 	= 0;
 

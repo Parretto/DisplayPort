@@ -94,50 +94,37 @@ genvar i;
           clk_up.din <= LB_UP_IF.din;
      end
 
-// Select
-     always_comb
-     begin
-          for (int i = 0; i < P_PORTS; i++)
+// Loop over all ports
+generate 
+     for (i = 0; i < P_PORTS; i++)
+     begin : gen_dwn
+
+          // Select
+          always_comb
           begin
                if (clk_up.adr[16+:$clog2(P_PORTS)] == i)
                     clk_dwn[i].sel = 1;
                else
                     clk_dwn[i].sel = 0;
           end
-     end
 
-// Address
-generate
-     for (i = 0; i < P_PORTS; i++)
-     begin : gen_adr
+          // Address
           assign clk_dwn[i].adr = clk_up.adr[0+:$size(clk_dwn[i].adr)];
-     end
-endgenerate
 
-// Data out
-generate
-     for (i = 0; i < P_PORTS; i++)
-     begin : gen_dout
+          // Data out
           assign clk_dwn[i].dout = clk_up.din;
-     end
-endgenerate
 
-// Write
-     always_comb
-     begin
-          for (int i = 0; i < P_PORTS; i++)
+          // Write
+          always_comb
           begin
                if (clk_dwn[i].sel && clk_up.wr)
                     clk_dwn[i].wr = 1;
                else
                     clk_dwn[i].wr = 0;
           end
-     end
 
-// Read
-     always_comb
-     begin
-          for (int i = 0; i < P_PORTS; i++)
+          // Read
+          always_comb
           begin
                if (clk_dwn[i].sel && clk_up.rd)
                     clk_dwn[i].rd = 1;
@@ -145,6 +132,7 @@ endgenerate
                     clk_dwn[i].rd = 0;
           end
      end
+endgenerate
 
 // Upstream data
 // The upstream data is registered

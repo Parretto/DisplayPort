@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Separated TX and RX reference clocks
 
     License
     =======
@@ -61,8 +62,8 @@ module dp_ref_amd_zcu102
     output wire             DPRX_HPD_OUT,               // HPD
 
     // GT
-    input wire              GT_REFCLK_IN_P,             // GT reference clock
-    input wire              GT_REFCLK_IN_N,
+    input wire [1:0]        GT_REFCLK_IN_P,             // GT reference clock
+    input wire [1:0]        GT_REFCLK_IN_N,
     input wire [3:0]        GT_RX_IN_P,                 // GT receive
     input wire [3:0]        GT_RX_IN_N,
     output wire [3:0]       GT_TX_OUT_P,                // GT transmit
@@ -139,9 +140,9 @@ wire                            sys_clk_from_pll;
 wire                            drp_clk_from_pll;
 wire                            clk_from_vid_ibuf;
 wire                            clk_from_vid_bufg;
-wire                            clk_from_gt_ibuf;
-wire                            odiv2_from_gt_ibuf;
-wire                            clk_from_gt_bufg;
+wire [1:0]                      clk_from_gt_ibuf;
+wire [1:0]                      odiv2_from_gt_ibuf;
+wire [1:0]                      clk_from_gt_bufg;
 
 // Reset
 (* dont_touch = "yes" *) logic [7:0]    clk_por_line = 0;
@@ -270,7 +271,7 @@ genvar i;
     );
 
 // PLL
-// The system PLL generates the 100 MHz system clock.
+// The system PLL generates the 50 MHz system clock.
 // Also it generates the 50 MHz DRP clock.
     sys_pll
     PLL_INST
@@ -300,33 +301,38 @@ genvar i;
       .O    (clk_from_vid_bufg)     // 1-bit output: Clock output.
     );
 
-// GT Refclk buffer
-    IBUFDS_GTE4
-    #(
-        .REFCLK_EN_TX_PATH  (1'b0),
-        .REFCLK_HROW_CK_SEL (2'b00),
-        .REFCLK_ICNTL_RX    (2'b00)
-    )
-    GT_IBUFDS_INST
-    (
-        .I      (GT_REFCLK_IN_P),
-        .IB     (GT_REFCLK_IN_N),
-        .CEB    (1'b0),
-        .O      (clk_from_gt_ibuf),
-        .ODIV2  (odiv2_from_gt_ibuf)
-    );
+// GT Reference clock buffers
+generate
+    for (i = 0; i < 2; i++)
+    begin : gen_gt_refclk_buf
+        IBUFDS_GTE4
+        #(
+            .REFCLK_EN_TX_PATH  (1'b0),
+            .REFCLK_HROW_CK_SEL (2'b00),
+            .REFCLK_ICNTL_RX    (2'b00)
+        )
+        GT_IBUFDS_INST
+        (
+            .I      (GT_REFCLK_IN_P[i]),
+            .IB     (GT_REFCLK_IN_N[i]),
+            .CEB    (1'b0),
+            .O      (clk_from_gt_ibuf[i]),
+            .ODIV2  (odiv2_from_gt_ibuf[i])
+        );
 
-   BUFG_GT
-   BUFG_GT_INST
-   (
-      .CE       (1'b1),
-      .CEMASK   (1'b0),
-      .CLR      (1'b0),
-      .CLRMASK  (1'b0),
-      .DIV      (3'd0),
-      .I        (odiv2_from_gt_ibuf),
-      .O        (clk_from_gt_bufg)
-   );
+        BUFG_GT
+        BUFG_GT_INST
+        (
+            .CE       (1'b1),
+            .CEMASK   (1'b0),
+            .CLR      (1'b0),
+            .CLRMASK  (1'b0),
+            .DIV      (3'd0),
+            .I        (odiv2_from_gt_ibuf[i]),
+            .O        (clk_from_gt_bufg[i])
+        );
+    end
+endgenerate
 
 // Power on reset
     always_ff @ (posedge sys_clk_from_pll)
@@ -858,7 +864,7 @@ generate
 
             // CPLL
             .cpllpd_in                                  ({4{phy_cpll_rst_from_app}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf}}),
+            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),         // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
@@ -870,7 +876,7 @@ generate
 
             // QPLL
             .qpll0reset_in                              (phy_qpll_rst_from_app),
-            .gtrefclk00_in                              (clk_from_gt_ibuf),
+            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),              // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -982,7 +988,7 @@ generate
 
             // CPLL
             .cpllpd_in                                  ({4{phy_cpll_rst_from_app}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf}}),
+            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),         // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
@@ -994,7 +1000,7 @@ generate
 
             // QPLL
             .qpll0reset_in                              (phy_qpll_rst_from_app),
-            .gtrefclk00_in                              (clk_from_gt_ibuf),
+            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),              // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -1279,14 +1285,14 @@ endgenerate
         .LED_OUT    (led_from_vid_hb)
     );
 
-// GT clock heartbeat
+// GTTX clock heartbeat
     prt_hb
     #(
         .P_BEAT ('d67_500_000)
     )
-    GT_HB_INST
+    GTTX_HB_INST
     (
-        .CLK_IN     (clk_from_gt_bufg),
+        .CLK_IN     (clk_from_gt_bufg[0]),
         .LED_OUT    (led_from_gt_hb)
     );
 
