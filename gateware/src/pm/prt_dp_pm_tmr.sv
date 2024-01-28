@@ -5,12 +5,13 @@
 
 
     Module: DP PM Timer
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
 	v1.1 - Increase width alarm counter to 32 bits
+	v1.2 - Added Alarm enable
 
     License
     =======
@@ -18,7 +19,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -26,7 +27,7 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
 module prt_dp_pm_tmr
 #(
@@ -49,12 +50,15 @@ module prt_dp_pm_tmr
 );
 
 // Localparam
-localparam P_TMR_HB_BIT		= (P_SIM) ? 10 : 18;
+localparam P_TMR_HB_BIT		= (P_SIM) ? 10 : 18;	// Heartbeat timer
+localparam P_ALRMS 			= 2;					// Number of alarms
 
 // Control register bit locations
 localparam P_CTL_RUN 		= 0;
 localparam P_CTL_IE 		= 1;
-localparam P_CTL_WIDTH 		= 2;
+localparam P_CTL_ALRM0		= 2;
+localparam P_CTL_ALRM1		= 3;
+localparam P_CTL_WIDTH 		= 4;
 
 // Status register bit locations
 localparam P_STA_IRQ		= 0;
@@ -78,14 +82,15 @@ typedef struct {
 	logic						sel;				// Select
 	logic						run;				// Run
 	logic						ie;					// Interrupt enable
+	logic [P_ALRMS-1:0]			alrm;				// Alarm
 } ctl_struct;
 
 typedef struct {
 	logic	[P_STA_WIDTH-1:0]	r;					// Register
 	logic						sel;				// Select
 	logic						irq;				// Interrupt
-	logic						hb;				// Heart beat
-	logic [1:0]					alrm;			// Alarm
+	logic						hb;					// Heart beat
+	logic [P_ALRMS-1:0]			alrm;				// Alarm
 } sta_struct;
 
 typedef struct {
@@ -93,10 +98,10 @@ typedef struct {
 	logic	[9:0]				beat_cnt;			// Beat counter
 	logic						beat_cnt_end;		// Beat counter end
 	logic						beat_cnt_end_re;	// Beat counter end rising edge
-	logic						beat;			// Beat 
+	logic						beat;				// Beat 
 	logic						beat_re;			// Beat 
-	logic 	[31:0]				ts;				// Time stamp
-	logic						hb;				// Heart beat
+	logic 	[31:0]				ts;					// Time stamp
+	logic						hb;					// Heart beat
 } tmr_struct;
 
 typedef struct {
@@ -107,11 +112,11 @@ typedef struct {
 } alrm_struct;
 
 // Signals
-lb_struct			clk_lb;		// Local bus
-ctl_struct			clk_ctl;		// Control register
-sta_struct			clk_sta;		// Status register
-tmr_struct			clk_tmr;		// Timer
-alrm_struct			clk_alrm[0:1];	// Alarm
+lb_struct			clk_lb;				// Local bus
+ctl_struct			clk_ctl;			// Control register
+sta_struct			clk_sta;			// Status register
+tmr_struct			clk_tmr;			// Timer
+alrm_struct			clk_alrm[P_ALRMS];	// Alarm
 
 genvar i;
 
@@ -203,18 +208,28 @@ genvar i;
 			// Write
 			if (clk_ctl.sel && clk_lb.wr)
 				clk_ctl.r <= clk_lb.din[$size(clk_ctl.r)-1:0];
+
+			// The alarm flag 0 is disabled when the alarm counter expires
+			else if (clk_alrm[0].cnt_end_re)
+				clk_ctl.r[P_CTL_ALRM0] <= 0;
+
+			// The alarm flag 1 is disabled when the alarm counter expires
+			else if (clk_alrm[1].cnt_end_re)
+				clk_ctl.r[P_CTL_ALRM1] <= 0;
 		end
 	end
 
 // Control register bit locations
 	assign clk_ctl.run 			= clk_ctl.r[P_CTL_RUN];							// Run
 	assign clk_ctl.ie 			= clk_ctl.r[P_CTL_IE];							// Interrupt enable
+	assign clk_ctl.alrm[0] 		= clk_ctl.r[P_CTL_ALRM0];						// Alarm 0
+	assign clk_ctl.alrm[1] 		= clk_ctl.r[P_CTL_ALRM1];						// Alarm 1
 
 // Status register
 	assign clk_sta.r[P_STA_IRQ] 	= clk_sta.irq;
-	assign clk_sta.r[P_STA_HB] 	= clk_sta.hb;
-	assign clk_sta.r[P_STA_ALRM0] = clk_sta.alrm[0];
-	assign clk_sta.r[P_STA_ALRM1] = clk_sta.alrm[1];
+	assign clk_sta.r[P_STA_HB] 		= clk_sta.hb;
+	assign clk_sta.r[P_STA_ALRM0] 	= clk_sta.alrm[0];
+	assign clk_sta.r[P_STA_ALRM1] 	= clk_sta.alrm[1];
 
 // Interrupt
 	always_ff @ (posedge CLK_IN)
@@ -247,48 +262,35 @@ genvar i;
 			clk_sta.hb <= 0;
 	end
 
-// Alarm 0
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Enable
-		if (clk_ctl.run)
+// Status Alarm 
+generate
+	for (i = 0 ; i < P_ALRMS; i++)
+	begin : gen_sta_alrm
+		always_ff @ (posedge CLK_IN)
 		begin
-			// Clear
-			if (clk_sta.sel && clk_lb.wr && clk_lb.din[P_STA_ALRM0])
-				clk_sta.alrm[0] <= 0;
+			// Enable
+			if (clk_ctl.run)
+			begin
+				// Clear
+				// When setting the alarm bit in the status register.
+				if (clk_sta.sel && clk_lb.wr && clk_lb.din[P_STA_ALRM0+i])
+					clk_sta.alrm[i] <= 0;
 
-			// Set
-			else if (clk_alrm[0].cnt_end_re)
-				clk_sta.alrm[0] <= 1;
+				// Set
+				// When the alarm timer expires and the control bit is set.
+				else if (clk_alrm[i].cnt_end_re && clk_ctl.alrm[i])
+					clk_sta.alrm[i] <= 1;
+			end
+
+			// Idle
+			else
+				clk_sta.alrm[i] <= 0;
 		end
-
-		// Idle
-		else
-			clk_sta.alrm[0] <= 0;
 	end
-
-// Alarm 1
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Enable
-		if (clk_ctl.run)
-		begin
-			// Clear
-			if (clk_sta.sel && clk_lb.wr && clk_lb.din[P_STA_ALRM1])
-				clk_sta.alrm[1] <= 0;
-
-			// Set
-			else if (clk_alrm[1].cnt_end_re)
-				clk_sta.alrm[1] <= 1;
-		end
-
-		// Idle
-		else
-			clk_sta.alrm[1] <= 0;
-	end
+endgenerate
 
 // Beat counter
-// This counter expires evry full period of the 1 MHz clock cycle.
+// This counter expires every full period of the 1 MHz clock cycle.
 // The beat value is the value to divide the system clock in 1 MHz. 
 	always_ff @ (posedge CLK_IN)
 	begin
@@ -405,7 +407,7 @@ genvar i;
 	Alarm
 */
 generate
-	for (i = 0 ; i < 2; i++)
+	for (i = 0 ; i < P_ALRMS; i++)
 	begin : gen_alrm
 	// Alarm Counter
 	// This counter runs at 1 MHz (1us) beat.
@@ -442,10 +444,10 @@ generate
 		ALRM_CNT_END_EDGE_INST
 		(
 			.CLK_IN		(CLK_IN),					// Clock
-			.CKE_IN		(1'b1),					// Clock enable
+			.CKE_IN		(1'b1),						// Clock enable
 			.A_IN		(clk_alrm[i].cnt_end),		// Input
 			.RE_OUT		(clk_alrm[i].cnt_end_re),	// Rising edge
-			.FE_OUT		()						// Falling edge
+			.FE_OUT		()							// Falling edge
 		);
 	end
 endgenerate

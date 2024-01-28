@@ -5,12 +5,13 @@
 
 
     Module: Video Toolbox Test Pattern Generator
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
 	v1.1 - Added control format 
+	v1.2 - Added 10-bits video support
 
     License
     =======
@@ -18,7 +19,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -61,6 +62,9 @@ module prt_vtb_tpg
 	output wire 							VID_DE_OUT		// Data enable out
 );
 
+// Parameters
+localparam P_HI_VAL = 'h3ff; //(P_BPC == 10) ? 'd720 : 'd180;
+localparam P_LO_VAL = 'd0; //(P_BPC == 10) ? 'd64 : 'd16;
 
 // Signals
 logic 							clk_run;
@@ -246,25 +250,25 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 			// Red only
 			if (clk_fmt == 'd1)
 			begin
-				clk_r <= {P_PPC{P_BPC'(180)}};
-				clk_g <= {P_PPC{P_BPC'(16)}};
-				clk_b <= {P_PPC{P_BPC'(16)}};
+				clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
+				clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+				clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 			end
 
 			// Green only
 			else if (clk_fmt == 'd2)
 			begin
-				clk_r <= {P_PPC{P_BPC'(16)}};
-				clk_g <= {P_PPC{P_BPC'(180)}};
-				clk_b <= {P_PPC{P_BPC'(16)}};
+				clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+				clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
+				clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 			end
 
 			// Blue only
 			else if (clk_fmt == 'd3)
 			begin
-				clk_r <= {P_PPC{P_BPC'(16)}};
-				clk_g <= {P_PPC{P_BPC'(16)}};
-				clk_b <= {P_PPC{P_BPC'(180)}};
+				clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+				clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+				clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
 			end
 
 			// Ramp
@@ -273,17 +277,17 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 				// Four pixels per clock
 				if (P_PPC == 4)
 				begin
-					clk_r <= {clk_pcnt[5:0], 2'b11, clk_pcnt[5:0], 2'b10, clk_pcnt[5:0], 2'b01, clk_pcnt[5:0], 2'b00};
-					clk_g <= {clk_pcnt[5:0], 2'b11, clk_pcnt[5:0], 2'b10, clk_pcnt[5:0], 2'b01, clk_pcnt[5:0], 2'b00};
-					clk_b <= {clk_pcnt[5:0], 2'b11, clk_pcnt[5:0], 2'b10, clk_pcnt[5:0], 2'b01, clk_pcnt[5:0], 2'b00};
+					clk_r <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
+					clk_g <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
+					clk_b <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
 				end
 
 				// Two pixels per clock
 				else
 				begin
-					clk_r <= {clk_pcnt[6:0], 1'b1, clk_pcnt[6:0], 1'b0};
-					clk_g <= {clk_pcnt[6:0], 1'b1, clk_pcnt[6:0], 1'b0};
-					clk_b <= {clk_pcnt[6:0], 1'b1, clk_pcnt[6:0], 1'b0};
+					clk_r <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
+					clk_g <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
+					clk_b <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
 				end
 			end
 
@@ -301,58 +305,58 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 				case (clk_bar)
 					white : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(180)}};
-						clk_g <= {P_PPC{P_BPC'(180)}};
-						clk_b <= {P_PPC{P_BPC'(180)}};
+						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
 					end					
 
 					yellow : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(180)}};
-						clk_g <= {P_PPC{P_BPC'(180)}};
-						clk_b <= {P_PPC{P_BPC'(16)}};
+						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 					end					
 
 					cyan : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(16)}};
-						clk_g <= {P_PPC{P_BPC'(180)}};
-						clk_b <= {P_PPC{P_BPC'(180)}};
+						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
 					end					
 
 					green : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(16)}};
-						clk_g <= {P_PPC{P_BPC'(180)}};
-						clk_b <= {P_PPC{P_BPC'(16)}};
+						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 					end					
 
 					magenta : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(180)}};
-						clk_g <= {P_PPC{P_BPC'(16)}};
-						clk_b <= {P_PPC{P_BPC'(180)}};
+						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
 					end					
 
 					red : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(180)}};
-						clk_g <= {P_PPC{P_BPC'(16)}};
-						clk_b <= {P_PPC{P_BPC'(16)}};
+						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 					end					
 
 					blue : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(16)}};
-						clk_g <= {P_PPC{P_BPC'(16)}};
-						clk_b <= {P_PPC{P_BPC'(180)}};
+						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
 					end					
 
 					default : 
 					begin
-						clk_r <= {P_PPC{P_BPC'(16)}};
-						clk_g <= {P_PPC{P_BPC'(16)}};
-						clk_b <= {P_PPC{P_BPC'(16)}};
+						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
+						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
 					end					
 				endcase 
 			end

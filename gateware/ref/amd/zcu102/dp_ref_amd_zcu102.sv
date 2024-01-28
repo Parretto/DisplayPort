@@ -5,12 +5,13 @@
 
 
     Module: DP reference design running on AMD ZCU102
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Separated TX and RX reference clocks
+    v1.2 - Added 10-bits video 
 
     License
     =======
@@ -18,7 +19,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -86,11 +87,11 @@ localparam P_LANES          = 4;
 localparam P_DATA_MODE      = "dual";                               // Data path mode; dual - 2 pixels per clock / 2 symbols per lane / quad - 4 pixels per clock / 4 symbols per lane
 localparam P_SPL            = (P_DATA_MODE == "dual") ? 2 : 4;      // Symbols per lane. Valid options - 2, 4. 
 localparam P_PPC            = (P_DATA_MODE == "dual") ? 2 : 4;      // Pixels per clock. Valid options - 2, 4.
-localparam P_BPC            = 8;                                    // Bits per component. Valid option - 8
-localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? 48 : 96;
+localparam P_BPC            = 10;                                   // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
 localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
-localparam P_APP_ROM_INIT   = "dp_app_amd_rom.mem";
-localparam P_APP_RAM_INIT   = "dp_app_amd_ram.mem";
+localparam P_APP_ROM_INIT   = "dp_app_amd_zcu102_rom.mem";
+localparam P_APP_RAM_INIT   = "dp_app_amd_zcu102_ram.mem";
 localparam P_SCALER         = (P_PPC == 4) ? 1 : 0; // The scaler only suport 4 pixels per clock
 localparam P_MST            = 0;
 

@@ -5,12 +5,13 @@
 
 
     DP reference design running on Lattice LFCPNX-EVN
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Updated with new scaler
+    v1.2 - Added 10-bits video 
 
     License
     =======
@@ -18,7 +19,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -92,8 +93,8 @@ localparam P_PIO_OUT_WIDTH  = 8;
 localparam P_LANES          = 4;
 localparam P_SPL            = 4;
 localparam P_PPC            = 4;
-localparam P_BPC            = 8;
-localparam P_AXI_WIDTH      = 96;
+localparam P_BPC            = 10;    // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH      = (P_BPC == 10) ? 128 : 96;
 localparam P_APP_ROM_INIT   = "none";
 localparam P_APP_RAM_INIT   = "none";
 localparam P_SCALER         = 0;
@@ -881,11 +882,10 @@ endgenerate
         .mpcs_rate_i_3              (2'b00), 
         .mpcs_rate_i_2              (2'b00), 
         .mpcs_rate_i_1              (2'b00), 
-        .mpcs_rate_i_0              (2'b00), 
-        .mpcs_speed_o_3             (), 
-        .mpcs_speed_o_2             (), 
-        .mpcs_speed_o_1             (), 
-        .mpcs_speed_o_0             (), 
+        .mpcs_rate_i_0              (2'b00), //        .mpcs_speed_o_3             (), 
+//        .mpcs_speed_o_2             (), 
+//        .mpcs_speed_o_1             (), 
+//        .mpcs_speed_o_0             (), 
         .mpcs_txval_i_3             (1'b1), 
         .mpcs_txval_i_2             (1'b1), 
         .mpcs_txval_i_1             (1'b1), 

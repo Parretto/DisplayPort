@@ -5,7 +5,7 @@
 
 
     Module: DP TX Video
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -14,6 +14,7 @@
     v1.2 - Improved vu size calculation and fifo reset
     v1.3 - Updated link interface
     v1.4 - Added MST support
+    v1.5 - Added 10-bits video support
 
     License
     =======
@@ -21,7 +22,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -56,6 +57,7 @@ module prt_dptx_vid
     input wire              CTL_EN_IN,          // Enable
     input wire              CTL_MST_IN,         // MST
     input wire [5:0]        CTL_VC_LEN_IN,      // Virtual channel length
+    input wire [1:0]        CTL_BPC_IN,         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
 
     // Video message
     prt_dp_msg_if.snk       VID_MSG_SNK_IF,     // Sink
@@ -94,6 +96,7 @@ typedef struct {
     logic                           en;       // Enable
     logic                           mst;      // MST
     logic [P_VC_LEN-1:0]            vc_len;
+    logic                           bpc;      // Active bits-per-component (0 - 8bits / 1 - 10 bits)
 } ctl_struct;
 
 typedef struct {
@@ -125,7 +128,6 @@ typedef struct {
 } vid_struct;
 
 typedef struct {
-    logic   [2:0]                   sel;
     logic   [P_FIFO_DAT-1:0]        dat[0:P_LANES-1][0:P_FIFO_STRIPES-1];
     logic   [P_FIFO_STRIPES-1:0]    wr[0:P_LANES-1];
 } vid_map_struct;
@@ -264,6 +266,16 @@ genvar i, j;
         .SRC_DAT_IN     (lclk_ctl.mst),     // Data
         .DST_CLK_IN     (VID_CLK_IN),       // Clock
         .DST_DAT_OUT    (vclk_ctl.mst)      // Data
+    );
+
+// Control BPC clock domain crossing
+    prt_dp_lib_cdc_bit
+    VID_BPC_CDC_INST
+    (
+        .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
+        .SRC_DAT_IN     (lclk_ctl.bpc),     // Data
+        .DST_CLK_IN     (VID_CLK_IN),       // Clock
+        .DST_DAT_OUT    (vclk_ctl.bpc)      // Data
     );
 
 // Message Slave
@@ -621,368 +633,41 @@ genvar i, j;
     end
 
 /*
-    Mapper
+    Video Mapper
 */
+    prt_dptx_vid_vmap
+    #(
+        // Video
+        .P_PPC              (P_PPC),            // Pixels per clock
+        .P_BPC              (P_BPC),            // Bits per component
 
-// Select
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Run
-        if (vclk_vid.run)
-        begin
-            // Clock enable
-            if (VID_CKE_IN)
-            begin
-                // Clear on hsync
-                if (vclk_vid.hs_re)
-                    vclk_map.sel <= 0;
+        // Mapper
+        .P_LANES            (P_LANES),          // Lanes
+        .P_FIFO_DAT         (P_FIFO_DAT),       // FIFO data width
+        .P_FIFO_STRIPES     (P_FIFO_STRIPES)    // FIFO stripes
+    )
+    VMAP_INST
+    (
+        .RST_IN             (VID_RST_IN),           // Reset
+        .CLK_IN             (VID_CLK_IN),           // Clock
+        .CKE_IN             (VID_CKE_IN),           // Clock enable
 
-                // Increment
-                else if (vclk_vid.vde)
-                begin
-                    // Clear
-                    if (((P_PPC == 4) && (vclk_map.sel == 'd3)) || ((P_PPC == 2) && (vclk_map.sel == 'd7)))
-                        vclk_map.sel <= 0;
-                    else
-                        vclk_map.sel <= vclk_map.sel + 'd1;
-                end
-            end
-        end
+        // Control
+        .CFG_RUN_IN         (vclk_vid.run),         // Run
+        .CFG_BPC_IN         (vclk_ctl.bpc),         // Active bits-per-component
+        .CFG_MST_IN         (vclk_ctl.mst),         // MST
 
-        else
-            vclk_map.sel <= 0;
-    end
+        // Video
+        .VID_BS_IN          (vclk_vid.bs),          // Blanking start
+        .VID_BE_IN          (vclk_vid.be),          // Blanking end
+        .VID_HS_IN          (vclk_vid.hs_re),       // Horizontal sync
+        .VID_DAT_IN         (vclk_vid.dat),         // Video data
+        .VID_DE_IN          (vclk_vid.vde),         // Video data enable
 
-// Data
-generate
-    // Four pixels per clock
-    if (P_PPC == 4)
-    begin : gen_map_dat_4ppc
-        always_comb
-        begin
-            for (int i = 0; i < P_LANES; i++)
-            begin
-                for (int j = 0; j < P_FIFO_STRIPES; j++)
-                begin
-                    vclk_map.wr[i][j] = 0;
-                    vclk_map.dat[i][j] = 0;
-                end
-            end
-
-            case (vclk_map.sel)
-                'd1 : 
-                begin
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R4
-                    vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G4
-                    vclk_map.dat[0][1] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B4
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R5
-                    vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G5
-                    vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B5
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[0][(2*P_BPC)+:P_BPC]};   // R6
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[1][(2*P_BPC)+:P_BPC]};   // G6
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[2][(2*P_BPC)+:P_BPC]};   // B6
-                    vclk_map.dat[3][3] = {1'b0, vclk_vid.dat[0][(3*P_BPC)+:P_BPC]};   // R7
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[1][(3*P_BPC)+:P_BPC]};   // G7
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[2][(3*P_BPC)+:P_BPC]};   // B7
-
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[0][0] = 1;
-                    vclk_map.wr[0][1] = 1;
-                    vclk_map.wr[1][3] = 1;
-                    vclk_map.wr[1][0] = 1;                
-                    vclk_map.wr[1][1] = 1;                
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[3][3] = 1;
-                    vclk_map.wr[3][0] = 1;                
-                    vclk_map.wr[3][1] = 1;                
-                end
-
-                'd2 : 
-                begin
-                    vclk_map.dat[0][2] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R8
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G8
-                    vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B8
-                    vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R9
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G9
-                    vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B9
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[0][(2*P_BPC)+:P_BPC]};   // R10
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[1][(2*P_BPC)+:P_BPC]};   // G10
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[2][(2*P_BPC)+:P_BPC]};   // B10
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[0][(3*P_BPC)+:P_BPC]};   // R11
-                    vclk_map.dat[3][3] = {1'b0, vclk_vid.dat[1][(3*P_BPC)+:P_BPC]};   // G11
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[2][(3*P_BPC)+:P_BPC]};   // B11
-
-                    vclk_map.wr[0][2] = 1;
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[0][0] = 1;
-                    vclk_map.wr[1][2] = 1;
-                    vclk_map.wr[1][3] = 1;                
-                    vclk_map.wr[1][0] = 1;                
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[3][2] = 1;
-                    vclk_map.wr[3][3] = 1;                
-                    vclk_map.wr[3][0] = 1;                
-                end
-
-                'd3 : 
-                begin
-                    vclk_map.dat[0][1] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R12
-                    vclk_map.dat[0][2] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G12
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B12
-                    vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R13
-                    vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G13
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B13
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[0][(2*P_BPC)+:P_BPC]};   // R14
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[1][(2*P_BPC)+:P_BPC]};   // G14
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[2][(2*P_BPC)+:P_BPC]};   // B14
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[0][(3*P_BPC)+:P_BPC]};   // R15
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[1][(3*P_BPC)+:P_BPC]};   // G15
-
-                    // SST
-                    // The BS symbol is aligned with the last data.
-                    vclk_map.dat[3][3] = {vclk_vid.bs, vclk_vid.dat[2][(3*P_BPC)+:P_BPC]};   // B15 
-                    
-                    vclk_map.wr[0][1] = 1;
-                    vclk_map.wr[0][2] = 1;
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[1][1] = 1;
-                    vclk_map.wr[1][2] = 1;                
-                    vclk_map.wr[1][3] = 1;                
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[3][1] = 1;
-                    vclk_map.wr[3][2] = 1;                
-                    vclk_map.wr[3][3] = 1;                
-                end
-
-                default : 
-                begin
-                    vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R0
-                    
-                    // MST
-                    // The BS symbol is inserted in the second fifo stripe, just after the active video.                  
-                    vclk_map.dat[0][1] = (vclk_vid.bs) ? {1'b1, {P_BPC{1'b0}}} : {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G0
-                    
-                    // MST
-                    // The BE symbol is inserted in the third fifo stripe, just before the active video.
-                    vclk_map.dat[0][2] = (vclk_vid.be) ? {1'b1, {P_BPC{1'b0}}} : {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B0
-
-                    vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R1
-                    vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G1
-                    vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B1
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[0][(2*P_BPC)+:P_BPC]};   // R2
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[1][(2*P_BPC)+:P_BPC]};   // G2
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[2][(2*P_BPC)+:P_BPC]};   // B2
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[0][(3*P_BPC)+:P_BPC]};   // R3
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[1][(3*P_BPC)+:P_BPC]};   // G3
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[2][(3*P_BPC)+:P_BPC]};   // B3
-
-                    vclk_map.wr[0][0] = 1;
-                    vclk_map.wr[0][1] = 1;
-                    vclk_map.wr[0][2] = 1;
-                    vclk_map.wr[1][0] = 1;
-                    vclk_map.wr[1][1] = 1;                
-                    vclk_map.wr[1][2] = 1;                
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[3][0] = 1;
-                    vclk_map.wr[3][1] = 1;                
-                    vclk_map.wr[3][2] = 1;                
-                end
-            endcase
-        end
-    end
-
-    // Two pixels per clock
-    else
-    begin
-        always_comb
-        begin
-            for (int i = 0; i < P_LANES; i++)
-            begin
-                for (int j = 0; j < P_FIFO_STRIPES; j++)
-                begin
-                    vclk_map.wr[i][j] = 0;
-                    vclk_map.dat[i][j] = 0;
-                end
-            end
-
-            case (vclk_map.sel)
-                'd1 : 
-                begin
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R2
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G2
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B2
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R3
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G3
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B3
-                    
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[3][0] = 1;
-                    vclk_map.wr[3][1] = 1;                
-                    vclk_map.wr[3][2] = 1;                
-                end
-
-                'd2 : 
-                begin
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R4
-                    vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G4
-                    vclk_map.dat[0][1] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B4
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R5
-                    vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G5
-                    vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B5
-                    
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[0][0] = 1;
-                    vclk_map.wr[0][1] = 1;
-                    vclk_map.wr[1][3] = 1;
-                    vclk_map.wr[1][0] = 1;                
-                    vclk_map.wr[1][1] = 1;                
-                end
-
-                'd3 : 
-                begin
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R6
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G6
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B6
-                    vclk_map.dat[3][3] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R7
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G7
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B7
-                    
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[3][3] = 1;
-                    vclk_map.wr[3][0] = 1;                
-                    vclk_map.wr[3][1] = 1;                
-                end
-
-                'd4 : 
-                begin
-                    vclk_map.dat[0][2] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R8
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G8
-                    vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B8
-                    vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R9
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G9
-                    vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B9
-                    
-                    vclk_map.wr[0][2] = 1;
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[0][0] = 1;
-                    vclk_map.wr[1][2] = 1;
-                    vclk_map.wr[1][3] = 1;                
-                    vclk_map.wr[1][0] = 1;                
-                end
-
-                'd5 : 
-                begin
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R10
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G10
-                    vclk_map.dat[2][0] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B10
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R11
-                    vclk_map.dat[3][3] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G11
-                    vclk_map.dat[3][0] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B11
-                    
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[2][0] = 1;
-                    vclk_map.wr[3][2] = 1;
-                    vclk_map.wr[3][3] = 1;                
-                    vclk_map.wr[3][0] = 1;                
-                end
-
-                'd6 : 
-                begin
-                    vclk_map.dat[0][1] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R12
-                    vclk_map.dat[0][2] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G12
-                    vclk_map.dat[0][3] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B12
-                    vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R13
-                    vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G13
-                    vclk_map.dat[1][3] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B13
-                    
-                    vclk_map.wr[0][1] = 1;
-                    vclk_map.wr[0][2] = 1;
-                    vclk_map.wr[0][3] = 1;
-                    vclk_map.wr[1][1] = 1;
-                    vclk_map.wr[1][2] = 1;                
-                    vclk_map.wr[1][3] = 1;                
-                end
-
-                'd7 : 
-                begin
-                    vclk_map.dat[2][1] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R14
-                    vclk_map.dat[2][2] = {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G14
-                    vclk_map.dat[2][3] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B14
-                    vclk_map.dat[3][1] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R15
-                    vclk_map.dat[3][2] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G15
-
-                    // SST
-                    // The BS symbol is aligned with the last data.
-                    vclk_map.dat[3][3] = {vclk_vid.bs, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B15
-                    
-                    vclk_map.wr[2][1] = 1;
-                    vclk_map.wr[2][2] = 1;
-                    vclk_map.wr[2][3] = 1;
-                    vclk_map.wr[3][1] = 1;
-                    vclk_map.wr[3][2] = 1;                
-                    vclk_map.wr[3][3] = 1;                
-                end
-
-                default : 
-                begin
-                    // Blanking start
-                    if (vclk_ctl.mst && vclk_vid.be)
-                    begin                      
-                        // MST
-                        // The BE symbol is inserted in the third fifo stripe, just before the active video.
-                        // This symbol must be placed in the upper stripe. 
-                        vclk_map.dat[0][2] = {1'b1, {P_BPC{1'b0}}};
-
-                        vclk_map.wr[0][2] = 1;
-                        vclk_map.wr[0][3] = 1;
-                        vclk_map.wr[1][2] = 1;                
-                        vclk_map.wr[1][3] = 1;                
-
-                        vclk_map.wr[2][2] = 1;
-                        vclk_map.wr[2][3] = 1;
-                        vclk_map.wr[3][2] = 1;                
-                        vclk_map.wr[3][3] = 1;                
-                    end
-
-                    else
-                    begin
-                        vclk_map.dat[0][0] = {1'b0, vclk_vid.dat[0][(0*P_BPC)+:P_BPC]};   // R0
-                        
-                        // MST
-                        // The BS symbol is inserted in the second fifo stripe, just after the active video.                  
-                        vclk_map.dat[0][1] = (vclk_vid.bs) ? {1'b1, {P_BPC{1'b0}}} : {1'b0, vclk_vid.dat[1][(0*P_BPC)+:P_BPC]};   // G0
-
-                        vclk_map.dat[0][2] = {1'b0, vclk_vid.dat[2][(0*P_BPC)+:P_BPC]};   // B0
-
-                        vclk_map.dat[1][0] = {1'b0, vclk_vid.dat[0][(1*P_BPC)+:P_BPC]};   // R1
-                        vclk_map.dat[1][1] = {1'b0, vclk_vid.dat[1][(1*P_BPC)+:P_BPC]};   // G1
-                        vclk_map.dat[1][2] = {1'b0, vclk_vid.dat[2][(1*P_BPC)+:P_BPC]};   // B1
-                        
-                        vclk_map.wr[0][0] = 1;
-                        vclk_map.wr[0][1] = 1;
-                        vclk_map.wr[0][2] = 1;
-                        vclk_map.wr[1][0] = 1;
-                        vclk_map.wr[1][1] = 1;                
-                        vclk_map.wr[1][2] = 1;                
-                    end
-                end
-            endcase
-        end
-    end
-endgenerate
+        // Mapper
+        .MAP_DAT_OUT        (vclk_map.dat),         // Mapper data
+        .MAP_WR_OUT         (vclk_map.wr)           // Mapper write 
+    );
 
 /*
     FIFO
@@ -1145,6 +830,9 @@ endgenerate
         
         // The VC length is adapted to the symbols per lane
         lclk_ctl.vc_len <= (P_SPL == 4) ? CTL_VC_LEN_IN[2+:P_VC_LEN] : CTL_VC_LEN_IN[1+:P_VC_LEN];
+
+        // Bits-per-component (only lsb is registered)
+        lclk_ctl.bpc <= CTL_BPC_IN[0];
     end
 
 // Link source 

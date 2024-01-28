@@ -5,11 +5,12 @@
 
 
     Module: DP RX Training Lane
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added training TPS4
 
     License
     =======
@@ -17,7 +18,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -43,6 +44,9 @@ module prt_dprx_trn_lane
     // Status
     output wire  [15:0]         STA_MATCH_OUT,      // Match
     output wire  [7:0]          STA_ERR_OUT,        // Error
+
+    // Scrambler
+    prt_dp_rx_lnk_if.snk        SCRM_SNK_IF,        // Sink
 
     // Link
     prt_dp_rx_lnk_if.snk        LNK_SNK_IF,         // Sink
@@ -75,6 +79,10 @@ typedef struct {
 } lnk_struct;
 
 typedef struct {
+    logic   [8:0]                   dat[0:P_SPL-1];
+} scrm_struct;
+
+typedef struct {
     logic                           tps1_sym;
     logic                           tps1_cnt;
     logic                           tps1_det;
@@ -89,6 +97,8 @@ typedef struct {
     logic [4:0]                     tps3_cnt;
     logic                           tps3_det;
     logic                           tps3_err;
+    logic [P_SPL-1:0]               tps4_det;
+    logic [P_SPL-1:0]               tps4_err;
 } trn_struct;
 
 typedef struct {
@@ -96,10 +106,11 @@ typedef struct {
     logic   [7:0]                   err;        // Error
 } sta_struct;
 
-cfg_struct  clk_cfg;
-sta_struct  clk_sta;
-lnk_struct  clk_lnk;
-trn_struct  clk_trn;
+cfg_struct      clk_cfg;
+sta_struct      clk_sta;
+lnk_struct      clk_lnk;
+scrm_struct     clk_scrm;
+trn_struct      clk_trn;
 
 genvar i;
 
@@ -128,6 +139,15 @@ genvar i;
         for (int i = 1; i < P_SPL; i++)
             clk_lnk.din_del[i-1] <= clk_lnk.din[i];
     end
+
+// Scrambler input data
+// The data from the scrambler is used during the TPS4
+generate
+    for (i = 0; i < P_SPL; i++)
+    begin : gen_scrm_dat
+        assign clk_scrm.dat[i] = {SCRM_SNK_IF.k[0][i], SCRM_SNK_IF.dat[0][i]};
+    end
+endgenerate
 
 // Input data phase detector
 // The link data is word aligned by the PHY.
@@ -1185,6 +1205,37 @@ generate
     end
 endgenerate
 
+// TPS4 detector
+    always_ff @ (posedge CLK_IN)
+    begin
+        // Locked
+        if (clk_lnk.lock_in)
+        begin
+            // Default
+            clk_trn.tps4_det <= 0;
+            clk_trn.tps4_err <= 0;
+
+            // TPS4 selected
+            if (clk_cfg.tps == 'd4)
+            begin
+                for (int i = 0; i < P_SPL; i++)
+                begin
+                    if ((clk_scrm.dat[i] == P_K28_5) || (clk_scrm.dat[i] == 'h0))
+                        clk_trn.tps4_det[i] <= 1;
+                    else
+                        clk_trn.tps4_err[i] <= 1;
+                end
+            end
+        end
+
+        // Not locked
+        else
+        begin
+            clk_trn.tps4_det <= 0;
+            clk_trn.tps4_err <= 0;
+        end
+    end
+
 // Matches
     always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
@@ -1203,7 +1254,7 @@ endgenerate
                     clk_sta.match <= 0;
 
                 // Increment
-                else if (clk_trn.tps1_det || clk_trn.tps2_det || clk_trn.tps3_det)
+                else if (clk_trn.tps1_det || clk_trn.tps2_det || clk_trn.tps3_det || (&clk_trn.tps4_det))
                 begin
                     // Don't roll over when the maximum value is reached
                     if (!(&clk_sta.match))
@@ -1235,7 +1286,7 @@ endgenerate
                     clk_sta.err <= 0;
 
                 // Increment
-                else if (clk_trn.tps1_err || clk_trn.tps2_err || clk_trn.tps3_err)
+                else if (clk_trn.tps1_err || clk_trn.tps2_err || clk_trn.tps3_err || (|clk_trn.tps4_err))
                 begin
                     // Don't roll over when the maximum value is reached
                     if (!(&clk_sta.err))
@@ -1267,7 +1318,7 @@ endgenerate
                     clk_lnk.lock <= 0;
 
                 // Set
-                else if (((clk_cfg.tps == 'd2) || (clk_cfg.tps == 'd3)) && (clk_sta.match > P_LOCKED_THRES))
+                else if (((clk_cfg.tps == 'd2) || (clk_cfg.tps == 'd3) || (clk_cfg.tps == 'd4)) && (clk_sta.match > P_LOCKED_THRES))
                     clk_lnk.lock <= 1;
             end
 
@@ -1281,7 +1332,7 @@ endgenerate
     generate
         for (i = 0; i < P_SPL; i++)
         begin : gen_lnk_src
-            // Passtrough data
+            // Pass-through data
             assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_lnk.din[i];
         end
     endgenerate

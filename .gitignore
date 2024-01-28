@@ -1,2 +1,5 @@
 # Ignore synthesis folders
 syn/
+
+# Ignore the software folder (for now)
+software/build

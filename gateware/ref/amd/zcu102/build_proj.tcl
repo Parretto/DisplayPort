@@ -1,6 +1,6 @@
 ###
-# Xilinx DP reference design project script
-# (c) 2023 by Parretto B.V.
+# AMD DP reference design project script
+# (c) 2023-2024 by Parretto B.V.
 ###
 
 # Create project
@@ -32,6 +32,7 @@ add_files $SRC/tx/prt_dptx_msa.sv
 add_files $SRC/tx/prt_dptx_scrm.sv
 add_files $SRC/tx/prt_dptx_skew.sv
 add_files $SRC/tx/prt_dptx_trn.sv
+add_files $SRC/tx/prt_dptx_vid_vmap.sv
 add_files $SRC/tx/prt_dptx_vid.sv
 add_files $SRC/tx/prt_dptx_top.sv
 
@@ -43,12 +44,13 @@ add_files $SRC/rx/prt_dprx_pars.sv
 add_files $SRC/rx/prt_dprx_scrm.sv
 add_files $SRC/rx/prt_dprx_trn_lane.sv
 add_files $SRC/rx/prt_dprx_trn.sv
+add_files $SRC/rx/prt_dprx_vid_vmap.sv
+add_files $SRC/rx/prt_dprx_vid_fifo.sv
 add_files $SRC/rx/prt_dprx_vid.sv
 add_files $SRC/rx/prt_dprx_top.sv
 
 # VTB
 add_files $SRC/vtb/prt_vtb_cr.sv
-add_files $SRC/vtb/prt_vtb_cg.sv
 add_files $SRC/vtb/prt_vtb_ctl.sv
 add_files $SRC/vtb/prt_vtb_fifo.sv
 add_files $SRC/vtb/prt_vtb_tg.sv
@@ -90,8 +92,8 @@ add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.sv
 add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.xdc
 
 # Memory
-add_files ../../ref/amd/zcu102/dp_app_amd_rom.mem
-add_files ../../ref/amd/zcu102/dp_app_amd_ram.mem
+add_files ../../../software/build/bin/dp_app_amd_zcu102_rom.mem
+add_files ../../../software/build/bin/dp_app_amd_zcu102_ram.mem
 
 # IPs
 import_ip ../../ref/amd/zcu102/sys_pll.xci 
@@ -100,3 +102,17 @@ import_ip ../../ref/amd/zcu102/zcu102_gth_4spl.xci
 
 # Update IPs 
 upgrade_ip [get_ips]
+
+# Create IP design files
+# We need to execute the command per individual IPs. 
+create_ip_run -force [get_ips zcu102_gth_2spl]
+create_ip_run -force [get_ips zcu102_gth_4spl]
+create_ip_run -force [get_ips sys_pll]
+
+# Launch synthesis
+launch_runs synth_1
+wait_on_run synth_1
+
+# Launch implementation
+launch_runs impl_1
+wait_on_run impl_1

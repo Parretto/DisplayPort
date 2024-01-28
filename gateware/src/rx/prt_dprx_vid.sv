@@ -5,13 +5,13 @@
 
 
     Module: DP RX Video
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021- 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added support for 1 and 2 lanes.
-
+    v1.2 - Added 10-bits video support
 
     License
     =======
@@ -19,7 +19,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -33,6 +33,7 @@ module prt_dprx_vid
 #(
     // System
     parameter               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+    parameter               P_SIM = 0,          // Simulation
 
     // Link
     parameter               P_LANES = 4,    	// Lanes
@@ -41,11 +42,21 @@ module prt_dprx_vid
     // Video
     parameter               P_PPC = 2,      	// Pixels per clock
     parameter               P_BPC = 8,      	// Bits per component
-    parameter 				P_VID_DAT = 48		// AXIS data width
+    parameter 				P_VID_DAT = 48,		// AXIS data width
+
+    // Message
+    parameter               P_MSG_IDX     = 5,      // Message index width
+    parameter               P_MSG_DAT     = 16,     // Message data width
+    parameter               P_MSG_ID      = 0       // Message ID
 )
 (
     // Control
     input wire [1:0]        CTL_LANES_IN,       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+    input wire [1:0]        CTL_BPC_IN,         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
+
+    // Message
+    prt_dp_msg_if.snk       MSG_SNK_IF,         // Sink
+    prt_dp_msg_if.src       MSG_SRC_IF,         // Source
 
     // Link
     input wire              LNK_RST_IN,         // Reset
@@ -67,12 +78,27 @@ localparam P_FIFO_WRDS = 64;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 9;
 localparam P_FIFO_STRIPES = 4;
+
+localparam P_SEGMENTS = 4;
+localparam P_STRIPES = 4;
 localparam P_MAP_CH = (P_PPC == 4) ? 4 : 8; // Mapper input channels
 
 // Structures
 typedef struct {
+    logic [1:0]                     lanes;      // Active lanes
+    logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
+} ctl_struct;
+
+typedef struct {
+    logic   [P_MSG_IDX-1:0]         idx;
+    logic                           first;
+    logic                           last;
+    logic   [P_MSG_DAT-1:0]         dat;
+    logic                           vld;
+} msg_struct;
+
+typedef struct {
     logic                           lock;                   // Lock
-    logic [1:0]                     lanes;                  // Active lanes
     logic [P_SPL-1:0]               sol[0:P_LANES-1];
     logic [P_SPL-1:0]               eol[0:P_LANES-1];
     logic [P_SPL-1:0]               eol_reg[0:P_LANES-1];
@@ -113,53 +139,31 @@ typedef struct {
 } lnk_map_struct;
 
 typedef struct {
-    logic	[P_FIFO_STRIPES-1:0]	wr[0:P_LANES-1];  
-    logic   [P_FIFO_DAT-1:0]        din[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [1:0]                   head_byte[0:P_LANES-1];
-    logic   [5:0]                   head_lane[0:P_LANES-1];
-    logic   [5:0]                   head_tmp[0:1];
-    logic   [5:0]                   head;
-    logic   [P_FIFO_ADR:0]          wrds[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    fl[0:P_LANES-1];
-    logic   [P_FIFO_STRIPES-1:0]    ep[0:P_LANES-1];
+    logic                           clr;
 } lnk_fifo_struct;
 
 typedef struct {
-    logic	[P_FIFO_STRIPES-1:0]   	rd[0:P_LANES-1];
-    logic	[P_FIFO_DAT-1:0]        dout[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic	[P_FIFO_STRIPES-1:0]	de[0:P_LANES-1];
-    logic                           de_all;
-    logic   [P_FIFO_ADR:0]          wrds[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    fl[0:P_LANES-1];
-    logic   [P_FIFO_STRIPES-1:0]    ep[0:P_LANES-1];
-    logic   [5:0]                   head;
-    logic   [5:0]                   head_del;
-    logic                           head_new;
-    logic   [5:0]                   tail;
-    logic   [5:0]                   delta;
-    logic                           rd_cnt_ld;
-    logic   [7:0]                   rd_cnt_in;
-    logic   [7:0]                   rd_cnt;
-    logic                           rd_cnt_end;
-    logic                           rd_cnt_last;
-    logic   [2:0]                   rd_seq;
+    logic                           clr;
+    logic	[1:0]                   dout[P_LANES][P_SEGMENTS][P_STRIPES];
+    logic	[P_STRIPES-1:0]	        de[P_LANES][P_SEGMENTS];
+    logic   [5:0]                   lvl;
 } vid_fifo_struct;
 
 typedef struct {
-    logic   [2:0]                   seq;      // Sequence
-	logic 	[2:0]					sel[0:(P_PPC*3)-1];
-    logic 	[P_FIFO_DAT-1:0]        din[0:(P_PPC*3)-1][0:P_MAP_CH-1];
-    logic 	[P_FIFO_DAT-1:0]        dout[0:(P_PPC*3)-1];
+    logic	[P_STRIPES-1:0]   	    rd[P_LANES][P_SEGMENTS];
+    logic 	[P_VID_DAT-1:0]         dat;
+    logic                           vld;
 } vid_map_struct;
 
 typedef struct {
-    logic                           lock;     // Lock
-    logic [1:0]                     lanes;
+    logic [7:0]                     run_pipe;   
+    logic                           run;        // Run
+    logic [15:0]                    hwidth;
+    logic [15:0]                    hwidth_cnt;
     logic                           str_toggle;
     logic                           str_re;
     logic                           str_fe;
     logic                           str;      // Start
-    logic [7:0]                     msk;      // Mask
     logic                           nvs;      // No video stream flag
     logic                           vbf;      // Vertical blanking flag 
     logic                           vbf_re;   // Vertical blanking flag rising edge
@@ -168,14 +172,16 @@ typedef struct {
     logic                           eol;      // End of line
     logic [P_VID_DAT-1:0] 			dat;      // Data
     logic                           vld;      // Valid
-    logic                           err;
 } vid_struct;
 
 // Signals
+ctl_struct          lclk_ctl;
 lnk_struct          lclk_lnk;
 aln_struct          lclk_aln;
 lnk_map_struct      lclk_map;
 lnk_fifo_struct     lclk_fifo;
+ctl_struct          vclk_ctl;
+msg_struct          vclk_msg;    // Message
 vid_fifo_struct     vclk_fifo;
 vid_map_struct      vclk_map;
 vid_struct          vclk_vid;
@@ -187,7 +193,10 @@ genvar i, j;
 // Config
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        lclk_lnk.lanes <= CTL_LANES_IN;
+        lclk_ctl.lanes <= CTL_LANES_IN;
+        
+        // Bits-per-component (only lsb is registered)
+        lclk_ctl.bpc <= CTL_BPC_IN[0];
     end
 
 // Link input
@@ -202,15 +211,15 @@ genvar i, j;
             // For the end of line we are only interested in the last (active) lane
 
             // Four active lanes
-            if ((lclk_lnk.lanes == 'd3) && (i == 3))
+            if ((lclk_ctl.lanes == 'd3) && (i == 3))
                 lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
 
             // Two active lanes
-            else if ((lclk_lnk.lanes == 'd2) && (i == 1))
+            else if ((lclk_ctl.lanes == 'd2) && (i == 1))
                 lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
 
             // One active lanes
-            else if ((lclk_lnk.lanes == 'd1) && (i == 0))
+            else if ((lclk_ctl.lanes == 'd1) && (i == 0))
                 lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
             
             else
@@ -392,7 +401,7 @@ genvar i, j;
     always_ff @ (posedge LNK_CLK_IN)
     begin
         // Four active lanes
-        if (lclk_lnk.lanes == 'd3)
+        if (lclk_ctl.lanes == 'd3)
         begin   
             if (lclk_lnk.nvs_lane == 'b0000)
                 lclk_lnk.nvs <= 0;
@@ -406,7 +415,7 @@ genvar i, j;
         end
 
         // Two active lanes
-        else if (lclk_lnk.lanes == 'd2)
+        else if (lclk_ctl.lanes == 'd2)
         begin   
             if (lclk_lnk.nvs_lane[1:0] == 'b00)
                 lclk_lnk.nvs <= 0;
@@ -903,7 +912,7 @@ generate
                     else if (lclk_aln.wr[i][j])
                     begin
                         // Overflow
-                        if ( ((lclk_lnk.lanes == 'd1) && (lclk_map.cnt[i][j] == 'd11)) || ((lclk_lnk.lanes == 'd2) && (lclk_map.cnt[i][j] == 'd5)) ) 
+                        if ( ((lclk_ctl.lanes == 'd1) && (lclk_map.cnt[i][j] == 'd11)) || ((lclk_ctl.lanes == 'd2) && (lclk_map.cnt[i][j] == 'd5)) ) 
                             lclk_map.cnt[i][j] <= 0;
 
                         else
@@ -932,7 +941,7 @@ generate
                     else if (lclk_aln.wr[i][j])
                     begin
                         // Overflow
-                        if ( ((lclk_lnk.lanes == 'd1) && (lclk_map.cnt[i][j] == 'd23)) || ((lclk_lnk.lanes == 'd2) && (lclk_map.cnt[i][j] == 'd11)) || ((lclk_lnk.lanes == 'd3) && (lclk_map.cnt[i][j] == 'd1)) ) 
+                        if ( ((lclk_ctl.lanes == 'd1) && (lclk_map.cnt[i][j] == 'd23)) || ((lclk_ctl.lanes == 'd2) && (lclk_map.cnt[i][j] == 'd11)) || ((lclk_ctl.lanes == 'd3) && (lclk_map.cnt[i][j] == 'd1)) ) 
                             lclk_map.cnt[i][j] <= 0;
 
                         else
@@ -952,7 +961,7 @@ generate
         always_ff @ (posedge LNK_CLK_IN)
         begin
             // 1 lane
-            if (lclk_lnk.lanes == 'd1)
+            if (lclk_ctl.lanes == 'd1)
             begin
 
                 // Default
@@ -1460,7 +1469,7 @@ generate
             end
 
             // 2 lanes
-            else if (lclk_lnk.lanes == 'd2)
+            else if (lclk_ctl.lanes == 'd2)
             begin
 
                 // Default
@@ -2000,7 +2009,7 @@ generate
             end
 
             // 1 lane
-            if (lclk_lnk.lanes == 'd1)
+            if (lclk_ctl.lanes == 'd1)
             begin
 
                 // Default
@@ -2508,7 +2517,7 @@ generate
             end
 
             // 2 lanes
-            else if (lclk_lnk.lanes == 'd2)
+            else if (lclk_ctl.lanes == 'd2)
             begin
             
             // Stripe 0
@@ -3043,157 +3052,49 @@ endgenerate
     FIFO
 */
 
-// Head lane
-// This process counts the number of blocks (12 bytes) in the fifo.
-// This is used for read logic.
-// Only the last stripe of each fifo is used.
-// As there might be skew between the lanes, there is one head counter for each lane.
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin
-        always_ff @ (posedge LNK_CLK_IN)
-        begin
-            // Lock
-            if (lclk_lnk.lock)
-            begin
-                // Clear
-                if (lclk_lnk.str)
-                begin
-                    lclk_fifo.head_byte[i] <= 0;
-                    lclk_fifo.head_lane[i] <= 0;
-                end
+    prt_dprx_vid_fifo
+    #(
+        .P_VENDOR           (P_VENDOR),     // Vendor
+        .P_SIM              (P_SIM),        // Simulation
+        .P_FIFO_WRDS        (P_FIFO_WRDS),  // FIFO words
+        .P_LANES            (P_LANES),      // Lanes
+        .P_SEGMENTS         (P_SEGMENTS),   // Segments
+        .P_STRIPES          (P_STRIPES)     // Stripes
+    )
+    FIFO_INST
+    (
+        // Link port
+        .LNK_RST_IN     (LNK_RST_IN),
+        .LNK_CLK_IN     (LNK_CLK_IN),
+        .LNK_CLR_IN     (lclk_fifo.clr),
+        .LNK_DAT_IN     (lclk_map.dat),
+        .LNK_WR_IN      (lclk_map.wr),
 
-                // Increment
-                else if (lclk_fifo.wr[i][P_FIFO_STRIPES-1])
-                begin
-                    // One block consists of three writes
-                    if (lclk_fifo.head_byte[i] == 'd2)
-                    begin
-                        lclk_fifo.head_lane[i] <= lclk_fifo.head_lane[i] + 'd1;
-                        lclk_fifo.head_byte[i] <= 0;
-                    end
+        // Video port
+        .VID_RST_IN     (VID_RST_IN),
+        .VID_CLK_IN     (VID_CLK_IN),
+        .VID_CLR_IN     (vclk_fifo.clr),
+        .VID_RD_IN      (vclk_map.rd),
+        .VID_DAT_OUT    (vclk_fifo.dout),
+        .VID_DE_OUT     (vclk_fifo.de),
+        .VID_LVL_OUT    (vclk_fifo.lvl)
+    );
 
-                    else
-                        lclk_fifo.head_byte[i] <= lclk_fifo.head_byte[i] + 'd1;
-                end
-            end
-
-            else
-            begin
-                lclk_fifo.head_byte[i] <= 0;
-                lclk_fifo.head_lane[i] <= 0;
-            end    
-        end
-    end
-endgenerate
-
-// Head lowest
-// Due to the skew some lanes might lead or lag.
-// To prevent under-running of the FIFO we have to find the lowest head.
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        // To improve performance this process is split into two levels
-        // Lanes 0 and 1
-        if (lclk_fifo.head[0] < lclk_fifo.head[1])
-            lclk_fifo.head_tmp[0] <= lclk_fifo.head_lane[0];
-        else
-            lclk_fifo.head_tmp[0] <= lclk_fifo.head_lane[1];
-
-        // Lanes 2 and 3
-        if (lclk_fifo.head[2] < lclk_fifo.head[3])
-            lclk_fifo.head_tmp[1] <= lclk_fifo.head_lane[2];
-        else
-            lclk_fifo.head_tmp[1] <= lclk_fifo.head_lane[3];
-
-        // Final result
-        if (lclk_fifo.head_tmp[0] < lclk_fifo.head_tmp[1])
-            lclk_fifo.head <= lclk_fifo.head_tmp[0];
-        else
-            lclk_fifo.head <= lclk_fifo.head_tmp[1];
-    end
-
-// FIFO
-// The incoming video data is stored in a stripe (FIFO). 
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_fifo       
-        for (j = 0; j < P_FIFO_STRIPES; j++)
-        begin
-
-            // Data
-            assign lclk_fifo.din[i][j] = {lclk_map.eol[i][j], lclk_map.dat[i][j]};
-            
-            // Write
-            assign lclk_fifo.wr[i][j] = lclk_map.wr[i][j];
- 
-            // FIFO
-            prt_dp_lib_fifo_dc
-            #(
-                .P_VENDOR       (P_VENDOR),             // Vendor
-            	.P_MODE         ("burst"),		        // "single" or "burst"
-            	.P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
-            	.P_ADR_WIDTH	(P_FIFO_ADR),
-            	.P_DAT_WIDTH	(P_FIFO_DAT)
-            )
-            FIFO_INST
-            (
-                .A_RST_IN      (~lclk_lnk.lock),            // Reset
-                .B_RST_IN      (~vclk_vid.lock),
-                .A_CLK_IN      (LNK_CLK_IN),                // Clock
-                .B_CLK_IN      (VID_CLK_IN),
-                .A_CKE_IN      (1'b1),                      // Clock enable
-                .B_CKE_IN      (1'b1),
-
-                // Input (A)
-                .A_CLR_IN      (lclk_lnk.str),          // Clear
-                .A_WR_IN       (lclk_fifo.wr[i][j]),        // Write
-                .A_DAT_IN      (lclk_fifo.din[i][j]),       // Write data
-
-                // Output (B)
-                .B_CLR_IN      (vclk_vid.str),              // Clear
-                .B_RD_IN       (vclk_fifo.rd[i][j]),        // Read
-                .B_DAT_OUT     (vclk_fifo.dout[i][j]),      // Read data
-                .B_DE_OUT      (vclk_fifo.de[i][j]),        // Data enable
-
-                // Status (A)
-                .A_WRDS_OUT    (lclk_fifo.wrds[i][j]),      // Used words
-                .A_FL_OUT      (lclk_fifo.fl[i][j]),        // Full
-                .A_EP_OUT      (lclk_fifo.ep[i][j]),        // Empty
-
-                // Status (B)
-                .B_WRDS_OUT    (vclk_fifo.wrds[i][j]),      // Used words
-                .B_FL_OUT      (vclk_fifo.fl[i][j]),        // Full
-                .B_EP_OUT      (vclk_fifo.ep[i][j])         // Empty
-            );
-        end
-    end
-endgenerate
+    assign lclk_fifo.clr = lclk_lnk.str;
+    assign vclk_fifo.clr = vclk_vid.str;
 
 /*
     Video domain
 */
 
-// Lanes clock domain crossing
-    prt_dp_lib_cdc_vec
-    #(
-        .P_WIDTH        ($size(lclk_lnk.lanes))
-    )
-    VCLK_LANES_CDC_INST
-    (
-        .SRC_CLK_IN     (LNK_CLK_IN),         // Clock
-        .SRC_DAT_IN     (lclk_lnk.lanes),     // Data
-        .DST_CLK_IN     (VID_CLK_IN),         // Clock
-        .DST_DAT_OUT    (vclk_vid.lanes)      // Data
-    );
-
-// Lock clock domain crossing
+// BPC clock domain crossing
     prt_dp_lib_cdc_bit
-    VCLK_LOCK_CDC_INST
+    VCLK_BPC_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
-        .SRC_DAT_IN     (lclk_lnk.lock),    // Data
+        .SRC_DAT_IN     (lclk_ctl.bpc),    // Data
         .DST_CLK_IN     (VID_CLK_IN),       // Clock
-        .DST_DAT_OUT    (vclk_vid.lock)     // Data
+        .DST_DAT_OUT    (vclk_ctl.bpc)     // Data
     );
 
 // Start clock domain crossing
@@ -3237,19 +3138,44 @@ endgenerate
         .DST_DAT_OUT    (vclk_vid.vbf)     // Data
     );
 
-// Head clock domain crossing
-    prt_dp_lib_cdc_gray
+// Message Slave
+    prt_dp_msg_slv_egr
     #(
-        .P_VENDOR       (P_VENDOR),
-        .P_WIDTH        ($size(lclk_fifo.head))
+        .P_ID           (P_MSG_ID),       // Identifier
+        .P_IDX_WIDTH    (P_MSG_IDX),      // Index width
+        .P_DAT_WIDTH    (P_MSG_DAT)       // Data width
     )
-    VCLK_HEAD_CDC_INST
+    VID_MSG_SLV_EGR_INST
     (
-        .SRC_CLK_IN     (LNK_CLK_IN),         // Clock
-        .SRC_DAT_IN     (lclk_fifo.head),     // Data
-        .DST_CLK_IN     (VID_CLK_IN),         // Clock
-        .DST_DAT_OUT    (vclk_fifo.head)      // Data
+        // Reset and clock
+        .RST_IN         (VID_RST_IN),
+        .CLK_IN         (VID_CLK_IN),
+
+        // MSG sink
+        .MSG_SNK_IF     (MSG_SNK_IF),
+
+        // MSG source
+        .MSG_SRC_IF     (MSG_SRC_IF),
+
+        // Eggress
+        .EGR_IDX_OUT    (vclk_msg.idx),    // Index
+        .EGR_FIRST_OUT  (vclk_msg.first),  // First
+        .EGR_LAST_OUT   (vclk_msg.last),   // Last
+        .EGR_DAT_OUT    (vclk_msg.dat),    // Data
+        .EGR_VLD_OUT    (vclk_msg.vld)     // Valid
     );
+
+// Horizontal width (active pixels)
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Valid message
+        if (vclk_msg.vld)
+        begin
+            // Load 
+            if (vclk_msg.idx == 'd0)
+                vclk_vid.hwidth <= vclk_msg.dat;
+        end
+    end
 
 // Start of line 
 // This signal is captured from the link domain
@@ -3258,688 +3184,76 @@ endgenerate
         vclk_vid.str <= vclk_vid.str_re || vclk_vid.str_fe;
     end
 
-// Mask
-// At the start of a new line, the head value is cleared to zero. 
-// There is a possible race condition between the head, tail and delta values when this condition occurs. 
-// To prevent a false read sequence this mask flag is asserted. 
-// This flag is simply a delay of the first FIFO empty signal. 
-    always_ff @ (posedge VID_CLK_IN)
+// Run
+// At the start of a new line, the head value in the FIFO module is cleared. 
+// There is a possible race condition between the head, tail and level values when this condition occurs. 
+// To prevent a false reading of the level signal  
+    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
     begin
-        vclk_vid.msk <= {vclk_vid.msk[0+:$size(vclk_vid.msk)-1], vclk_fifo.ep[0][0]};
-    end
-
-// Head delayed
-// Due to the clock domain crossing latency and possible race condition with the clearing of the tail,
-// the captured head is registered. 
-// When the two signals are difference, there is new data in the fifo.
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-            vclk_fifo.head_del <= vclk_fifo.head;        
+        // Reset
+        if (VID_RST_IN)
+        begin
+            vclk_vid.run_pipe <= 0;
+            vclk_vid.run <= 0;
+        end
 
         else
-            vclk_fifo.head_del <= 0;
-    end
-
-// New head
-// This flag is asserted when there is a new head pointer
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
         begin
-
-            // Clear
-            // At the start of a read sequence or when the mask signal is asserted.
-            if (vclk_fifo.rd_cnt_ld || (|vclk_vid.msk))
-                vclk_fifo.head_new <= 0;
+            // Clear at end-of-line
+            if (vclk_vid.eol)
+            begin
+                vclk_vid.run_pipe <= 0;
+                vclk_vid.run <= 0;
+            end
 
             // Set
-            else if (vclk_fifo.head_del != vclk_fifo.head)
-                vclk_fifo.head_new <= 1;        
-        end
-
-        else
-            vclk_fifo.head_new <= 0;
-    end
-
-// Tail
-// This process keeps track of the read bytes from the fifo.
-// As the reading is synchronous only the first fifo is counted.
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            // Clear
-            if (vclk_vid.str)
-                vclk_fifo.tail <= 0;
-
-            // Increment
-            else if (vclk_fifo.rd_cnt_ld)
-                vclk_fifo.tail <= vclk_fifo.tail + vclk_fifo.delta;
-        end
-
-        else
-            vclk_fifo.tail <= 0;
-    end
-
-// Delta
-    always_comb
-    begin
-        if (vclk_fifo.head > vclk_fifo.tail)
-            vclk_fifo.delta = vclk_fifo.head - vclk_fifo.tail;
-        else
-            vclk_fifo.delta = (2**$size(vclk_fifo.tail) - vclk_fifo.tail) + vclk_fifo.head;
-    end        
-
-// Data enable all
-// This process combines the data enable of all fifos.
-    always_comb
-    begin
-        // Default
-        vclk_fifo.de_all = 0;
-
-        // Four lanes
-        if (vclk_vid.lanes)
-        begin
-            for (int i = 0; i < P_LANES; i++)
+            else if (vclk_vid.str)
             begin
-                for (int j = 0; j < P_FIFO_STRIPES; j++)
-                begin
-                    if (vclk_fifo.de[i][j])
-                        vclk_fifo.de_all = 1;
-                end
+                vclk_vid.run_pipe <= 8'h1;
+                vclk_vid.run <= 0;
             end
-        end
 
-        else
-        begin
-            for (int i = 0; i < 2; i++)
-            begin
-                for (int j = 0; j < P_FIFO_STRIPES; j++)
-                begin
-                    if (vclk_fifo.de[i][j])
-                        vclk_fifo.de_all = 1;
-                end
-            end
-        end    
-    end
-
-// Read counter in
-generate
-    if (P_PPC == 4)
-    begin : gen_rd_cnt_in_4ppc
-        assign vclk_fifo.rd_cnt_in = {vclk_fifo.delta[0+:6], 2'b00}; // One block is four reads
-    end
-
-    else
-    begin : gen_rd_cnt_in_2ppc
-        assign vclk_fifo.rd_cnt_in = {vclk_fifo.delta[0+:5], 3'b000}; // One block is eight reads
-    end
-endgenerate
-
-// Read counter load
-    always_comb
-    begin
-        if ((vclk_fifo.rd_cnt_end || vclk_fifo.rd_cnt_last) && vclk_fifo.head_new && (vclk_fifo.delta != 0))
-            vclk_fifo.rd_cnt_ld = 1;
-        else
-            vclk_fifo.rd_cnt_ld = 0;    
-    end
-
-// Read counter
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            // The counter is cleared on every start of a new line 
-            if (vclk_vid.str)
-                vclk_fifo.rd_cnt <= 0;
-            
             else
             begin
-                // Load
-                if (vclk_fifo.rd_cnt_ld)
-                    vclk_fifo.rd_cnt <= vclk_fifo.rd_cnt_in;
-
-                // Decrement
-                else if (!vclk_fifo.rd_cnt_end)
-                begin
-                    // Four lanes
-                    if (vclk_vid.lanes)
-                        vclk_fifo.rd_cnt <= vclk_fifo.rd_cnt - 'd1;
-                    
-                    // Two lanes
-                    else
-                        vclk_fifo.rd_cnt <= vclk_fifo.rd_cnt - 'd2;
-                end
-            end
-        end
-
-        // Idle
-        else
-            vclk_fifo.rd_cnt <= 0;
-    end
-
-// Read counter end
-    always_comb
-    begin
-        if (vclk_fifo.rd_cnt == 0)
-            vclk_fifo.rd_cnt_end = 1;
-        else
-            vclk_fifo.rd_cnt_end = 0;
-    end
-
-// Read counter last
-    always_comb
-    begin
-        if (vclk_fifo.rd_cnt == 'd1)
-            vclk_fifo.rd_cnt_last = 1;
-        else
-            vclk_fifo.rd_cnt_last = 0;
-    end
-
-// Read sequence
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            // Clear
-            if (vclk_vid.str)
-                vclk_fifo.rd_seq <= 0;
-            
-            // Increment
-            else if (!vclk_fifo.rd_cnt_end)
-            begin
-                // Clear 4 PPC
-                if ((vclk_fifo.rd_seq == 'd3) && (P_PPC == 4)) 
-                    vclk_fifo.rd_seq <= 0;
-
-                // Clear 2 PPC
-                else if ((vclk_fifo.rd_seq == 'd7) && (P_PPC == 2)) 
-                    vclk_fifo.rd_seq <= 0;
-
-                // Increment
-                else
-                    vclk_fifo.rd_seq <= vclk_fifo.rd_seq + 'd1;
-            end
-        end
-
-        else
-            vclk_fifo.rd_seq <= 0;
-    end
-
-// Read 
-generate
-    // Four pixels per clock
-    if (P_PPC == 4)
-    begin : gen_fifo_rd_4ppc
-        always_comb
-        begin
-            // Default
-            for (int i = 0; i < P_LANES; i++)
-                vclk_fifo.rd[i] = 0;
-
-            if (!vclk_fifo.rd_cnt_end)
-            begin
-                case (vclk_fifo.rd_seq)
-
-                    'd0 : 
-                    begin
-                        vclk_fifo.rd[0][0] = 1;  // R0
-                        vclk_fifo.rd[0][1] = 1;  // G0
-                        vclk_fifo.rd[0][2] = 1;  // B0
-                        vclk_fifo.rd[1][0] = 1;  // R1
-                        vclk_fifo.rd[1][1] = 1;  // G1
-                        vclk_fifo.rd[1][2] = 1;  // B1
-                        vclk_fifo.rd[2][0] = 1;  // R2
-                        vclk_fifo.rd[2][1] = 1;  // G2
-                        vclk_fifo.rd[2][2] = 1;  // B2
-                        vclk_fifo.rd[3][0] = 1;  // R3
-                        vclk_fifo.rd[3][1] = 1;  // G3
-                        vclk_fifo.rd[3][2] = 1;  // B3
-                    end             
-
-                    'd1 : 
-                    begin
-                        vclk_fifo.rd[0][3] = 1;  // R4
-                        vclk_fifo.rd[0][0] = 1;  // G4
-                        vclk_fifo.rd[0][1] = 1;  // B4
-                        vclk_fifo.rd[1][3] = 1;  // R5
-                        vclk_fifo.rd[1][0] = 1;  // G5
-                        vclk_fifo.rd[1][1] = 1;  // B5
-                        vclk_fifo.rd[2][3] = 1;  // R6
-                        vclk_fifo.rd[2][0] = 1;  // G6
-                        vclk_fifo.rd[2][1] = 1;  // B6
-                        vclk_fifo.rd[3][3] = 1;  // R7
-                        vclk_fifo.rd[3][0] = 1;  // G7
-                        vclk_fifo.rd[3][1] = 1;  // B7
-                    end             
-
-                    'd2 : 
-                    begin
-                        vclk_fifo.rd[0][2] = 1;  // R8
-                        vclk_fifo.rd[0][3] = 1;  // G8
-                        vclk_fifo.rd[0][0] = 1;  // B8
-                        vclk_fifo.rd[1][2] = 1;  // R9
-                        vclk_fifo.rd[1][3] = 1;  // G9
-                        vclk_fifo.rd[1][0] = 1;  // B9
-                        vclk_fifo.rd[2][2] = 1;  // R10
-                        vclk_fifo.rd[2][3] = 1;  // G10
-                        vclk_fifo.rd[2][0] = 1;  // B10
-                        vclk_fifo.rd[3][2] = 1;  // R11
-                        vclk_fifo.rd[3][3] = 1;  // G11
-                        vclk_fifo.rd[3][0] = 1;  // B11
-                    end             
-
-                    'd3 : 
-                    begin
-                        vclk_fifo.rd[0][1] = 1;  // R12
-                        vclk_fifo.rd[0][2] = 1;  // G12
-                        vclk_fifo.rd[0][3] = 1;  // B12
-                        vclk_fifo.rd[1][1] = 1;  // R13
-                        vclk_fifo.rd[1][2] = 1;  // G13
-                        vclk_fifo.rd[1][3] = 1;  // B13
-                        vclk_fifo.rd[2][1] = 1;  // R14
-                        vclk_fifo.rd[2][2] = 1;  // G14
-                        vclk_fifo.rd[2][3] = 1;  // B14
-                        vclk_fifo.rd[3][1] = 1;  // R15
-                        vclk_fifo.rd[3][2] = 1;  // G15
-                        vclk_fifo.rd[3][3] = 1;  // B15
-                    end             
-                endcase
+                vclk_vid.run_pipe[$high(vclk_vid.run_pipe):1] <= vclk_vid.run_pipe[$high(vclk_vid.run_pipe)-1:0];
+                vclk_vid.run <= vclk_vid.run_pipe[$high(vclk_vid.run_pipe)];
             end
         end
     end
-    
-    // Two pixels per clock
-    else
-    begin
-        always_comb
-        begin
-            // Default
-            for (int i = 0; i < P_LANES; i++)
-                vclk_fifo.rd[i] = 0;
-
-            if (!vclk_fifo.rd_cnt_end)
-            begin
-           		case (vclk_fifo.rd_seq)
-                    'd0 :
-                    begin
-                        vclk_fifo.rd[0][0] = 1;  // R0
-                        vclk_fifo.rd[0][1] = 1;  // G0
-                        vclk_fifo.rd[0][2] = 1;  // B0
-                        vclk_fifo.rd[1][0] = 1;  // R1
-                        vclk_fifo.rd[1][1] = 1;  // G1
-                        vclk_fifo.rd[1][2] = 1;  // R1
-                    end             
-                			
-        			'd1 : 
-        			begin
-        				vclk_fifo.rd[2][0] = 1;	// R2
-        				vclk_fifo.rd[2][1] = 1;	// G2
-        				vclk_fifo.rd[2][2] = 1;	// B2
-        				vclk_fifo.rd[3][0] = 1;	// R3
-        				vclk_fifo.rd[3][1] = 1;	// G3
-        				vclk_fifo.rd[3][2] = 1;	// R3
-        			end				
-
-        			'd2 : 
-        			begin
-        				vclk_fifo.rd[0][3] = 1;	// R4
-        				vclk_fifo.rd[0][0] = 1;	// G4
-        				vclk_fifo.rd[0][1] = 1;	// B4
-        				vclk_fifo.rd[1][3] = 1;	// R5
-        				vclk_fifo.rd[1][0] = 1;	// G5
-        				vclk_fifo.rd[1][1] = 1;	// R5
-        			end				
-
-        			'd3 : 
-        			begin
-        				vclk_fifo.rd[2][3] = 1;	// R6
-        				vclk_fifo.rd[2][0] = 1;	// G6
-        				vclk_fifo.rd[2][1] = 1;	// B6
-        				vclk_fifo.rd[3][3] = 1;	// R7
-        				vclk_fifo.rd[3][0] = 1;	// G7
-        				vclk_fifo.rd[3][1] = 1;	// R7
-        			end				
-
-        			'd4 : 
-        			begin
-        				vclk_fifo.rd[0][2] = 1;	// R8
-        				vclk_fifo.rd[0][3] = 1;	// G8
-        				vclk_fifo.rd[0][0] = 1;	// B8
-        				vclk_fifo.rd[1][2] = 1;	// R9
-        				vclk_fifo.rd[1][3] = 1;	// G9
-        				vclk_fifo.rd[1][0] = 1;	// R9
-        			end				
-
-        			'd5 : 
-        			begin
-        				vclk_fifo.rd[2][2] = 1;	// R10
-        				vclk_fifo.rd[2][3] = 1;	// G10
-        				vclk_fifo.rd[2][0] = 1;	// B10
-        				vclk_fifo.rd[3][2] = 1;	// R11
-        				vclk_fifo.rd[3][3] = 1;	// G11
-        				vclk_fifo.rd[3][0] = 1;	// R11
-        			end				
-
-        			'd6 : 
-        			begin
-        				vclk_fifo.rd[0][1] = 1;	// R12
-        				vclk_fifo.rd[0][2] = 1;	// G12
-        				vclk_fifo.rd[0][3] = 1;	// B12
-        				vclk_fifo.rd[1][1] = 1;	// R13
-        				vclk_fifo.rd[1][2] = 1;	// G13
-        				vclk_fifo.rd[1][3] = 1;	// R13
-        			end				
-
-        			'd7 : 
-        			begin
-        				vclk_fifo.rd[2][1] = 1;	// R14
-        				vclk_fifo.rd[2][2] = 1;	// G14
-        				vclk_fifo.rd[2][3] = 1;	// B14
-        				vclk_fifo.rd[3][1] = 1;	// R15
-        				vclk_fifo.rd[3][2] = 1;	// G15
-        				vclk_fifo.rd[3][3] = 1;	// R15
-        			end				
-        		endcase
-            end
-        end
-    end
-endgenerate
 
 /*
     Mapper
 */
+    prt_dprx_vid_vmap
+    #(
+        // Video
+        .P_PPC          (P_PPC),          // Pixels per clock
+        .P_BPC          (P_BPC),          // Bits per component
+        .P_LANES        (P_LANES),        // Lanes
+        .P_SEGMENTS     (P_SEGMENTS),     // Segments
+        .P_STRIPES      (P_STRIPES),      // Stripes
+        .P_VID_DAT      (P_VID_DAT)		// AXIS data width
+    )
+    VMAP_INST
+    (
+        .RST_IN         (VID_RST_IN),           // Reset
+        .CLK_IN         (VID_CLK_IN),           // Clock
 
-// Data in
-generate
-    // Four pixels per clock
-    if (P_PPC == 4)
-    begin : gen_map_din_4ppc
-        for (j = 0; j < P_SPL; j++)
-        begin
-            assign vclk_map.din[0][j]  = vclk_fifo.dout[0][j]; 
-            assign vclk_map.din[1][j]  = vclk_fifo.dout[0][j]; 
-            assign vclk_map.din[2][j]  = vclk_fifo.dout[0][j]; 
+        // Control
+        .CFG_BPC_IN     (vclk_ctl.bpc),         // Active bits-per-component
 
-            assign vclk_map.din[3][j]  = vclk_fifo.dout[1][j]; 
-            assign vclk_map.din[4][j]  = vclk_fifo.dout[1][j]; 
-            assign vclk_map.din[5][j]  = vclk_fifo.dout[1][j]; 
+        // Mapper
+        .MAP_RUN_IN     (vclk_vid.run),         // Run
+        .MAP_LVL_IN     (vclk_fifo.lvl),        // Level
+        .MAP_RD_OUT     (vclk_map.rd),          // Read
+        .MAP_DAT_IN     (vclk_fifo.dout),       // Data
+        .MAP_DE_IN      (vclk_fifo.de),         // Data enable
 
-            assign vclk_map.din[6][j]  = vclk_fifo.dout[2][j]; 
-            assign vclk_map.din[7][j]  = vclk_fifo.dout[2][j]; 
-            assign vclk_map.din[8][j]  = vclk_fifo.dout[2][j]; 
+        // Video
+        .VID_DAT_OUT    (vclk_map.dat),         // Video data
+        .VID_VLD_OUT    (vclk_map.vld)          // Video valid
+    );
 
-            assign vclk_map.din[9][j]  = vclk_fifo.dout[3][j]; 
-            assign vclk_map.din[10][j] = vclk_fifo.dout[3][j]; 
-            assign vclk_map.din[11][j] = vclk_fifo.dout[3][j];     
-        end
-    end
-
-    // Two pixels per clock
-    else
-    begin : gen_map_din_2ppc
-        for (i = 0; i < (P_PPC * 3); i++)
-        begin : gen_map_din
-            // Odd pixels
-            if (i < 3)
-            begin
-            	for (j = 0; j < P_SPL * 4; j++)
-            	begin
-            		if (j < P_SPL * 2)
-        				assign vclk_map.din[i][j] = vclk_fifo.dout[0][j];		// Lane 0
-        			else
-        				assign vclk_map.din[i][j] = vclk_fifo.dout[2][j-4];	// Lane 2
-        		end
-            end
-
-            // Even pixels
-        	else
-            begin
-            	for (j = 0; j < P_SPL * 4; j++)
-            	begin
-            		if (j < P_SPL * 2)
-        				assign vclk_map.din[i][j] = vclk_fifo.dout[1][j];		// Lane 1
-        			else
-        				assign vclk_map.din[i][j] = vclk_fifo.dout[3][j-4];	// Lane 3
-        		end
-        	end	
-        end
-    end
-endgenerate
-
-// Data out
-generate
-    for (i = 0; i < (P_PPC * 3); i++)
-    begin : gen_map_dout
-    	assign vclk_map.dout[i] = vclk_map.din[i][vclk_map.sel[i]];
-	end
-endgenerate
-
-// Sequence
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            // The counter is cleared on every start of a new line (lane 0)
-            if (vclk_vid.str)
-                vclk_map.seq <= 0;
-
-            else
-            begin
-            	// Enable
-            	if (vclk_fifo.de_all)
-            	begin
-            		// Overflow
-            		if ((P_PPC == 4) && (vclk_map.seq == 'd3))
-            			vclk_map.seq <= 0;
-
-                    // Overflow
-                    else if ((P_PPC == 2) && (vclk_map.seq == 'd7))
-                        vclk_map.seq <= 0;
-
-            		// Increment
-            		else
-                    begin
-                        // Four lanes
-                        if (vclk_vid.lanes)
-            			    vclk_map.seq <= vclk_map.seq + 'd1;
-                        else
-                            vclk_map.seq <= vclk_map.seq + 'd2;
-                    end
-            	end
-            end
-        end
-
-        // Idle
-        else
-            vclk_map.seq <= 0;
-    end
-
-// Select
-generate
-    // Four pixels per clock
-    if (P_PPC == 4)
-    begin : gen_map_sel_4ppc
-        
-        always_comb
-        begin
-            case (vclk_map.seq)
-                
-                'd1 : 
-                begin
-                    vclk_map.sel[0]  = 'd0; // Axis G0 = pixel G4 - FIFO lane 0 stripe 0
-                    vclk_map.sel[3]  = 'd0; // Axis G1 = pixel G5 - FIFO lane 1 stripe 0
-                    vclk_map.sel[6]  = 'd0; // Axis G2 = pixel G6 - FIFO lane 2 stripe 0
-                    vclk_map.sel[9]  = 'd0; // Axis G3 = pixel G7 - FIFO lane 3 stripe 0
-                    
-                    vclk_map.sel[1]  = 'd3; // Axis R0 = pixel R4 - FIFO lane 0 stripe 3
-                    vclk_map.sel[4]  = 'd3; // Axis R1 = pixel R5 - FIFO lane 1 stripe 3
-                    vclk_map.sel[7]  = 'd3; // Axis R2 = pixel R6 - FIFO lane 2 stripe 3
-                    vclk_map.sel[10] = 'd3; // Axis R3 = pixel R7 - FIFO lane 3 stripe 3
-                    
-                    vclk_map.sel[2]  = 'd1; // Axis B0 = pixel B4 - FIFO lane 0 stripe 1
-                    vclk_map.sel[5]  = 'd1; // Axis B1 = pixel B5 - FIFO lane 1 stripe 1
-                    vclk_map.sel[8]  = 'd1; // Axis B2 = pixel B6 - FIFO lane 2 stripe 1
-                    vclk_map.sel[11] = 'd1; // Axis B3 = pixel B7 - FIFO lane 3 stripe 1
-                end             
-
-                'd2 : 
-                begin
-                    vclk_map.sel[0]  = 'd3; // Axis G0 = pixel G8  - FIFO lane 0 stripe 3
-                    vclk_map.sel[3]  = 'd3; // Axis G1 = pixel G9  - FIFO lane 1 stripe 3
-                    vclk_map.sel[6]  = 'd3; // Axis G2 = pixel G10 - FIFO lane 2 stripe 3
-                    vclk_map.sel[9]  = 'd3; // Axis G3 = pixel G11 - FIFO lane 3 stripe 3
-                    
-                    vclk_map.sel[1]  = 'd2; // Axis R0 = pixel R8  - FIFO lane 0 stripe 2
-                    vclk_map.sel[4]  = 'd2; // Axis R1 = pixel R9  - FIFO lane 1 stripe 2
-                    vclk_map.sel[7]  = 'd2; // Axis R2 = pixel R10 - FIFO lane 2 stripe 2
-                    vclk_map.sel[10] = 'd2; // Axis R3 = pixel R11 - FIFO lane 3 stripe 2
-                    
-                    vclk_map.sel[2]  = 'd0; // Axis B0 = pixel B8  - FIFO lane 0 stripe 0
-                    vclk_map.sel[5]  = 'd0; // Axis B1 = pixel B9  - FIFO lane 1 stripe 0
-                    vclk_map.sel[8]  = 'd0; // Axis B2 = pixel B10 - FIFO lane 2 stripe 0
-                    vclk_map.sel[11] = 'd0; // Axis B3 = pixel B11 - FIFO lane 3 stripe 0
-                end             
-
-                'd3 : 
-                begin
-                    vclk_map.sel[0]  = 'd2; // Axis G0 = pixel G12 - FIFO lane 0 stripe 2
-                    vclk_map.sel[3]  = 'd2; // Axis G1 = pixel G13 - FIFO lane 1 stripe 2
-                    vclk_map.sel[6]  = 'd2; // Axis G2 = pixel G14 - FIFO lane 2 stripe 2
-                    vclk_map.sel[9]  = 'd2; // Axis G3 = pixel G15 - FIFO lane 3 stripe 2
-                    
-                    vclk_map.sel[1]  = 'd1; // Axis R0 = pixel R12 - FIFO lane 0 stripe 1
-                    vclk_map.sel[4]  = 'd1; // Axis R1 = pixel R13 - FIFO lane 1 stripe 1
-                    vclk_map.sel[7]  = 'd1; // Axis R2 = pixel R14 - FIFO lane 2 stripe 1
-                    vclk_map.sel[10] = 'd1; // Axis R3 = pixel R15 - FIFO lane 3 stripe 1
-                    
-                    vclk_map.sel[2]  = 'd3; // Axis B0 = pixel B12 - FIFO lane 0 stripe 3
-                    vclk_map.sel[5]  = 'd3; // Axis B1 = pixel B13 - FIFO lane 1 stripe 3
-                    vclk_map.sel[8]  = 'd3; // Axis B2 = pixel B14 - FIFO lane 2 stripe 3
-                    vclk_map.sel[11] = 'd3; // Axis B3 = pixel B15 - FIFO lane 3 stripe 3
-                end             
-
-                default : 
-                begin
-                    vclk_map.sel[0]  = 'd1; // Axis G0 = pixel G0 - FIFO lane 0 stripe 1
-                    vclk_map.sel[3]  = 'd1; // Axis G1 = pixel G1 - FIFO lane 1 stripe 1
-                    vclk_map.sel[6]  = 'd1; // Axis G2 = pixel G2 - FIFO lane 2 stripe 1
-                    vclk_map.sel[9]  = 'd1; // Axis G3 = pixel G3 - FIFO lane 3 stripe 1
-                    
-                    vclk_map.sel[1]  = 'd0; // Axis R0 = pixel R0 - FIFO lane 0 stripe 0
-                    vclk_map.sel[4]  = 'd0; // Axis R1 = pixel R1 - FIFO lane 1 stripe 0
-                    vclk_map.sel[7]  = 'd0; // Axis R2 = pixel R2 - FIFO lane 2 stripe 0
-                    vclk_map.sel[10] = 'd0; // Axis R3 = pixel R3 - FIFO lane 3 stripe 0
-                    
-                    vclk_map.sel[2]  = 'd2; // Axis B0 = pixel B0 - FIFO lane 0 stripe 2
-                    vclk_map.sel[5]  = 'd2; // Axis B1 = pixel B1 - FIFO lane 1 stripe 2
-                    vclk_map.sel[8]  = 'd2; // Axis B2 = pixel B2 - FIFO lane 2 stripe 2
-                    vclk_map.sel[11] = 'd2; // Axis B3 = pixel B3 - FIFO lane 3 stripe 2
-                end             
-
-            endcase
-        end
-    end
-
-    // Two pixels per clock
-    else
-    begin : gen_map_sel_2ppc
-    	always_comb
-    	begin
-    		case (vclk_map.seq)
-    			
-    			'd1 : 
-    			begin
-    				vclk_map.sel[0] = 'd5; // Axis G0 = pixel G2 - FIFO lane 2 stripe 1
-    				vclk_map.sel[1] = 'd4; // Axis R0 = pixel R2 - FIFO lane 2 stripe 0
-    				vclk_map.sel[2] = 'd6; // Axis B0 = pixel B2 - FIFO lane 2 stripe 2
-    				vclk_map.sel[3] = 'd5; // Axis G1 = pixel G3 - FIFO lane 3 stripe 1
-    				vclk_map.sel[4] = 'd4; // Axis R1 = pixel R3 - FIFO lane 3 stripe 0
-    				vclk_map.sel[5] = 'd6; // Axis B1 = pixel B3 - FIFO lane 3 stripe 2
-    			end				
-
-    			'd2 : 
-    			begin
-    				vclk_map.sel[0] = 'd0; // Axis G0 = pixel G4 - FIFO lane 0 stripe 0
-    				vclk_map.sel[1] = 'd3; // Axis R0 = pixel R4 - FIFO lane 0 stripe 3
-    				vclk_map.sel[2] = 'd1; // Axis B0 = pixel B4 - FIFO lane 0 stripe 1
-    				vclk_map.sel[3] = 'd0; // Axis G1 = pixel G5 - FIFO lane 1 stripe 0
-    				vclk_map.sel[4] = 'd3; // Axis R1 = pixel R5 - FIFO lane 1 stripe 3
-    				vclk_map.sel[5] = 'd1; // Axis B1 = pixel B5 - FIFO lane 1 stripe 1
-    			end				
-
-    			'd3 : 
-    			begin
-    				vclk_map.sel[0] = 'd4; // Axis G0 = pixel G6 - FIFO lane 2 stripe 0
-    				vclk_map.sel[1] = 'd7; // Axis R0 = pixel R6 - FIFO lane 2 stripe 3
-    				vclk_map.sel[2] = 'd5; // Axis B0 = pixel B6 - FIFO lane 2 stripe 1
-    				vclk_map.sel[3] = 'd4; // Axis G1 = pixel G7 - FIFO lane 3 stripe 0
-    				vclk_map.sel[4] = 'd7; // Axis R1 = pixel R7 - FIFO lane 3 stripe 3
-    				vclk_map.sel[5] = 'd5; // Axis B1 = pixel B7 - FIFO lane 3 stripe 1
-    			end				
-
-    			'd4 : 
-    			begin
-    				vclk_map.sel[0] = 'd3; // Axis G0 = pixel G8 - FIFO lane 0 stripe 3
-    				vclk_map.sel[1] = 'd2; // Axis R0 = pixel R8 - FIFO lane 0 stripe 2
-    				vclk_map.sel[2] = 'd0; // Axis B0 = pixel B8 - FIFO lane 0 stripe 0
-    				vclk_map.sel[3] = 'd3; // Axis G1 = pixel G9 - FIFO lane 1 stripe 3
-    				vclk_map.sel[4] = 'd2; // Axis R1 = pixel R9 - FIFO lane 1 stripe 2
-    				vclk_map.sel[5] = 'd0; // Axis B1 = pixel B9 - FIFO lane 1 stripe 0
-    			end				
-
-    			'd5 : 
-    			begin
-    				vclk_map.sel[0] = 'd7; // Axis G0 = pixel G10 - FIFO lane 2 stripe 3
-    				vclk_map.sel[1] = 'd6; // Axis R0 = pixel R10 - FIFO lane 2 stripe 2
-    				vclk_map.sel[2] = 'd4; // Axis B0 = pixel B10 - FIFO lane 2 stripe 0
-    				vclk_map.sel[3] = 'd7; // Axis G1 = pixel G11 - FIFO lane 3 stripe 3
-    				vclk_map.sel[4] = 'd6; // Axis R1 = pixel R11 - FIFO lane 3 stripe 2
-    				vclk_map.sel[5] = 'd4; // Axis B1 = pixel B11 - FIFO lane 3 stripe 0
-    			end				
-
-    			'd6 : 
-    			begin
-    				vclk_map.sel[0] = 'd2; // Axis G0 = pixel G12 - FIFO lane 0 stripe 2
-    				vclk_map.sel[1] = 'd1; // Axis R0 = pixel R12 - FIFO lane 0 stripe 1
-    				vclk_map.sel[2] = 'd3; // Axis B0 = pixel B12 - FIFO lane 0 stripe 3
-    				vclk_map.sel[3] = 'd2; // Axis G1 = pixel G13 - FIFO lane 1 stripe 2
-    				vclk_map.sel[4] = 'd1; // Axis R1 = pixel R13 - FIFO lane 1 stripe 1
-    				vclk_map.sel[5] = 'd3; // Axis B1 = pixel B13 - FIFO lane 1 stripe 3
-    			end				
-
-    			'd7 : 
-    			begin
-    				vclk_map.sel[0] = 'd6; // Axis G0 = pixel G12 - FIFO lane 2 stripe 2
-    				vclk_map.sel[1] = 'd5; // Axis R0 = pixel R12 - FIFO lane 2 stripe 1
-    				vclk_map.sel[2] = 'd7; // Axis B0 = pixel B12 - FIFO lane 2 stripe 3
-    				vclk_map.sel[3] = 'd6; // Axis G1 = pixel G13 - FIFO lane 3 stripe 2
-    				vclk_map.sel[4] = 'd5; // Axis R1 = pixel R13 - FIFO lane 3 stripe 1
-    				vclk_map.sel[5] = 'd7; // Axis B1 = pixel B13 - FIFO lane 3 stripe 3
-    			end				
-
-    			default : 
-    			begin
-    				vclk_map.sel[0] = 'd1; // Axis G0 = pixel G0 - FIFO lane 0 stripe 1
-    				vclk_map.sel[1] = 'd0; // Axis R0 = pixel R0 - FIFO lane 0 stripe 0
-    				vclk_map.sel[2] = 'd2; // Axis B0 = pixel B0 - FIFO lane 0 stripe 2
-    				vclk_map.sel[3] = 'd1; // Axis G1 = pixel G1 - FIFO lane 1 stripe 1
-    				vclk_map.sel[4] = 'd0; // Axis R1 = pixel R1 - FIFO lane 1 stripe 0
-    				vclk_map.sel[5] = 'd2; // Axis B1 = pixel B1 - FIFO lane 1 stripe 2
-    			end				
-
-    		endcase
-        end
- 	end
-endgenerate
 
 /*
     Video
@@ -3961,47 +3275,60 @@ endgenerate
 // The vbf flag is used to generate the sof signal.
 // This flag remains asserted till the sof signal has been generated.
 // See VB-ID definition on page 50 of the DisplayPort 1.2 spec.
+// The vertical blanking flag rising edge occurs during the blanking 
+// and for the first frame the video reset might be still active. 
+// Therefore don't reset this flag. 
     always_ff @ (posedge VID_CLK_IN)
     begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            // Clear
-            if (vclk_vid.sof)
-                vclk_vid.vbf_sticky <= 0;
+        // Clear
+        if (vclk_vid.sof)
+            vclk_vid.vbf_sticky <= 0;
 
-            // Set 
-            else if (vclk_vid.vbf_re)
-                vclk_vid.vbf_sticky <= 1;
-        end
+        // Set 
+        else if (vclk_vid.vbf_re)
+            vclk_vid.vbf_sticky <= 1;
+    end
+
+// Horizontal counter
+// This is used to generate the end-of-line signal
+    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
+    begin
+        // Reset
+        if (VID_RST_IN)
+            vclk_vid.hwidth_cnt <= 0;
 
         else
-            vclk_vid.vbf_sticky <= 0;
+        begin
+            // Clear at start of line
+            if (vclk_vid.str)
+                vclk_vid.hwidth_cnt <= 0;
+
+            // Increment
+            else if (vclk_map.vld)
+                vclk_vid.hwidth_cnt <= vclk_vid.hwidth_cnt + P_PPC;
+        end
     end
 
 // Video data
     always_ff @ (posedge VID_CLK_IN)
     begin
-    	for (int i = 0; i < (P_PPC * 3); i++)
-    	begin
-    		vclk_vid.dat[(i*P_BPC)+:P_BPC] <= vclk_map.dout[i];
-    	end
+  		vclk_vid.dat <= vclk_map.dat;
     end
 
 // Video valid
     always_ff @ (posedge VID_CLK_IN)
     begin
-		if (vclk_fifo.de_all)
-			vclk_vid.vld <= 1;
-		else
-            vclk_vid.vld <= 0;
+        vclk_vid.vld <= vclk_map.vld;
     end
 
 // Start of frame
-    always_ff @ (posedge VID_CLK_IN)
+    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
     begin
-        // Lock
-        if (vclk_vid.lock)
+        // Reset
+        if (VID_RST_IN)
+            vclk_vid.sof <= 0;
+        
+        else
         begin
             // Clear
             // When the first video data is transmitted
@@ -4013,9 +3340,6 @@ endgenerate
             else if (vclk_vid.str && vclk_vid.vbf_sticky)
                 vclk_vid.sof <= 1;
         end
-
-        else
-            vclk_vid.sof <= 0;
     end
 
 // End of line
@@ -4024,36 +3348,12 @@ endgenerate
         // Default
         vclk_vid.eol <= 0;
 
-        // Lock
-        if (vclk_vid.lock)
+        // Run
+        if (vclk_vid.run)
         begin
-            if (vclk_fifo.de_all)
-            begin
-                // Last blue pixel carries the eol flag
-                if (vclk_map.dout[(P_PPC * 3)-1][8])
-                    vclk_vid.eol <= 1;
-            end
+            if (vclk_vid.hwidth_cnt == vclk_vid.hwidth - P_PPC)
+                vclk_vid.eol <= 1;
         end
-    end
-
-// Checker
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        // Lock
-        if (vclk_vid.lock)
-        begin
-            if (vclk_vid.eol)
-                vclk_vid.err <= 0;
-
-            else if (vclk_vid.vld)
-            begin
-                if (!(vclk_vid.dat == {4{24'h0000ff}}))
-                    vclk_vid.err <= 1;
-            end
-        end
-
-        else
-            vclk_vid.err <= 0;
     end
 
 // Outputs

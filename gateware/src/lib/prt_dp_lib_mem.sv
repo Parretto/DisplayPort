@@ -5,7 +5,7 @@
 
 
     Module: DP Library Memory
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -13,6 +13,7 @@
     v1.1 - Changed memory structures
     v1.2 - Added support for Intel FPGA 
 	v1.3 - Added read enable for prt_dp_lib_sdp_ram_sc
+	v1.4 - Added optimized mode for prt_dp_lib_fifo_dc
 
     License
     =======
@@ -20,7 +21,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -393,11 +394,12 @@ endmodule
 */
 module prt_dp_lib_fifo_dc
 #(
-	parameter                       P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
-	parameter						P_MODE         = "single",		// "single" or "burst"
-	parameter 						P_RAM_STYLE	= "distributed",	// "distributed" or "block"
-	parameter						P_ADR_WIDTH	= 5,
-	parameter						P_DAT_WIDTH	= 32
+	parameter                       P_VENDOR    	= "none",  			// Vendor "xilinx" or "lattice"
+	parameter						P_MODE         	= "single",			// "single" or "burst"
+	parameter 						P_RAM_STYLE		= "distributed",	// "distributed" or "block"
+	parameter 						P_OPT 			= 0,				// In optimized mode some logic is saved. The status port are not available. 
+	parameter						P_ADR_WIDTH		= 5,
+	parameter						P_DAT_WIDTH		= 32
 )
 (
 	input wire						A_RST_IN,		// Reset
@@ -692,57 +694,73 @@ endgenerate
 		end
 	end
 
-// Clock Domain Crossing
-// This adapter crosses the (original size) read pointer to the write pointer domain.
-	prt_dp_lib_cdc_gray
-	#(
-		.P_VENDOR 		(P_VENDOR),
-		.P_WIDTH		(P_ADR_WIDTH)
-	)
-	RP_CDC_INST
-	(
-		.SRC_CLK_IN		(B_CLK_IN),
-		.SRC_DAT_IN		(bclk_rp),
-		.DST_CLK_IN		(A_CLK_IN),
-		.DST_DAT_OUT	(aclk_rp)
-	);
+generate
+	// Normal mode
+	if (P_OPT == 0)
+	begin : gen_aclk_sta
 
-// Words
-// To improve timing performance the words are registered
-	always_ff @ (posedge A_CLK_IN)
-	begin
-		if (aclk_wp > aclk_rp)
-			aclk_wrds <= aclk_wp - aclk_rp;
+		// Clock Domain Crossing
+		// This adapter crosses the (original size) read pointer to the write pointer domain.
+		prt_dp_lib_cdc_gray
+		#(
+			.P_VENDOR 		(P_VENDOR),
+			.P_WIDTH		(P_ADR_WIDTH)
+		)
+		RP_CDC_INST
+		(
+			.SRC_CLK_IN		(B_CLK_IN),
+			.SRC_DAT_IN		(bclk_rp),
+			.DST_CLK_IN		(A_CLK_IN),
+			.DST_DAT_OUT	(aclk_rp)
+		);
 
-		else if (aclk_wp < aclk_rp)
-			aclk_wrds <= (P_WRDS - aclk_rp) + aclk_wp;
+		// Words
+		// To improve timing performance the words are registered
+		always_ff @ (posedge A_CLK_IN)
+		begin
+			if (aclk_wp > aclk_rp)
+				aclk_wrds <= aclk_wp - aclk_rp;
 
-		else
-			aclk_wrds <= 0;
+			else if (aclk_wp < aclk_rp)
+				aclk_wrds <= (P_WRDS - aclk_rp) + aclk_wp;
+
+			else
+				aclk_wrds <= 0;
+		end
+
+		// Full Flag
+		// Must be combinatorial
+		always_comb
+		begin
+			if (aclk_wrds > (P_WRDS - 'd4))
+				aclk_fl = 1;
+			else
+				aclk_fl = 0;
+		end
+
+		// Empty Flag
+		// Must be combinatorial
+		always_comb
+		begin
+			// Set
+			if (aclk_wp == aclk_rp)
+				aclk_ep = 1;
+
+			// Clear
+			else
+				aclk_ep = 0;
+		end
 	end
 
-// Full Flag
-// Must be combinatorial
-	always_comb
+	// Reduced mode
+	else
 	begin
-		if (aclk_wrds > (P_WRDS - 'd4))
-			aclk_fl = 1;
-		else
-			aclk_fl = 0;
+		assign aclk_ep = 0;
+		assign aclk_fl = 0;
+		assign aclk_wrds = 0;
+		assign aclk_rp = 0;
 	end
-
-// Empty Flag
-// Must be combinatorial
-	always_comb
-	begin
-		// Set
-		if (aclk_wp == aclk_rp)
-			aclk_ep = 1;
-
-		// Clear
-		else
-			aclk_ep = 0;
-	end
+endgenerate
 
 // Port B
 // Read Pointer
@@ -772,57 +790,73 @@ endgenerate
 		end
 	end
 
-// Clock Domain Crossing
-// This adapter crosses the (original size) write pointer to the read pointer domain.
-	prt_dp_lib_cdc_gray
-	#(
-		.P_VENDOR 		(P_VENDOR),
-		.P_WIDTH		(P_ADR_WIDTH)
-	)
-	WP_CDC_INST
-	(
-		.SRC_CLK_IN		(A_CLK_IN),
-		.SRC_DAT_IN		(aclk_wp),
-		.DST_CLK_IN		(B_CLK_IN),
-		.DST_DAT_OUT	(bclk_wp)
-	);
+generate
+	// Normal mode
+	if (P_OPT == 0)
+	begin : gen_bclk_sta
 
-// Words
-// To improve timing performance the words are registered
-	always_ff @ (posedge B_CLK_IN)
-	begin
-		if (bclk_wp > bclk_rp)
-			bclk_wrds <= bclk_wp - bclk_rp;
+		// Clock Domain Crossing
+		// This adapter crosses the (original size) write pointer to the read pointer domain.
+		prt_dp_lib_cdc_gray
+		#(
+			.P_VENDOR 		(P_VENDOR),
+			.P_WIDTH		(P_ADR_WIDTH)
+		)
+		WP_CDC_INST
+		(
+			.SRC_CLK_IN		(A_CLK_IN),
+			.SRC_DAT_IN		(aclk_wp),
+			.DST_CLK_IN		(B_CLK_IN),
+			.DST_DAT_OUT	(bclk_wp)
+		);
 
-		else if (bclk_wp < bclk_rp)
-			bclk_wrds <= (P_WRDS - bclk_rp) + bclk_wp;
+		// Words
+		// To improve timing performance the words are registered
+		always_ff @ (posedge B_CLK_IN)
+		begin
+			if (bclk_wp > bclk_rp)
+				bclk_wrds <= bclk_wp - bclk_rp;
 
-		else
-			bclk_wrds <= 0;
+			else if (bclk_wp < bclk_rp)
+				bclk_wrds <= (P_WRDS - bclk_rp) + bclk_wp;
+
+			else
+				bclk_wrds <= 0;
+		end
+
+	// Full Flag
+	// Must be combinatorial
+		always_comb
+		begin
+			if (bclk_wrds > (P_WRDS - 'd4))
+				bclk_fl = 1;
+			else
+				bclk_fl = 0;
+		end
+
+	// Empty Flag
+	// Must be combinatorial
+		always_comb
+		begin
+			// Set
+			if (bclk_wp == bclk_rp)
+				bclk_ep = 1;
+
+			// Clear
+			else
+				bclk_ep = 0;
+		end
 	end
 
-// Full Flag
-// Must be combinatorial
-	always_comb
+	// Reduced mode
+	else
 	begin
-		if (bclk_wrds > (P_WRDS - 'd4))
-			bclk_fl = 1;
-		else
-			bclk_fl = 0;
+		assign bclk_ep = 0;
+		assign bclk_fl = 0;
+		assign bclk_wrds = 0;
+		assign bclk_wp = 0;
 	end
-
-// Empty Flag
-// Must be combinatorial
-	always_comb
-	begin
-		// Set
-		if (bclk_wp == bclk_rp)
-			bclk_ep = 1;
-
-		// Clear
-		else
-			bclk_ep = 0;
-	end
+endgenerate
 
 // Data available
 	always_ff @ (posedge B_RST_IN, posedge B_CLK_IN)

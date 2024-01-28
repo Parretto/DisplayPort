@@ -5,11 +5,12 @@
 
 
     Module: DP RX Training
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added training TPS4
 
     License
     =======
@@ -17,7 +18,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -47,6 +48,10 @@ module prt_dprx_trn
     prt_dp_msg_if.snk       MSG_SNK_IF,         // Sink
     prt_dp_msg_if.src       MSG_SRC_IF,         // Source
 
+    // Scrambler
+    // This is used during TPS4
+    prt_dp_rx_lnk_if.snk    SCRM_SNK_IF,        // Sink
+    
     // Link
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,         // Sink
     prt_dp_rx_lnk_if.src    LNK_SRC_IF          // Source
@@ -85,6 +90,14 @@ wire [2:0]          cfg_tps_to_lane[0:P_LANES-1];
 wire [15:0]         sta_match_from_lane[0:P_LANES-1];
 wire [7:0]          sta_err_from_lane[0:P_LANES-1];
 logic [2:0]         clk_act_lanes;             // Active lanes
+
+// Scrambler
+prt_dp_rx_lnk_if
+#(
+  .P_LANES  (1),
+  .P_SPL    (P_SPL)
+)
+scrm_if_to_lane[0:P_LANES-1]();
 
 // Link interface
 prt_dp_rx_lnk_if
@@ -243,10 +256,17 @@ generate
             .STA_MATCH_OUT      (sta_match_from_lane[i]),   // Match
             .STA_ERR_OUT        (sta_err_from_lane[i]),     // Error
 
+            // Scrambler
+            .SCRM_SNK_IF        (scrm_if_to_lane[i]),       // Sink
+
             // Link
             .LNK_SNK_IF         (lnk_if_to_lane[i]),        // Sink
             .LNK_SRC_IF         (lnk_if_from_lane[i])       // Source
         );
+
+        // Map scrambler interface to individual lanes
+        assign scrm_if_to_lane[i].k[0]   = SCRM_SNK_IF.k[i];
+        assign scrm_if_to_lane[i].dat[0] = SCRM_SNK_IF.dat[i];
 
         // Map link interface to individual lanes
         assign lnk_if_to_lane[i].lock   = LNK_SNK_IF.lock;

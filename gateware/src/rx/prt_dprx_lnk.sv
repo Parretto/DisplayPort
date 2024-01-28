@@ -5,12 +5,14 @@
 
 
     Module: DP RX Link
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Initial MST support
+    v1.2 - Added training TPS4
+    v1.3 - Added 10-bits video support
 
     License
     =======
@@ -18,7 +20,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -49,7 +51,8 @@ module prt_dprx_lnk
     parameter               P_MSG_DAT     = 16,      // Message data width
     parameter               P_MSG_ID_CTL  = 'h14,    // Message ID control
     parameter               P_MSG_ID_TRN  = 'h10,    // Message ID training
-    parameter               P_MSG_ID_MSA  = 'h12     // Message ID msa
+    parameter               P_MSG_ID_MSA  = 'h12,    // Message ID msa
+    parameter               P_MSG_ID_VID  = 'h13     // Message ID video
 )
 (
     // System
@@ -90,12 +93,19 @@ wire        lnk_en_from_ctl;
 wire [1:0]  lanes_from_ctl;
 wire        scrm_en_from_ctl;
 wire        mst_en_from_ctl;
+wire [1:0]  bpc_from_ctl;
 
-// Message
+// Link Message
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) lnk_msg_if[0:3]();
+) lnk_msg_if[6]();
+
+// Video message
+prt_dp_msg_if
+#(
+    .P_DAT_WIDTH (P_MSG_DAT)
+) vid_msg_if[2]();
 
 // Training
 prt_dp_rx_lnk_if
@@ -173,6 +183,16 @@ genvar i;
         .B_MSG_SRC_IF       (lnk_msg_if[0])
     );
 
+// The message interface is daising chained.
+// The policy maker doesn't have to read back from the video module.
+// To save an extra video CDC back to the system clock domain, the link message is split into two interfaces.  
+// One interface is connected to the system CDC and the other is routed to the video CDC.
+
+    assign {lnk_msg_if[5].som, lnk_msg_if[4].som} = {2{lnk_msg_if[3].som}};
+    assign {lnk_msg_if[5].eom, lnk_msg_if[4].eom} = {2{lnk_msg_if[3].eom}};
+    assign {lnk_msg_if[5].dat, lnk_msg_if[4].dat} = {2{lnk_msg_if[3].dat}};
+    assign {lnk_msg_if[5].vld, lnk_msg_if[4].vld} = {2{lnk_msg_if[3].vld}};
+
 // System message Clock domain converter
     prt_dp_msg_cdc
     #(
@@ -188,10 +208,32 @@ genvar i;
         .B_CLK_IN           (SYS_CLK_IN),
 
         // Port A 
-        .A_MSG_SNK_IF       (lnk_msg_if[3]),   // Sink
+        .A_MSG_SNK_IF       (lnk_msg_if[4]),   // Sink
 
         // Port B
         .B_MSG_SRC_IF       (MSG_SRC_IF)
+    );
+
+// Video message Clock domain converter
+// The video module needs the horizontal width to generate the EOL. 
+    prt_dp_msg_cdc
+    #(
+        .P_VENDOR           (P_VENDOR),                                                                                                                                                                 
+        .P_DAT_WIDTH        (P_MSG_DAT)
+    )
+    VID_MSG_CDC_INST
+    (
+        // Reset and clock
+        .A_RST_IN           (LNK_RST_IN),
+        .B_RST_IN           (VID_RST_IN),
+        .A_CLK_IN           (LNK_CLK_IN),
+        .B_CLK_IN           (VID_CLK_IN),
+
+        // Port A 
+        .A_MSG_SNK_IF       (lnk_msg_if[5]),   // Sink
+
+        // Port B
+        .B_MSG_SRC_IF       (vid_msg_if[0])
     );
 
 // Link clock detector
@@ -232,7 +274,8 @@ genvar i;
         .CTL_LNK_EN_OUT     (lnk_en_from_ctl),      // Link enable
         .CTL_LANES_OUT      (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
         .CTL_SCRM_EN_OUT    (scrm_en_from_ctl),     // Scrambler enable
-        .CTL_MST_EN_OUT     (mst_en_from_ctl)       // MST enable
+        .CTL_MST_EN_OUT     (mst_en_from_ctl),      // MST enable
+        .CTL_BPC_OUT        (bpc_from_ctl)          // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
     );
 
 // Training
@@ -256,6 +299,10 @@ genvar i;
         // Message
         .MSG_SNK_IF         (lnk_msg_if[1]),    // Sink
         .MSG_SRC_IF         (lnk_msg_if[2]),    // Source
+
+        // Scrambler data 
+        // This is used during TPS4
+        .SCRM_SNK_IF        (lnk_from_scrm),    // Sink
 
         // Link
         .LNK_SNK_IF         (LNK_SNK_IF),       // Sink
@@ -480,7 +527,8 @@ endgenerate
     #(
         // System
         .P_VENDOR           (P_VENDOR),             // Vendor
-
+        .P_SIM              (P_SIM),                // Simulation
+        
         // Link
         .P_LANES            (P_LANES),              // Lanes
         .P_SPL              (P_SPL),                // Symbols per lane
@@ -488,12 +536,22 @@ endgenerate
         // Video
         .P_PPC              (P_PPC),                // Pixels per clock
         .P_BPC              (P_BPC),                // Bits per component
-        .P_VID_DAT          (P_VID_DAT)             // AXIS data width
+        .P_VID_DAT          (P_VID_DAT),            // AXIS data width
+
+        // Message
+        .P_MSG_IDX          (P_MSG_IDX),            // Index width
+        .P_MSG_DAT          (P_MSG_DAT),            // Data width
+        .P_MSG_ID           (P_MSG_ID_VID)          // Message ID 
     )
     VID_INST
     (
         // Control
         .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+        .CTL_BPC_IN         (bpc_from_ctl),         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
+
+        // Message
+        .MSG_SNK_IF         (vid_msg_if[0]),        // Sink
+        .MSG_SRC_IF         (vid_msg_if[1]),        // Source
 
         // Link sink
         .LNK_RST_IN         (LNK_RST_IN),           // Reset

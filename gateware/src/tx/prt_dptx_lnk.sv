@@ -5,7 +5,7 @@
 
 
     Module: DP TX Link
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -13,6 +13,7 @@
     v1.1 - Restructured modules
     v1.2 - Updated TX interfaces
     v1.3 - Added MST support
+    v1.4 - Added 10-bits video support
 
     License
     =======
@@ -20,7 +21,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -101,6 +102,7 @@ wire        mst_en_from_ctl;
 wire        mst_act_from_ctl;
 wire        scrm_en_from_ctl;
 wire        tps4_from_ctl;
+wire [1:0]  bpc_from_ctl;
 wire [5:0]  vc_ts_from_ctl[0:1];
 
 // Message
@@ -383,6 +385,7 @@ endgenerate
         .CTL_MST_ACT_OUT    (mst_act_from_ctl),     // MST allocation change trigger (ACT)
         .CTL_SCRM_EN_OUT    (scrm_en_from_ctl),     // Scrambler enable
         .CTL_TPS4_OUT       (tps4_from_ctl),        // TPS4
+        .CTL_BPC_OUT        (bpc_from_ctl),         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
         .CTL_VC0_TS_OUT     (vc_ts_from_ctl[0]),    // VC0 time slots
         .CTL_VC1_TS_OUT     (vc_ts_from_ctl[1])     // VC1 time slots
     );
@@ -414,6 +417,7 @@ endgenerate
         .CTL_EN_IN          (vid_en_from_ctl[0]),   // Video enable
         .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
         .CTL_VC_LEN_IN      (vc_ts_from_ctl[0]),    // VC time slots
+        .CTL_BPC_IN         (bpc_from_ctl),         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
 
         // Video message
         .VID_MSG_SNK_IF     (vid0_msg_if[0]),       // Sink
@@ -463,6 +467,7 @@ generate
             .CTL_EN_IN          (vid_en_from_ctl[1]),   // Video enable
             .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
             .CTL_VC_LEN_IN      (vc_ts_from_ctl[1]),    // VC time slots
+            .CTL_BPC_IN         (bpc_from_ctl),         // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
 
             // Video message
             .VID_MSG_SNK_IF     (vid1_msg_if[0]),        // Sink

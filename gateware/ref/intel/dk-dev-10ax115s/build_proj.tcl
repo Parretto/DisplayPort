@@ -1,6 +1,7 @@
 # Variables
 set ref_path "../../ref/intel/dk-dev-10ax115s"
 set src_path "../../src"
+set sw_path "../../../software/build/bin"
 
 # Create new project
 project_new dp_ref_intel_dk_dev_10ax115s -overwrite
@@ -10,8 +11,8 @@ file copy -force $ref_path/phy_pll.ip .
 file copy -force $ref_path/phy.ip .
 file copy -force $ref_path/sys_pll.ip .
 file copy -force $ref_path/dp_ref_intel_dk_dev_10ax115s.sdc .
-file copy -force $ref_path/dp_app_int_rom.mif .
-file copy -force $ref_path/dp_app_int_ram.mif .
+file copy -force $sw_path/dp_app_int_a10gx_rom.mif .
+file copy -force $sw_path/dp_app_int_a10gx_ram.mif .
 
 # assignments
 set_global_assignment -name FAMILY "Arria 10"
@@ -70,6 +71,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE $src_path/lib/prt_dp_lib_mem.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/lib/prt_dp_lib_if.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/lib/prt_dp_lib.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/app/dp_app_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid_vmap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid_fifo.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_trn_lane.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_trn.sv
@@ -79,6 +82,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_pars.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_msa.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_lnk.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_ctl.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_vid_vmap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_vid.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_trn.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_top.sv
@@ -132,3 +136,8 @@ set_location_assignment PIN_BC4 -to "PHY_TX_OUT[3](n)"
 set_location_assignment PIN_AT19 -to TENTIVA_CLK_SEL_OUT
 set_instance_assignment -name IO_STANDARD LVDS -to PHY_REFCLK_IN -entity dp_ref_intel_dk_dev_10ax115s
 set_instance_assignment -name IO_STANDARD LVDS -to TENTIVA_VID_CLK_IN -entity dp_ref_intel_dk_dev_10ax115s
+
+# Launch compilation
+load_package flow
+execute_flow -compile
+

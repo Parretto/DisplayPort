@@ -32,6 +32,7 @@ prj_add_source $SRC/tx/prt_dptx_msa.sv
 prj_add_source $SRC/tx/prt_dptx_scrm.sv
 prj_add_source $SRC/tx/prt_dptx_skew.sv
 prj_add_source $SRC/tx/prt_dptx_trn.sv
+prj_add_source $SRC/tx/prt_dptx_vid_vmap.sv
 prj_add_source $SRC/tx/prt_dptx_vid.sv
 prj_add_source $SRC/tx/prt_dptx_top.sv
 
@@ -43,12 +44,13 @@ prj_add_source $SRC/rx/prt_dprx_pars.sv
 prj_add_source $SRC/rx/prt_dprx_scrm.sv
 prj_add_source $SRC/rx/prt_dprx_trn_lane.sv
 prj_add_source $SRC/rx/prt_dprx_trn.sv
+prj_add_source $SRC/rx/prt_dprx_vid_vmap.sv
+prj_add_source $SRC/rx/prt_dprx_vid_fifo.sv
 prj_add_source $SRC/rx/prt_dprx_vid.sv
 prj_add_source $SRC/rx/prt_dprx_top.sv
 
 # VTB
 prj_add_source $SRC/vtb/prt_vtb_cr.sv
-prj_add_source $SRC/vtb/prt_vtb_cg.sv
 prj_add_source $SRC/vtb/prt_vtb_ctl.sv
 prj_add_source $SRC/vtb/prt_vtb_fifo.sv
 prj_add_source $SRC/vtb/prt_vtb_tg.sv
@@ -119,17 +121,32 @@ prj_add_source ./sys_pll/sys_pll.ipx
 
 # RISC-V ROM
 file mkdir ./prt_riscv_rom_lat
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.mem ./prt_riscv_rom_lat/.
+#file copy -force ../../../software/build/bin/dp_app_lsc_lfcpnx_rom.mem ./prt_riscv_rom_lat/.
 file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
 file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
 prj_add_source ./prt_riscv_rom_lat/prt_riscv_rom_lat.ipx
 
 # RISC-V RAM
 file mkdir ./prt_riscv_ram_lat
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.mem ./prt_riscv_ram_lat/.
+#file copy -force ../../../software/build/bin/dp_app_lsc_lfcpnx_ram.mem ./prt_riscv_ram_lat/.
 file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
 file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
 prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
 
 # Set top level
 prj_set_impl_opt -impl impl1 top dp_ref_lsc_lfcpnx_evn
+
+# Update and regenrate IPs
+ip_upgrade -all -force_update
+
+# Run synthesis
+prj_run_synthesis
+
+# Run mapper
+prj_run_map                      
+
+# Run partition
+prj_run_par
+
+# Run bitstream
+prj_run_bitstream                
