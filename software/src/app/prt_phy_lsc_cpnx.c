@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
 	v1.1 - Removed DP application and driver header dependency
+    v1.2 - Added PIO
 
     License
     =======
@@ -28,28 +29,18 @@
 
 // Includes
 #include "prt_types.h"
-#include "prt_pio.h"
 #include "prt_tmr.h"
 #include "prt_phy_lsc_cpnx.h"
 #include "prt_printf.h"
 
 // Initialize
-void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base, 
-	prt_u32 pio_phytx_rst, prt_u32 pio_phyrx_rst, prt_u32 pio_phy_rdy)
+void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base)
 {
   	// Base address
 	phy->dev = (prt_phy_lsc_dev_struct *) base;
 
-	// PIO
-	phy->pio = pio;
-
 	// Timer
 	phy->tmr = tmr;
-
-	// PIO bits
-	phy->pio_phytx_rst = pio_phytx_rst;
-	phy->pio_phyrx_rst = pio_phyrx_rst;
-	phy->pio_phy_rdy = pio_phy_rdy;
 
 	// Unbond RX channels. 
 	// By default all RX channels are bonded and the RX master clock comes from MPCS channel 0. 
@@ -528,14 +519,14 @@ void prt_phy_lsc_rx_pol (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u8 inv)
 // PHY TX reset
 void prt_phy_lsc_txrst (prt_phy_lsc_ds_struct *phy)
 {
-     // Assert PHY TX reset
-     prt_pio_dat_set (phy->pio, phy->pio_phytx_rst);
+    // Assert PHY TX reset
+    prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_TX_RST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_LSC_RST_PULSE);
      
      // Release PHY TX reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phytx_rst);
+	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_TX_RST);
 }
 
 // PHY RX reset
@@ -545,20 +536,20 @@ void prt_phy_lsc_rxrst (prt_phy_lsc_ds_struct *phy)
 	prt_u32 dat;
 	prt_bool exit_loop;
 
-     // Assert PHY RX reset
-     prt_pio_dat_set (phy->pio, phy->pio_phyrx_rst);
+    // Assert PHY RX reset
+    prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 
 	// Wait for PLL lock
-     // Set alarm 0
-     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
 
-     exit_loop = PRT_FALSE;
-     do
-     {
-     	// Get PHY ready
-  		dat = prt_pio_dat_get (phy->pio);
+    exit_loop = PRT_FALSE;
+    do
+    {
+    	// Get PHY ready
+  		dat = prt_phy_lsc_pio_dat_get (phy);
 
-		if (dat & phy->pio_phy_rdy)
+		if (dat & PRT_PHY_LSC_PIO_IN_PHY_RDY)
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -568,10 +559,10 @@ void prt_phy_lsc_rxrst (prt_phy_lsc_ds_struct *phy)
 			prt_printf ("PHY: RX RST timeout\n");
 			exit_loop = PRT_TRUE;
 		}
-     } while (exit_loop == PRT_FALSE);
+    } while (exit_loop == PRT_FALSE);
     
-     // Release PHY RX reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phyrx_rst);
+    // Release PHY RX reset
+	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 }
 
 // PRBS generator
@@ -672,4 +663,29 @@ void prt_phy_lsc_unbond (prt_phy_lsc_ds_struct *phy)
 		// Update settings
 		prt_phy_lsc_wr (phy, i, 0x120, dat);
 	}
+}
+
+//  PIO Data set
+void prt_phy_lsc_pio_dat_set (prt_phy_lsc_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_set = dat;
+}
+
+// PIO Data clear
+void prt_phy_lsc_pio_dat_clr (prt_phy_lsc_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_clr = dat;
+}
+
+// PIO Data mask
+void prt_phy_lsc_pio_dat_msk (prt_phy_lsc_ds_struct *phy, prt_u32 dat, prt_u32 msk)
+{
+	phy->dev->pio_msk = msk;
+	phy->dev->pio_dout = dat;
+}
+
+// PIO Get data
+prt_u32 prt_phy_lsc_pio_dat_get (prt_phy_lsc_ds_struct *phy)
+{
+  return phy->dev->pio_din;
 }

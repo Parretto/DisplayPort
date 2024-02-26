@@ -5,7 +5,7 @@
 
 
     Module: Tentiva Header
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -17,7 +17,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -29,17 +29,19 @@
 
 // Data structure
 typedef struct {
-	prt_pio_ds_struct *pio;		                // PIO
-	prt_i2c_ds_struct *i2c;		                // I2C
-	prt_tmr_ds_struct *tmr;                     // Timer
-	prt_u8 phy_freq;			                // PHY frequency
-    prt_rc22504a_reg_struct *phy_clk_cfg_prt;   // PHY clock configuration pointer
-    prt_u16 phy_clk_cfg_len;                    // PHY clock configuration length
-    prt_rc22504a_reg_struct *vid_clk_cfg_prt;   // Video clock configuration pointer
-    prt_u16 vid_clk_cfg_len;                    // Video clock configuration length
-    prt_u32 pio_phy_refclk_lock;                // PIO PHY reference clock lock
-    prt_u32 pio_vid_refclk_lock;                // PIO VID reference clock lock
-    prt_u32 pio_clk_sel;                        // PIO clock select
+	prt_pio_ds_struct *pio;		                    // PIO
+	prt_i2c_ds_struct *i2c;		                    // I2C
+	prt_tmr_ds_struct *tmr;                         // Timer
+	prt_u8 phy_freq;			                    // PHY frequency
+    prt_rc22504a_reg_struct *phy_clk_cfg_prt[2];    // PHY clock configuration pointer
+    prt_u16 phy_clk_cfg_len;                        // PHY clock configuration length
+    prt_rc22504a_reg_struct *vid_clk_cfg_prt[2];    // Video clock configuration pointer
+    prt_u16 vid_clk_cfg_len;                        // Video clock configuration length
+    prt_u32 pio_phy_refclk_lock;                    // PIO PHY reference clock lock
+    prt_u32 pio_vid_refclk_lock;                    // PIO VID reference clock lock
+    prt_u32 pio_clk_sel;                            // PIO clock select
+    prt_u8 phy_clk_cfg;                             // Active phy clock configuration
+    prt_u8 vid_clk_cfg;                             // Active video clock configuration
 } prt_tentiva_ds_struct;
 
 // Defines
@@ -56,6 +58,7 @@ typedef struct {
 #define PRT_TENTIVA_VID_FREQ_7425_MHZ			2
 #define PRT_TENTIVA_VID_FREQ_1485_MHZ			3
 #define PRT_TENTIVA_VID_FREQ_297_MHZ			4
+#define PRT_TENTIVA_VID_FREQ_254974_MHZ         5
 
 #define PRT_TENTIVA_I2C_RC22504A_ADR			0x09
 #define PRT_TENTIVA_I2C_BASE_EEPROM_ADR			0x50
@@ -77,7 +80,7 @@ typedef struct {
 // Prototypes
 void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, prt_i2c_ds_struct *i2c, prt_tmr_ds_struct *tmr, 
     prt_u32 pio_phy_refclk_lock, prt_u32 pio_vid_refclk_lock, prt_u32 pio_clk_sel);
-void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_rc22504a_reg_struct *prt, prt_u16 len);
+void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u8 cfg, prt_rc22504a_reg_struct *prt, prt_u16 len);
 void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva);
 prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ingore_err);
 prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, prt_u32 pio_phy_lock);

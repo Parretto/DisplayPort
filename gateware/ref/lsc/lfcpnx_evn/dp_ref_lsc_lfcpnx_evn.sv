@@ -11,7 +11,8 @@
     =======
     v1.0 - Initial release
     v1.1 - Updated with new scaler
-    v1.2 - Added 10-bits video 
+    v1.2 - Added MST feature
+    v1.3 - Added 10-bits video 
 
     License
     =======
@@ -50,7 +51,7 @@ module dp_ref_lsc_lfcpnx_evn
     input wire              TENTIVA_VID_CLK_LOCK_IN,    // Video clock lock
     input wire              TENTIVA_VID_CLK_IN,         // Video clock 
 
-    // PHY
+    // Serdes
     input wire              SD_REFCLK0_IN_P,
     input wire              SD_REFCLK0_IN_N,
     input wire              SD_REFCLK1_IN_P,
@@ -75,30 +76,39 @@ module dp_ref_lsc_lfcpnx_evn
     output wire             DPRX_HPD_OUT,            // HPD
 
     // Misc
-    output wire [7:0]       LED_OUT,
-    output wire [7:0]       DEBUG_OUT
+    output wire [7:0]       LED_OUT
 );
 
 
 /*
     Parameters
 */
-localparam P_VENDOR         = "lattice";
-localparam P_SYS_FREQ       = 50_000_000;      // System frequency 50 MHz
-localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
-localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
-localparam P_REF_VER_MINOR  = 0;     // Reference design minor
-localparam P_PIO_IN_WIDTH   = 6;
-localparam P_PIO_OUT_WIDTH  = 8;
-localparam P_LANES          = 4;
-localparam P_SPL            = 4;
-localparam P_PPC            = 4;
-localparam P_BPC            = 10;    // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH      = (P_BPC == 10) ? 128 : 96;
-localparam P_APP_ROM_INIT   = "none";
-localparam P_APP_RAM_INIT   = "none";
-localparam P_SCALER         = 0;
-localparam P_MST            = 0;
+localparam P_VENDOR             = "lattice";
+localparam P_SYS_FREQ           = 50_000_000;      // System frequency 50 MHz
+localparam P_BEAT               = P_SYS_FREQ / 1_000_000;   // Beat value. 
+localparam P_REF_VER_MAJOR      = 1;     // Reference design version major
+localparam P_REF_VER_MINOR      = 0;     // Reference design minor
+localparam P_PIO_IN_WIDTH       = 4;
+localparam P_PIO_OUT_WIDTH      = 3;
+localparam P_LANES              = 4;
+localparam P_SPL                = 4;
+localparam P_PPC                = 4;
+localparam P_BPC                = 10;    // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH          = (P_BPC == 10) ? 128 : 96;
+
+localparam P_APP_ROM_SIZE       = 64;
+localparam P_APP_RAM_SIZE       = 64;
+localparam P_APP_ROM_INIT       = "none";
+localparam P_APP_RAM_INIT       = "none";
+
+localparam P_SCALER             = 0;
+
+localparam P_MST                = 0;                        // MST support
+localparam P_VTB_OVL            = (P_MST) ? 1 : 0;          // VTB Overlay
+
+localparam P_PHY_CTL_LMMI_PORTS = 4;
+localparam P_PHY_CTL_PIO_IN     = 1;
+localparam P_PHY_CTL_PIO_OUT    = 3;
 
 // Interfaces
 
@@ -169,9 +179,6 @@ wire [P_PIO_OUT_WIDTH-1:0]      pio_dat_from_app;
 
 wire                            dptx_rst_from_app;
 wire                            dprx_rst_from_app;
-wire                            phy_all_rst_from_app;
-wire                            phy_tx_rst_from_app;
-wire                            phy_rx_rst_from_app;
 
 // DPTX
 wire                            irq_from_dptx;
@@ -213,11 +220,16 @@ wire                            dia_rdy_from_app;
 wire [31:0]                     dia_dat_from_vtb;
 wire                            dia_vld_from_vtb;
 
-// LMMI
-wire [3:0]                      req_from_lmmi;
-wire [3:0]                      dir_from_lmmi;
-wire [(4*9)-1:0]                adr_from_lmmi;
-wire [(4*8)-1:0]                dat_from_lmmi;
+// PHY Controller
+wire [3:0]                      lmmi_req_from_phy_ctl;
+wire [3:0]                      lmmi_dir_from_phy_ctl;
+wire [(4*9)-1:0]                lmmi_adr_from_phy_ctl;
+wire [(4*8)-1:0]                lmmi_dat_from_phy_ctl;
+wire [P_PHY_CTL_PIO_IN-1:0]     pio_dat_to_phy_ctl;
+wire [P_PHY_CTL_PIO_OUT-1:0]    pio_dat_from_phy_ctl;
+wire                            phy_all_rst_from_phy_ctl;
+wire                            phy_tx_rst_from_phy_ctl;
+wire                            phy_rx_rst_from_phy_ctl;
 
 // Serdes
 wire                            tx_clk_from_phy;
@@ -274,6 +286,7 @@ wire                            led_from_vid_hb;
     GSR
     GSR_INST
     (
+//        .GSR_N (~sclk_rst),  
         .GSR_N (1'b1),  
         .CLK   (clk_from_sys_buf)  
     );
@@ -317,6 +330,8 @@ wire                            led_from_vid_hb;
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_SIZE         (P_APP_ROM_SIZE),       // ROM size (in Kbytes)
+        .P_RAM_SIZE         (P_APP_RAM_SIZE),       // RAM size (in Kbytes)
         .P_ROM_INIT         (P_APP_ROM_INIT),
         .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
@@ -373,17 +388,16 @@ wire                            led_from_vid_hb;
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]        = TENTIVA_GT_CLK_LOCK_IN; 
-    assign pio_dat_to_app[1]        = TENTIVA_VID_CLK_LOCK_IN;
-    assign pio_dat_to_app[2]        = &rdy_from_phy;
+    assign pio_dat_to_app[0]    = (P_PPC == 4) ? 1 : 0;             // Pixels per clock
+    assign pio_dat_to_app[1]    = (P_BPC == 10) ? 1 : 0;            // Bits per component
+    assign pio_dat_to_app[2]    = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[3]    = TENTIVA_VID_CLK_LOCK_IN;
 
     // PIO out mapping
-    assign TENTIVA_CLK_SEL_OUT      = pio_dat_from_app[0];
-    assign dptx_rst_from_app        = pio_dat_from_app[1];
-    assign dprx_rst_from_app        = pio_dat_from_app[2];
-    assign phy_all_rst_from_app     = pio_dat_from_app[3];
-    assign phy_tx_rst_from_app      = pio_dat_from_app[4];
-    assign phy_rx_rst_from_app      = pio_dat_from_app[5];
+    assign TENTIVA_CLK_SEL_OUT  = pio_dat_from_app[0];
+    assign dptx_rst_from_app    = pio_dat_from_app[1];
+    assign dprx_rst_from_app    = pio_dat_from_app[2];
+
 
 // Displayport TX
     prt_dptx_top
@@ -501,7 +515,8 @@ wire                            led_from_vid_hb;
         .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
         .P_PPC                  (P_PPC),        // Pixels per clock
         .P_BPC                  (P_BPC),        // Bits per component
-        .P_AXIS_DAT             (P_AXI_WIDTH)
+        .P_AXIS_DAT             (P_AXI_WIDTH),
+        .P_OVL                  (P_VTB_OVL)     // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
     )
     VTB0_INST
     (
@@ -542,6 +557,7 @@ wire                            led_from_vid_hb;
 
 // Video toolbox (stream 1)
 generate
+    // MST mode
     if (P_MST)
     begin : gen_vtb1
         prt_vtb_top
@@ -550,7 +566,8 @@ generate
             .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
             .P_PPC                  (P_PPC),        // Pixels per clock
             .P_BPC                  (P_BPC),        // Bits per component
-            .P_AXIS_DAT             (P_AXI_WIDTH)
+            .P_AXIS_DAT             (P_AXI_WIDTH),
+            .P_OVL                  (2)             // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
         )
         VTB1_INST
         (
@@ -590,6 +607,7 @@ generate
         );
     end
 
+    // SST mode
     else
     begin : gen_no_vtb1
         assign lock_from_vtb[1] = 0;
@@ -660,12 +678,14 @@ generate
     end
 endgenerate
 
-// LMMI bridge
-    prt_lat_lmmi
+// PHY controller
+    prt_phy_ctl_lsc
     #(
-        .P_LMMI_PORTS       (4),
+        .P_LMMI_PORTS       (P_PHY_CTL_LMMI_PORTS),
         .P_LMMI_ADR         (9),
-        .P_LMMI_DAT         (8)
+        .P_LMMI_DAT         (8),
+        .P_PIO_IN           (P_PHY_CTL_PIO_IN),
+        .P_PIO_OUT          (P_PHY_CTL_PIO_OUT)
     )
     LMMI_INST
     (
@@ -677,14 +697,26 @@ endgenerate
         .LB_IF              (phy_if),
 
         // LMMI
-        .LMMI_REQ_OUT       (req_from_lmmi),            // Request
-        .LMMI_DIR_OUT       (dir_from_lmmi),            // Direction
-        .LMMI_ADR_OUT       (adr_from_lmmi),            // Address
-        .LMMI_DAT_OUT       (dat_from_lmmi),            // Write data
-        .LMMI_DAT_IN        (lmmi_dat_from_phy),     // Read data
-        .LMMI_VLD_IN        (lmmi_vld_from_phy),     // Valid
-        .LMMI_RDY_IN        (lmmi_rdy_from_phy)      // Ready
+        .LMMI_REQ_OUT       (lmmi_req_from_phy_ctl),    // Request
+        .LMMI_DIR_OUT       (lmmi_dir_from_phy_ctl),    // Direction
+        .LMMI_ADR_OUT       (lmmi_adr_from_phy_ctl),    // Address
+        .LMMI_DAT_OUT       (lmmi_dat_from_phy_ctl),    // Write data
+        .LMMI_DAT_IN        (lmmi_dat_from_phy),        // Read data
+        .LMMI_VLD_IN        (lmmi_vld_from_phy),        // Valid
+        .LMMI_RDY_IN        (lmmi_rdy_from_phy),        // Ready
+
+        // PIO
+        .PIO_DAT_IN         (pio_dat_to_phy_ctl),
+        .PIO_DAT_OUT        (pio_dat_from_phy_ctl)
     );
+
+    // PIO in mapping
+    assign pio_dat_to_phy_ctl[0]        = &rdy_from_phy;
+
+    // PIO out mapping
+    assign phy_all_rst_from_phy_ctl     = pio_dat_from_phy_ctl[0];
+    assign phy_tx_rst_from_phy_ctl      = pio_dat_from_phy_ctl[1];
+    assign phy_rx_rst_from_phy_ctl      = pio_dat_from_phy_ctl[2];
 
 // PHY TX clock buffer
     BUF
@@ -776,57 +808,57 @@ endgenerate
         // LMMI interface
         .lmmi_clk_i_0               (clk_from_sys_pll), 
         .lmmi_resetn_i_0            (~sclk_rst), 
-        .lmmi_request_i_0           (req_from_lmmi[0]), 
-        .lmmi_wr_rdn_i_0            (dir_from_lmmi[0]), 
-        .lmmi_offset_i_0            (adr_from_lmmi[(0*9)+:9]), 
-        .lmmi_wdata_i_0             (dat_from_lmmi[(0*8)+:8]), 
+        .lmmi_request_i_0           (lmmi_req_from_phy_ctl[0]), 
+        .lmmi_wr_rdn_i_0            (lmmi_dir_from_phy_ctl[0]), 
+        .lmmi_offset_i_0            (lmmi_adr_from_phy_ctl[(0*9)+:9]), 
+        .lmmi_wdata_i_0             (lmmi_dat_from_phy_ctl[(0*8)+:8]), 
         .lmmi_rdata_valid_o_0       (lmmi_vld_from_phy[0]), 
         .lmmi_ready_o_0             (lmmi_rdy_from_phy[0]), 
         .lmmi_rdata_o_0             (lmmi_dat_from_phy[(0*8)+:8]), 
 
         .lmmi_clk_i_1               (clk_from_sys_pll), 
         .lmmi_resetn_i_1            (~sclk_rst), 
-        .lmmi_request_i_1           (req_from_lmmi[1]), 
-        .lmmi_wr_rdn_i_1            (dir_from_lmmi[1]), 
-        .lmmi_offset_i_1            (adr_from_lmmi[(1*9)+:9]), 
-        .lmmi_wdata_i_1             (dat_from_lmmi[(1*8)+:8]), 
+        .lmmi_request_i_1           (lmmi_req_from_phy_ctl[1]), 
+        .lmmi_wr_rdn_i_1            (lmmi_dir_from_phy_ctl[1]), 
+        .lmmi_offset_i_1            (lmmi_adr_from_phy_ctl[(1*9)+:9]), 
+        .lmmi_wdata_i_1             (lmmi_dat_from_phy_ctl[(1*8)+:8]), 
         .lmmi_rdata_valid_o_1       (lmmi_vld_from_phy[1]), 
         .lmmi_ready_o_1             (lmmi_rdy_from_phy[1]), 
         .lmmi_rdata_o_1             (lmmi_dat_from_phy[(1*8)+:8]), 
 
         .lmmi_clk_i_2               (clk_from_sys_pll), 
         .lmmi_resetn_i_2            (~sclk_rst), 
-        .lmmi_request_i_2           (req_from_lmmi[2]), 
-        .lmmi_wr_rdn_i_2            (dir_from_lmmi[2]), 
-        .lmmi_offset_i_2            (adr_from_lmmi[(2*9)+:9]), 
-        .lmmi_wdata_i_2             (dat_from_lmmi[(2*8)+:8]), 
+        .lmmi_request_i_2           (lmmi_req_from_phy_ctl[2]), 
+        .lmmi_wr_rdn_i_2            (lmmi_dir_from_phy_ctl[2]), 
+        .lmmi_offset_i_2            (lmmi_adr_from_phy_ctl[(2*9)+:9]), 
+        .lmmi_wdata_i_2             (lmmi_dat_from_phy_ctl[(2*8)+:8]), 
         .lmmi_rdata_valid_o_2       (lmmi_vld_from_phy[2]), 
         .lmmi_ready_o_2             (lmmi_rdy_from_phy[2]), 
         .lmmi_rdata_o_2             (lmmi_dat_from_phy[(2*8)+:8]), 
 
         .lmmi_clk_i_3               (clk_from_sys_pll), 
         .lmmi_resetn_i_3            (~sclk_rst), 
-        .lmmi_request_i_3           (req_from_lmmi[3]), 
-        .lmmi_wr_rdn_i_3            (dir_from_lmmi[3]), 
-        .lmmi_offset_i_3            (adr_from_lmmi[(3*9)+:9]), 
-        .lmmi_wdata_i_3             (dat_from_lmmi[(3*8)+:8]), 
+        .lmmi_request_i_3           (lmmi_req_from_phy_ctl[3]), 
+        .lmmi_wr_rdn_i_3            (lmmi_dir_from_phy_ctl[3]), 
+        .lmmi_offset_i_3            (lmmi_adr_from_phy_ctl[(3*9)+:9]), 
+        .lmmi_wdata_i_3             (lmmi_dat_from_phy_ctl[(3*8)+:8]), 
         .lmmi_rdata_valid_o_3       (lmmi_vld_from_phy[3]), 
         .lmmi_ready_o_3             (lmmi_rdy_from_phy[3]), 
         .lmmi_rdata_o_3             (lmmi_dat_from_phy[(3*8)+:8]), 
 
         // Reset 
-        .mpcs_perstn_i_3            (~phy_all_rst_from_app), 
-        .mpcs_perstn_i_2            (~phy_all_rst_from_app), 
-        .mpcs_perstn_i_1            (~phy_all_rst_from_app), 
-        .mpcs_perstn_i_0            (~phy_all_rst_from_app), 
-        .mpcs_tx_pcs_rstn_i_3       (~phy_tx_rst_from_app), 
-        .mpcs_tx_pcs_rstn_i_2       (~phy_tx_rst_from_app), 
-        .mpcs_tx_pcs_rstn_i_1       (~phy_tx_rst_from_app), 
-        .mpcs_tx_pcs_rstn_i_0       (~phy_tx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_3       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_2       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_1       (~phy_rx_rst_from_app), 
-        .mpcs_rx_pcs_rstn_i_0       (~phy_rx_rst_from_app), 
+        .mpcs_perstn_i_3            (~phy_all_rst_from_phy_ctl), 
+        .mpcs_perstn_i_2            (~phy_all_rst_from_phy_ctl), 
+        .mpcs_perstn_i_1            (~phy_all_rst_from_phy_ctl), 
+        .mpcs_perstn_i_0            (~phy_all_rst_from_phy_ctl), 
+        .mpcs_tx_pcs_rstn_i_3       (~phy_tx_rst_from_phy_ctl), 
+        .mpcs_tx_pcs_rstn_i_2       (~phy_tx_rst_from_phy_ctl), 
+        .mpcs_tx_pcs_rstn_i_1       (~phy_tx_rst_from_phy_ctl), 
+        .mpcs_tx_pcs_rstn_i_0       (~phy_tx_rst_from_phy_ctl), 
+        .mpcs_rx_pcs_rstn_i_3       (~phy_rx_rst_from_phy_ctl), 
+        .mpcs_rx_pcs_rstn_i_2       (~phy_rx_rst_from_phy_ctl), 
+        .mpcs_rx_pcs_rstn_i_1       (~phy_rx_rst_from_phy_ctl), 
+        .mpcs_rx_pcs_rstn_i_0       (~phy_rx_rst_from_phy_ctl), 
 
         // MPCS Clocks
         .mpcs_clkin_i_3             (clk_from_sys_pll), 
@@ -882,10 +914,7 @@ endgenerate
         .mpcs_rate_i_3              (2'b00), 
         .mpcs_rate_i_2              (2'b00), 
         .mpcs_rate_i_1              (2'b00), 
-        .mpcs_rate_i_0              (2'b00), //        .mpcs_speed_o_3             (), 
-//        .mpcs_speed_o_2             (), 
-//        .mpcs_speed_o_1             (), 
-//        .mpcs_speed_o_0             (), 
+        .mpcs_rate_i_0              (2'b00), 
         .mpcs_txval_i_3             (1'b1), 
         .mpcs_txval_i_2             (1'b1), 
         .mpcs_txval_i_1             (1'b1), 

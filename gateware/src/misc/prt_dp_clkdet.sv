@@ -5,7 +5,7 @@
 
 
     Module: DP Clock Detector
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -17,7 +17,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -50,12 +50,12 @@ logic           mclk_beacon;
 wire            sclk_beacon;
 wire            sclk_beacon_re;
 wire            sclk_beacon_fe;
-logic [6:0]     sclk_cnt;
+logic [7:0]     sclk_cnt;
 logic           sclk_cnt_end;
 logic           sclk_act;
 
 /*
-    Link domain
+    Monitor domain
 */
 
 // Counter
@@ -87,7 +87,7 @@ logic           sclk_act;
     end
 
 // Beacon
-// This signal will toggle when the link clock is running
+// This signal will toggle when the monitor clock is running
     always_ff @ (posedge MON_RST_IN, posedge MON_CLK_IN)
     begin
         // Reset

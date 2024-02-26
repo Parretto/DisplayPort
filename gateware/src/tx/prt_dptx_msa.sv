@@ -14,6 +14,7 @@
     v1.2 - Updated architecture to insert Mvid value in MSA RAM output
     v1.3 - Updated interfaces and added scrambler reset insert function
     v1.4 - Added MST support
+    v1.5 - Added pixels per clock parameter
 
     License
     =======
@@ -41,6 +42,9 @@ module prt_dptx_msa
     // Link
     parameter               P_LANES       = 4,      // Lanes
     parameter               P_SPL         = 2,      // Symbols per lane
+
+    // Video 
+    parameter               P_PPC         = 2,      // Pixels per clock
 
     // Message
     parameter               P_MSG_IDX     = 5,      // Message index width
@@ -83,6 +87,12 @@ localparam P_RAM_ADR = $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT = 9;
 localparam P_MVID_CNT = P_SIM ? 255 : 32767;
 localparam P_BS_CNT_MAX = P_SIM ? 10 : 512;
+
+// Mvid increment value. 
+// This value is used by the Mvid counter. 
+// If the pixels per clock is 4 and the symbols per lane is 2, then this value must be corrected. 
+// Else the fps is reported as half the frequency.  
+localparam P_MVID_VAL_INC = ((P_SPL == 2) & (P_PPC == 4)) ? 2 : 1;
 
 // States
 typedef enum {
@@ -1146,7 +1156,7 @@ endgenerate
 
             // Run
             else if (vclk_mvid.run)
-                vclk_mvid.val <= vclk_mvid.val + 'd1;
+                vclk_mvid.val <= vclk_mvid.val + P_MVID_VAL_INC;
         end
     end
 

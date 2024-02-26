@@ -1,6 +1,6 @@
 ###
 # Lattice DP reference design project script
-# (c) 2022-2023 by Parretto B.V.
+# (c) 2022 - 2024 by Parretto B.V.
 ###
 
 # Create project
@@ -33,6 +33,7 @@ prj_add_source $SRC/tx/prt_dptx_scrm.sv
 prj_add_source $SRC/tx/prt_dptx_skew.sv
 prj_add_source $SRC/tx/prt_dptx_trn.sv
 prj_add_source $SRC/tx/prt_dptx_vid_vmap.sv
+prj_add_source $SRC/tx/prt_dptx_vid_fifo.sv
 prj_add_source $SRC/tx/prt_dptx_vid.sv
 prj_add_source $SRC/tx/prt_dptx_top.sv
 
@@ -75,7 +76,7 @@ prj_add_source $SRC/pm/prt_dp_pm_tmr.sv
 prj_add_source $SRC/pm/prt_dp_pm_top.sv
 
 # Misc
-prj_add_source $SRC/misc/prt_lat_lmmi.sv
+prj_add_source $SRC/misc/prt_phy_ctl_lsc.sv
 prj_add_source $SRC/misc/prt_i2c.sv
 prj_add_source $SRC/misc/prt_lb_mux.sv
 prj_add_source $SRC/misc/prt_dp_clkdet.sv

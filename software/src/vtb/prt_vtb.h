@@ -5,11 +5,12 @@
 
 
     Module: Video Toolbox header
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added video resolution 7680X4320P30
 
     License
     =======
@@ -17,7 +18,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -93,7 +94,7 @@
 #define VTB_PRESET_2560X1440P60         6
 #define VTB_PRESET_3840X2160P50         7
 #define VTB_PRESET_3840X2160P60         8
-#define VTB_PRESET_2880X1620P50         9
+#define VTB_PRESET_7680X4320P30         9
 
 // 1280 x 720p @ 50Hz
 #define VTB_1280X720P50_HTOTAL 		    1980
@@ -175,15 +176,15 @@
 #define VTB_3840X2160P60_VSTART 		82
 #define VTB_3840X2160P60_VSW 			10
 
-// 2880 x 1620p @ 50Hz
-#define VTB_2880X1620P50_HTOTAL 		3960
-#define VTB_2880X1620P50_HWIDTH 		2880
-#define VTB_2880X1620P50_HSTART 		384
-#define VTB_2880X1620P50_HSW 			88
-#define VTB_2880X1620P50_VTOTAL 		1875
-#define VTB_2880X1620P50_VHEIGHT 		1620
-#define VTB_2880X1620P50_VSTART 		82
-#define VTB_2880X1620P50_VSW 			10
+// 7680 x 4320p @ 30Hz (RB2)
+#define VTB_7680X4320P30_HTOTAL 		7760
+#define VTB_7680X4320P30_HWIDTH 		7680
+#define VTB_7680X4320P30_HSTART 		72
+#define VTB_7680X4320P30_HSW 			32
+#define VTB_7680X4320P30_VTOTAL 		4381
+#define VTB_7680X4320P30_VHEIGHT 		4320
+#define VTB_7680X4320P30_VSTART 		14
+#define VTB_7680X4320P30_VSW 			8
 
 // TPG format
 #define VTB_TPG_FMT_FULL                0

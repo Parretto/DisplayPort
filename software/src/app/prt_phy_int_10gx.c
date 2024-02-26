@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added PIO
 
     License
     =======
@@ -27,7 +28,6 @@
 
 // Includes
 #include "prt_types.h"
-#include "prt_pio.h"
 #include "prt_tmr.h"
 #include "prt_phy_int_10gx.h"
 #include "prt_printf.h"
@@ -216,38 +216,13 @@ prt_u32 altera_xcvr_native_a10_ram_array[4][13] = {
 };
 
 // Initialize
-void prt_phy_int_init (prt_phy_int_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base, 
-	prt_u32 pio_phy_pll_pwrdwn, prt_u32 pio_phy_pll_cal_busy, prt_u32 pio_phy_pll_lock,
-  	prt_u32 pio_phy_tx_cal_busy, prt_u32 pio_phy_tx_arst,  prt_u32 pio_phy_tx_drst,
-  	prt_u32 pio_phy_rx_cal_busy, prt_u32 pio_phy_rx_arst,  prt_u32 pio_phy_rx_drst, prt_u32 pio_phy_rx_cdr_lock
-	)
+void prt_phy_int_init (prt_phy_int_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base) 
 {
   	// Base address
 	phy->dev = (prt_phy_int_dev_struct *) base;
 
-	// PIO
-	phy->pio = pio;
-
 	// Timer
 	phy->tmr = tmr;
-
-	// PIO bits
-	
-	// PHY PLL
-	phy->pio_phy_pll_pwrdwn = pio_phy_pll_pwrdwn;
-	phy->pio_phy_pll_cal_busy = pio_phy_pll_cal_busy;
-	phy->pio_phy_pll_lock = pio_phy_pll_lock;
-
-	// PHY TX
-	phy->pio_phy_tx_cal_busy = pio_phy_tx_cal_busy;
-	phy->pio_phy_tx_drst = pio_phy_tx_drst;
-	phy->pio_phy_tx_arst = pio_phy_tx_arst;
-
-	// PHY RX
-	phy->pio_phy_rx_cal_busy = pio_phy_rx_cal_busy;
-	phy->pio_phy_rx_drst = pio_phy_rx_drst;
-	phy->pio_phy_rx_arst = pio_phy_rx_arst;
-	phy->pio_phy_rx_cdr_lock = pio_phy_rx_cdr_lock;
 }
 
 // Read
@@ -451,22 +426,22 @@ void prt_phy_int_tx_rst (prt_phy_int_ds_struct *phy)
 	prt_bool exit_loop;
 
 	// Assert PHY PLL power down
-	prt_pio_dat_set (phy->pio, phy->pio_phy_pll_pwrdwn);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_PLL_PWRDWN);
 
 	// Assert PHY TX analog reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_tx_arst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_TX_ARST);
 
 	// Assert PHY TX digital reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_tx_drst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_TX_DRST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_INT_RST_PULSE);
 
 	// Release PHY PLL power down
-	prt_pio_dat_clr (phy->pio, phy->pio_phy_pll_pwrdwn);
+	prt_phy_int_pio_dat_clr (phy, PRT_PHY_INT_PIO_OUT_PHY_PLL_PWRDWN);
 
 	// Release PHY TX analog reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phy_tx_arst);
+	prt_phy_int_pio_dat_clr (phy, PRT_PHY_INT_PIO_OUT_PHY_TX_ARST);
 
 	// Wait for PHY PLL lock
     // Set alarm 0
@@ -475,7 +450,7 @@ void prt_phy_int_tx_rst (prt_phy_int_ds_struct *phy)
 	exit_loop = PRT_FALSE;
 	do
 	{
-		if (pio_tst_bit (phy->pio, phy->pio_phy_pll_lock))
+		if (prt_phy_int_pio_tst_bit (phy, PRT_PHY_INT_PIO_IN_PHY_PLL_LOCKED))
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -491,7 +466,7 @@ void prt_phy_int_tx_rst (prt_phy_int_ds_struct *phy)
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_INT_RST_PULSE);
 
 	// Release PHY TX digital reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phy_tx_drst);
+	prt_phy_int_pio_dat_clr (phy, PRT_PHY_INT_PIO_OUT_PHY_TX_DRST);
 }
 
 // TX PLL recalibration
@@ -516,7 +491,7 @@ void prt_phy_int_tx_pll_recal (prt_phy_int_ds_struct *phy)
 	exit_loop = PRT_FALSE;
 	do
 	{
-		if (!pio_tst_bit (phy->pio, phy->pio_phy_pll_cal_busy))
+		if (!prt_phy_int_pio_tst_bit (phy, PRT_PHY_INT_PIO_IN_PHY_PLL_CAL_BUSY))
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -534,10 +509,10 @@ void prt_phy_int_tx_pll_recal (prt_phy_int_ds_struct *phy)
 void prt_phy_int_rx_rate (prt_phy_int_ds_struct *phy, prt_u8 rate)
 {
 	// Assert PHY RX analog reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_rx_arst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_ARST);
 
 	// Assert PHY RX digital reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_rx_drst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_DRST);
 
 	// Configure PHY RX (with pre-calibrated data)
 	prt_phy_int_rx_cfg_cal (phy, rate);
@@ -656,7 +631,7 @@ void prt_phy_int_rx_recal (prt_phy_int_ds_struct *phy)
 	exit_loop = PRT_FALSE;
 	do
 	{
-		if (!pio_tst_bit (phy->pio, phy->pio_phy_rx_cal_busy))
+		if (!prt_phy_int_pio_tst_bit (phy, PRT_PHY_INT_PIO_IN_PHY_RX_CAL_BUSY))
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -676,16 +651,16 @@ void prt_phy_int_rx_rst (prt_phy_int_ds_struct *phy)
 	prt_bool exit_loop;
 
 	// Assert PHY RX analog reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_rx_arst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_ARST);
 
 	// Assert PHY RX digital reset
-	prt_pio_dat_set (phy->pio, phy->pio_phy_rx_drst);
+	prt_phy_int_pio_dat_set (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_DRST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_INT_RST_PULSE);
 
 	// Release PHY RX analog reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phy_rx_arst);
+	prt_phy_int_pio_dat_clr (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_ARST);
 
 	// Wait for PHY CDR lock
     // Set alarm 0
@@ -694,7 +669,7 @@ void prt_phy_int_rx_rst (prt_phy_int_ds_struct *phy)
 	exit_loop = PRT_FALSE;
 	do
 	{
-		if (pio_tst_bit (phy->pio, phy->pio_phy_rx_cdr_lock))
+		if (prt_phy_int_pio_tst_bit (phy, PRT_PHY_INT_PIO_IN_PHY_RX_CDR_LOCK))
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -710,7 +685,7 @@ void prt_phy_int_rx_rst (prt_phy_int_ds_struct *phy)
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_INT_RST_PULSE);
 
 	// Release PHY RX digital reset
-	prt_pio_dat_clr (phy->pio, phy->pio_phy_rx_drst);
+	prt_phy_int_pio_dat_clr (phy, PRT_PHY_INT_PIO_OUT_PHY_RX_DRST);
 }
 
 // Setup
@@ -762,4 +737,40 @@ void prt_phy_int_setup (prt_phy_int_ds_struct *phy, prt_u8 rate)
 	}
 }
 
+//  PIO Data set
+void prt_phy_int_pio_dat_set (prt_phy_int_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_set = dat;
+}
 
+// PIO Data clear
+void prt_phy_int_pio_dat_clr (prt_phy_int_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_clr = dat;
+}
+
+// PIO Data mask
+void prt_phy_int_pio_dat_msk (prt_phy_int_ds_struct *phy, prt_u32 dat, prt_u32 msk)
+{
+	phy->dev->pio_msk = msk;
+	phy->dev->pio_dout = dat;
+}
+
+// PIO Get data
+prt_u32 prt_phy_int_pio_dat_get (prt_phy_int_ds_struct *phy)
+{
+  return phy->dev->pio_din;
+}
+
+// Test bit
+prt_bool prt_phy_int_pio_tst_bit (prt_phy_int_ds_struct *phy, prt_u32 dat)
+{
+	prt_bool sta;
+
+	if (phy->dev->pio_din & dat)
+		sta = PRT_TRUE;
+	else
+		sta = PRT_FALSE;
+
+	return sta;
+}

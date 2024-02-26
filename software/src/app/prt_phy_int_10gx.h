@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added PIO
 
     License
     =======
@@ -29,10 +30,15 @@
 
 // Device structure
 typedef struct {
-  prt_u32 ctl; 	      // Control
-  prt_u32 sta;	      // Status
-  prt_u32 rcfg_adr;   // Reconfig address
-  prt_u32 rcfg_dat;   // Reconfig data
+  prt_u32 ctl; 	          // Control
+  prt_u32 sta;	          // Status
+  prt_u32 rcfg_adr;       // Reconfig address
+  prt_u32 rcfg_dat;       // Reconfig data
+  prt_u32 pio_din;        // PIO Data in
+  prt_u32 pio_dout_set;   // PIO Data out set
+  prt_u32 pio_dout_clr;   // PIO Data out clear
+  prt_u32 pio_dout;       // PIO Data out
+  prt_u32 pio_msk;        // PIO Mask
 } prt_phy_int_dev_struct;
 
 // Transceiver pre-calibrated configuration data
@@ -43,18 +49,7 @@ typedef struct {
 // Data structure
 typedef struct {
   volatile prt_phy_int_dev_struct *dev;
-  prt_pio_ds_struct *pio;                // PIO
   prt_tmr_ds_struct *tmr;                // Timer
-  prt_u32 pio_phy_pll_pwrdwn;
-  prt_u32 pio_phy_pll_cal_busy;
-  prt_u32 pio_phy_pll_lock;
-  prt_u32 pio_phy_tx_drst;
-  prt_u32 pio_phy_tx_arst;
-  prt_u32 pio_phy_tx_cal_busy;
-  prt_u32 pio_phy_rx_drst;
-  prt_u32 pio_phy_rx_arst;
-  prt_u32 pio_phy_rx_cal_busy;
-  prt_u32 pio_phy_rx_cdr_lock;
   prt_phy_int_cfg_struct cfg;        // Configuration data 
 } prt_phy_int_ds_struct;
 
@@ -83,11 +78,22 @@ typedef struct {
 #define PRT_PHY_INT_TX_PLL_PORT             0
 #define PRT_PHY_INT_XCVR_PORT               1
 
+// PIO out
+#define PRT_PHY_INT_PIO_OUT_PHY_PLL_PWRDWN          (1 << 0)
+#define PRT_PHY_INT_PIO_OUT_PHY_TX_ARST             (1 << 1)
+#define PRT_PHY_INT_PIO_OUT_PHY_TX_DRST             (1 << 2)
+#define PRT_PHY_INT_PIO_OUT_PHY_RX_ARST             (1 << 3)
+#define PRT_PHY_INT_PIO_OUT_PHY_RX_DRST             (1 << 4)
+
+// PIO in
+#define PRT_PHY_INT_PIO_IN_PHY_PLL_CAL_BUSY         (1 << 0)
+#define PRT_PHY_INT_PIO_IN_PHY_PLL_LOCKED           (1 << 1)
+#define PRT_PHY_INT_PIO_IN_PHY_TX_CAL_BUSY          (1 << 2)
+#define PRT_PHY_INT_PIO_IN_PHY_RX_CAL_BUSY          (1 << 3)
+#define PRT_PHY_INT_PIO_IN_PHY_RX_CDR_LOCK          (1 << 4)
+
 // Prototype
-void prt_phy_int_init (prt_phy_int_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base, 
-prt_u32 pio_phy_pll_pwrdwn, prt_u32 pio_phy_pll_cal_busy, prt_u32 pio_phy_pll_lock,
-prt_u32 pio_phy_tx_cal_busy, prt_u32 pio_phy_tx_drst,  prt_u32 pio_phy_tx_arst,
-prt_u32 pio_phy_rx_cal_busy, prt_u32 pio_phy_rx_arst,  prt_u32 pio_phy_rx_drst, prt_u32 pio_phy_rx_cdr_lock);
+void prt_phy_int_init (prt_phy_int_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
 prt_u32 prt_phy_int_rd (prt_phy_int_ds_struct *phy, prt_u8 port, prt_u16 adr);
 void prt_phy_int_wr (prt_phy_int_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u32 dat);
 void prt_phy_int_rmw (prt_phy_int_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u32 msk, prt_u32 dat);
@@ -102,3 +108,8 @@ void prt_phy_int_rx_cfg_cal (prt_phy_int_ds_struct *phy, prt_u8 rate);
 void prt_phy_int_rx_recal (prt_phy_int_ds_struct *phy);
 void prt_phy_int_rx_rst (prt_phy_int_ds_struct *phy);
 void prt_phy_int_setup (prt_phy_int_ds_struct *phy, prt_u8 rate);
+void prt_phy_int_pio_dat_set (prt_phy_int_ds_struct *phy, prt_u32 dat);
+void prt_phy_int_pio_dat_clr (prt_phy_int_ds_struct *phy, prt_u32 dat);
+void prt_phy_int_pio_dat_msk (prt_phy_int_ds_struct *phy, prt_u32 dat, prt_u32 msk);
+prt_u32 prt_phy_int_pio_dat_get (prt_phy_int_ds_struct *phy);
+prt_bool prt_phy_int_pio_tst_bit (prt_phy_int_ds_struct *phy, prt_u32 dat);

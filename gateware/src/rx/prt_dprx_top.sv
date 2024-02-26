@@ -88,8 +88,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none" : "none";
-localparam P_RAM_INIT = (P_SIM) ? (P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none" : "none";
+localparam P_ROM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none";
+localparam P_RAM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;

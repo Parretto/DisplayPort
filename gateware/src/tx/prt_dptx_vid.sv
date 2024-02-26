@@ -15,6 +15,8 @@
     v1.3 - Updated link interface
     v1.4 - Added MST support
     v1.5 - Added 10-bits video support
+    v1.6 - Improved performance
+
 
     License
     =======
@@ -36,6 +38,7 @@ module prt_dptx_vid
 #(
     // System
     parameter               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+    parameter               P_SIM = 0,          // Simulation
     parameter               P_STREAM = 0,       // Stream ID
 
     // Link
@@ -84,10 +87,13 @@ import prt_dp_pkg::*;
 localparam P_FIFO_WRDS = 32;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 9;
+localparam P_FIFO_SEGMENTS = 4;
 localparam P_FIFO_STRIPES = 4;
-localparam P_TU_SIZE = 64;
-localparam P_TU_CNT_LD = P_TU_SIZE / P_SPL;
-localparam P_TU_FE = P_TU_CNT_LD - 4;
+
+localparam P_TU_SIZE = 64;                      // Transfer unit size
+localparam P_TU_CNT_LD = P_TU_SIZE / P_SPL;     // Transfer unit counter load
+localparam P_TU_FE = P_TU_CNT_LD - 4;           // Transfer unit stuffing end
+localparam P_TU_STR_THRESHOLD = 16;             // Transfer unit start    
 localparam P_VC_LEN = (P_SPL == 4) ? 4 : 5;     // VC length
 
 // Structures
@@ -105,7 +111,6 @@ typedef struct {
     logic                           vs_re;
     logic                           hs;
     logic                           hs_re;
-    logic                           hs_fe;
     logic                           de;
     logic                           de_re;
     logic                           de_fe;
@@ -128,58 +133,52 @@ typedef struct {
 } vid_struct;
 
 typedef struct {
-    logic   [P_FIFO_DAT-1:0]        dat[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    wr[0:P_LANES-1];
+    logic [1:0]                     dat[P_LANES][P_FIFO_SEGMENTS][P_FIFO_STRIPES];
+    logic [P_FIFO_STRIPES-1:0]      wr[P_LANES][P_FIFO_SEGMENTS];
 } vid_map_struct;
 
 typedef struct {
-    logic   [7:0]                   head;
-    logic	[P_FIFO_DAT-1:0]        din[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    wr[0:P_LANES-1];
-    logic   [P_FIFO_ADR:0]          wrds[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    ep[0:P_LANES-1];
-    logic   [P_FIFO_STRIPES-1:0]    fl[0:P_LANES-1];
+    logic [1:0]                     din[P_LANES][P_FIFO_SEGMENTS][P_FIFO_STRIPES];
+    logic [P_FIFO_STRIPES-1:0]      wr[P_LANES][P_FIFO_SEGMENTS];
 } vid_fifo_struct;
 
 typedef struct {
-    logic   [7:0]                   head;
-    logic   [7:0]                   tail;
-    logic                           tail_inc;
-    logic   [7:0]                   delta;
-    logic   [7:0]                   msk; 
     logic                           rd_sel;
-    logic   [P_FIFO_STRIPES-1:0]    rd[0:P_LANES-1];
-    logic   [P_FIFO_DAT-1:0]        dout[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    de[0:P_LANES-1];
-    logic   [P_FIFO_ADR:0]          wrds[0:P_LANES-1][0:P_FIFO_STRIPES-1];
-    logic   [P_FIFO_STRIPES-1:0]    ep[0:P_LANES-1];
-    logic   [P_FIFO_STRIPES-1:0]    fl[0:P_LANES-1];
+    logic   [P_FIFO_STRIPES-1:0]    rd[P_LANES];
+    logic   [7:0]                   dout[P_LANES][P_FIFO_SEGMENTS];
+    logic   [P_FIFO_STRIPES-1:0]    de[P_LANES];
+    logic [7:0]                     lvl;
+    logic                           last;
 } lnk_fifo_struct;
 
 typedef struct {
     logic                           run;
     logic                           vs;
-    logic                           hs;
-    logic                           hs_fe;
     logic                           vbf;      // Vertical blanking flag
     logic                           act;
     logic                           act_re;
-    logic                           act_evt;
+    logic                           act_ph;
     logic                           blnk;
     logic                           blnk_re;
-    logic                           blnk_evt;
+    logic                           blnk_ph;
 } lnk_vid_struct;
 
 typedef struct {
-    logic                           bs;             // Blanking start 
+    logic                           dp_clr;         // Datapath clear
+    logic [1:0]                     bs_pipe;        // Blanking start 
+    logic                           bs;             // Blanking start
     logic                           be;             // Blanking end
-    logic                           fifo_rdy;       // FIFO ready
+    logic                           stuff;          // Data stuffing
+    logic [5:0]                     vu_len_in;      // Video unit length in a TU
     logic [5:0]                     vu_len;         // Video unit length in a TU
-    logic                           tu_run;
+    logic                           tu_str;         // TU start
+    logic                           tu_run;         // TU run
     logic                           tu_run_re;
     logic [5:0]                     tu_cnt;         // Transfer unit counter
     logic                           tu_cnt_last;
     logic                           tu_cnt_end;
+    logic                           vu_rd_cnt_ld;
+    logic [5:0]                     vu_rd_cnt_in;      // Video unit read counter in
     logic [5:0]                     vu_rd_cnt;      // Video unit read counter
     logic                           vu_rd_cnt_end;
     logic [4:0]                     ins_be;
@@ -189,12 +188,12 @@ typedef struct {
 } lnk_struct;
 
 typedef struct {
-    logic [1:0]                     bs;
     logic                           rd;
     logic [4:0]                     rd_sel;
     logic [4:0]                     dat_sel[0:2];
     logic [7:0]                     dat[0:P_LANES-1][0:P_SPL-1];
-    logic [2:0]                     de;
+    logic [2:0]                     de_pipe;
+    logic                           de;
     logic                           de_fe;
 } lnk_map_struct;
 
@@ -342,7 +341,7 @@ genvar i, j;
         .CKE_IN    (VID_CKE_IN),        // Clock enable
         .A_IN      (vclk_vid.hs),       // Input
         .RE_OUT    (vclk_vid.hs_re),    // Rising edge
-        .FE_OUT    (vclk_vid.hs_fe)     // Falling edge
+        .FE_OUT    ()                   // Falling edge
     );
 
 // Data enable edge detector
@@ -495,26 +494,33 @@ genvar i, j;
 
 // Blanking start
 // This flag is asserted at the end of an active line.
-// It is used to generate the blanking start symbol in the link domain.
 // This flag is also generated during horizontal blanking.
+// The flag is sticky. This allows it to cross to the link domain.
+// Together with the FIFO level it is used to generate the blanking start symbol in the link domain.
 
-// In SST the BS flag needs to be aligned with the last data.
-// This assures that the link domain will always insert the BS symbol right after the last data independant of the read bust length.
-// In MST the BS flag is inserted after the last data.
-// the VC payload has a fixed length.
-// When generating the VC payload the BS symbol might not fit in the current payload and therefore it can be a seperate symbol.
     assign vclk_vid.pix_cnt_bs = vclk_ctl.mst ? vclk_vid.hstart + vclk_vid.hwidth - (2 * P_PPC) : vclk_vid.hstart + vclk_vid.hwidth - (3 * P_PPC);
     
     always_ff @ (posedge VID_CLK_IN)
     begin
-        // Clock enable
-        if (VID_CKE_IN)
+        // Run
+        if (vclk_vid.run)
         begin
-            if (vclk_vid.pix_cnt == vclk_vid.pix_cnt_bs)
-                vclk_vid.bs <= 1;
-            else
-                vclk_vid.bs <= 0;
-        end 
+            // Clock enable
+            if (VID_CKE_IN)
+            begin
+                // Clear
+                if (vclk_vid.hs_re)
+                    vclk_vid.bs <= 0;
+
+                // Set
+                else if (vclk_vid.pix_cnt == vclk_vid.pix_cnt_bs)
+                    vclk_vid.bs <= 1;
+            end 
+        end
+
+        // idle
+        else
+            vclk_vid.bs <= 0;
     end
 
 // Blanking end
@@ -582,7 +588,7 @@ genvar i, j;
             vclk_vid.vde_re_del <= vclk_vid.vde_re;
     end
 
-// Video active & blanking event
+// Video active & blanking phases
 // These flags are activated at the start of a video line
 // and use by the state machine in the link domain to start reading the FIFO's.
 // The active line is asserted when there is an active video line indicated
@@ -638,29 +644,26 @@ genvar i, j;
     prt_dptx_vid_vmap
     #(
         // Video
-        .P_PPC              (P_PPC),            // Pixels per clock
-        .P_BPC              (P_BPC),            // Bits per component
+        .P_PPC              (P_PPC),                // Pixels per clock
+        .P_BPC              (P_BPC),                // Bits per component
 
         // Mapper
-        .P_LANES            (P_LANES),          // Lanes
-        .P_FIFO_DAT         (P_FIFO_DAT),       // FIFO data width
-        .P_FIFO_STRIPES     (P_FIFO_STRIPES)    // FIFO stripes
+        .P_LANES            (P_LANES),              // Lanes
+        .P_SEGMENTS         (P_FIFO_SEGMENTS),      // FIFO stripes
+        .P_STRIPES          (P_FIFO_STRIPES)        // FIFO stripes
     )
     VMAP_INST
     (
         .RST_IN             (VID_RST_IN),           // Reset
         .CLK_IN             (VID_CLK_IN),           // Clock
-        .CKE_IN             (VID_CKE_IN),           // Clock enable
 
         // Control
-        .CFG_RUN_IN         (vclk_vid.run),         // Run
         .CFG_BPC_IN         (vclk_ctl.bpc),         // Active bits-per-component
-        .CFG_MST_IN         (vclk_ctl.mst),         // MST
+       // .CFG_MST_IN         (vclk_ctl.mst),         // MST
 
         // Video
-        .VID_BS_IN          (vclk_vid.bs),          // Blanking start
-        .VID_BE_IN          (vclk_vid.be),          // Blanking end
-        .VID_HS_IN          (vclk_vid.hs_re),       // Horizontal sync
+        .VID_RUN_IN         (vclk_vid.run),         // Run
+        .VID_CLR_IN         (vclk_vid.hs_re),       // Clear
         .VID_DAT_IN         (vclk_vid.dat),         // Video data
         .VID_DE_IN          (vclk_vid.vde),         // Video data enable
 
@@ -672,71 +675,6 @@ genvar i, j;
 /*
     FIFO
 */
-
-// Head counter
-// The head counter is used count the active words in the fifo. 
-// Only the last stripe of the last lane is used. 
-// The head value is used by the link domain to determine the size of the read packet.
-generate
-    // Four subsymbols
-    if (P_SPL == 4)
-    begin : gen_head_4spl
-        always_ff @ (posedge VID_CLK_IN)
-        begin
-            // Run
-            if (vclk_vid.run)
-            begin
-                // Clock enable
-                if (VID_CKE_IN)
-                begin
-                    // Clear on falling edge hsync
-                    if (vclk_vid.hs_fe)
-                        vclk_fifo.head <= 0;
-
-                    // Increment (BE symbol, BS symbol and data)
-                    else if (vclk_fifo.wr[P_LANES-1][P_FIFO_STRIPES-1])
-                        vclk_fifo.head <= vclk_fifo.head + 'd1;
-                end
-            end
-
-            // Idle
-            else
-                vclk_fifo.head <= 0;
-        end
-    end
-
-    // Two subsymbols
-    else
-    begin : gen_head_2spl
-        always_ff @ (posedge VID_CLK_IN)
-        begin
-            // Run
-            if (vclk_vid.run)
-            begin
-                // Clock enable
-                if (VID_CKE_IN)
-                begin
-                    // Clear on falling edge hsync
-                    if (vclk_vid.hs_fe)
-                        vclk_fifo.head <= 0;
-
-                    // Increment (BE and BS symbols)
-                    // Only in MST
-                    else if (vclk_ctl.mst && (vclk_vid.be || vclk_vid.bs))
-                        vclk_fifo.head <= vclk_fifo.head + 'd1;
-
-                    // Increment (data)
-                    else if (vclk_fifo.wr[P_LANES-1][P_FIFO_STRIPES-1])
-                        vclk_fifo.head <= vclk_fifo.head + 'd2;
-                end
-            end
-
-            // Idle
-            else
-                vclk_fifo.head <= 0;
-        end
-    end
-endgenerate
 
 generate
     for (i = 0; i < P_LANES; i++)
@@ -773,49 +711,39 @@ generate
                         vclk_fifo.wr[i][j] = 0; 
                 end
             end
-
-            prt_dp_lib_fifo_dc
-            #(
-                .P_VENDOR       (P_VENDOR),            // Vendor
-            	.P_MODE         ("burst"),		       // "single" or "burst"
-            	.P_RAM_STYLE	("distributed"),	   // "distributed" or "block"
-            	.P_ADR_WIDTH	(P_FIFO_ADR),
-            	.P_DAT_WIDTH	(P_FIFO_DAT)
-            )
-            FIFO_INST
-            (
-            	.A_RST_IN      (~vclk_vid.run),	        // Reset
-            	.B_RST_IN      (~lclk_vid.run),
-            	.A_CLK_IN      (VID_CLK_IN),		    // Clock
-            	.B_CLK_IN      (LNK_CLK_IN),
-            	.A_CKE_IN      (VID_CKE_IN),		    // Clock enable
-            	.B_CKE_IN      (1'b1),
-
-            	// Input (A)
-                .A_CLR_IN      (vclk_vid.hs_fe),            // Clear
-            	.A_WR_IN       (vclk_fifo.wr[i][j]),	    // Write
-            	.A_DAT_IN      (vclk_fifo.din[i][j]),		// Write data
-
-            	// Output (B)
-            	.B_CLR_IN      (lclk_vid.hs_fe),            // Clear
-                .B_RD_IN       (lclk_fifo.rd[i][j]),	    // Read
-            	.B_DAT_OUT     (lclk_fifo.dout[i][j]),		// Read data
-            	.B_DE_OUT      (lclk_fifo.de[i][j]),		// Data enable
-
-            	// Status (A)
-            	.A_WRDS_OUT    (vclk_fifo.wrds[i][j]),		// Used words
-            	.A_FL_OUT      (vclk_fifo.fl[i][j]),		// Full
-            	.A_EP_OUT      (vclk_fifo.ep[i][j]),		// Empty
-
-            	// Status (B)
-            	.B_WRDS_OUT    (lclk_fifo.wrds[i][j]),		// Used words
-            	.B_FL_OUT      (lclk_fifo.fl[i][j]),		// Full
-            	.B_EP_OUT      (lclk_fifo.ep[i][j])		    // Empty
-            );
         end
     end
 endgenerate
 
+    prt_dptx_vid_fifo
+    #(
+        .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_SIM              (P_SIM),            // Simulation
+        .P_FIFO_WRDS        (P_FIFO_WRDS),      // FIFO words
+        .P_LANES            (P_LANES),          // Lanes
+        .P_SEGMENTS         (P_FIFO_SEGMENTS),  // Segments
+        .P_STRIPES          (P_FIFO_STRIPES)    // Stripes
+    )
+    FIFO_INST
+    (
+        // Video port
+        .VID_RST_IN         (VID_RST_IN),           // Reset
+        .VID_CLK_IN         (VID_CLK_IN),           // Clock
+        .VID_HS_IN          (vclk_vid.hs),          // Hsync
+        .VID_DAT_IN         (vclk_fifo.din),        // Data
+        .VID_WR_IN          (vclk_fifo.wr),         // Write
+        .VID_LAST_IN        (vclk_vid.bs),          // Last
+
+        // Link port
+        .LNK_RST_IN         (LNK_RST_IN),           // Reset
+        .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
+        .LNK_DP_CLR_OUT     (lclk_lnk.dp_clr),      // Datapath Clear
+        .LNK_RD_IN          (lclk_fifo.rd),         // Read
+        .LNK_DAT_OUT        (lclk_fifo.dout),       // Data
+        .LNK_DE_OUT         (lclk_fifo.de),         // Data enable
+        .LNK_LVL_OUT        (lclk_fifo.lvl),        // Level
+        .LNK_LAST_OUT       (lclk_fifo.last)        // Last
+    );
 
 /*
     Link domain
@@ -864,80 +792,67 @@ endgenerate
         .DST_DAT_OUT    (lclk_vid.run)       // Data
     );
 
-// Head clock domain crossing
-    prt_dp_lib_cdc_gray
-    #(
-        .P_VENDOR       (P_VENDOR),
-        .P_WIDTH        ($size(lclk_fifo.head))
-    )
-    LNK_HEAD_CDC_INST
+// Vsync clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_VS_CDC_INST
     (
-        .SRC_CLK_IN     (VID_CLK_IN),         // Clock
-        .SRC_DAT_IN     (vclk_fifo.head),     // Data
-        .DST_CLK_IN     (LNK_CLK_IN),         // Clock
-        .DST_DAT_OUT    (lclk_fifo.head)      // Data
+        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
+        .SRC_DAT_IN     (vclk_vid.vs),      // Data
+        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
+        .DST_DAT_OUT    (lclk_vid.vs)       // Data
     );
 
-// Mask
-// At the start of a new line, the head value is cleared to zero. 
-// There is a possible race condition between the head, tail and delta values when this condition occurs. 
-// To prevent a false read sequence this mask flag is asserted. 
-// This flag is simply a delay of the first FIFO empty signal. 
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        lclk_fifo.msk <= {lclk_fifo.msk[0+:$size(lclk_fifo.msk)-1], lclk_fifo.ep[0][0]};
-    end
+// Vertical blanking flag clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_VBF_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
+        .SRC_DAT_IN     (vclk_vid.vbf),     // Data
+        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
+        .DST_DAT_OUT    (lclk_vid.vbf)      // Data
+    );
 
-// Tail pointer 
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        // Run
-        if (lclk_vid.run)
-        begin
-            // Clear
-            if (lclk_vid.hs_fe)
-                lclk_fifo.tail <= 0;
-            
-            // Increment
-            else if (lclk_fifo.tail_inc)
-                lclk_fifo.tail <= lclk_fifo.tail + 'd1;
-        end
+// Video active clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_VID_ACT_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),        // Clock
+        .SRC_DAT_IN     (vclk_vid.act),      // Data
+        .DST_CLK_IN     (LNK_CLK_IN),        // Clock
+        .DST_DAT_OUT    (lclk_vid.act)       // Data
+    );
 
-        // Idle
-        else
-            lclk_fifo.tail <= 0;
-    end
+// Video active rising edge
+    prt_dp_lib_edge
+    LNK_VID_ACT_EDGE_INST
+    (
+        .CLK_IN         (LNK_CLK_IN),         // Clock
+        .CKE_IN         (1'b1),               // Clock enable
+        .A_IN           (lclk_vid.act),       // Input
+        .RE_OUT         (lclk_vid.act_re),    // Rising edge
+        .FE_OUT         ()                    // Falling edge
+    );
 
-// Tail increment
-    assign lclk_fifo.tail_inc = (lclk_ctl.mst) ? !lclk_lnk.vc_rd_cnt_end : !lclk_lnk.vu_rd_cnt_end;
+// Video blanking clock domain crossing
+    prt_dp_lib_cdc_bit
+    LNK_VID_BLNK_CDC_INST
+    (
+        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
+        .SRC_DAT_IN     (vclk_vid.blnk),    // Data
+        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
+        .DST_DAT_OUT    (lclk_vid.blnk)     // Data
+    );
 
-// Delta
-    always_comb
-    begin
-        if (lclk_fifo.head > lclk_fifo.tail)
-            lclk_fifo.delta = lclk_fifo.head - lclk_fifo.tail;
-        else
-            lclk_fifo.delta = (2**$size(lclk_fifo.tail) - lclk_fifo.tail) + lclk_fifo.head;
-    end   
-
-// FIFO ready
-// This signal is asserted when the FIFO has enough words to start the initial TU.
-// This logic is only needed in SST 
-generate
-    if (P_STREAM == 0)
-    begin : gen_fifo_rdy
-        always_ff @ (posedge LNK_CLK_IN)
-        begin
-            if ((lclk_lnk.vu_len >= 'd1) && (lclk_vid.blnk_evt || lclk_vid.act_evt))
-                lclk_lnk.fifo_rdy <= 1;
-            else
-                lclk_lnk.fifo_rdy <= 0;
-        end
-    end
-
-    else
-        assign lclk_lnk.fifo_rdy = 0;
-endgenerate
+// Video blanking rising edge
+    prt_dp_lib_edge
+    LNK_VID_BLNK_EDGE_INST
+    (
+        .CLK_IN         (LNK_CLK_IN),        // Clock
+        .CKE_IN         (1'b1),              // Clock enable
+        .A_IN           (lclk_vid.blnk),     // Input
+        .RE_OUT         (lclk_vid.blnk_re),  // Rising edge
+        .FE_OUT         ()                   // Falling edge
+    );
 
 // VC read counter
 // This counter counts the length in a read burst.
@@ -946,7 +861,7 @@ endgenerate
     always_ff @ (posedge LNK_CLK_IN)
     begin
         // MST
-        if (lclk_vid.run && lclk_ctl.mst && lclk_vid.act_evt)
+        if (lclk_vid.run && lclk_ctl.mst && lclk_vid.act_ph)
         begin
             // Load
             if (lclk_src.rd_re)
@@ -973,10 +888,10 @@ endgenerate
 // VC read counter in
     always_comb
     begin
-        if (lclk_fifo.delta > lclk_ctl.vc_len)
+        if (lclk_fifo.lvl > lclk_ctl.vc_len)
             lclk_lnk.vc_rd_cnt_in = lclk_ctl.vc_len;
         else
-            lclk_lnk.vc_rd_cnt_in = lclk_fifo.delta[0+:P_VC_LEN];
+            lclk_lnk.vc_rd_cnt_in = lclk_fifo.lvl[0+:P_VC_LEN];
     end
 
 // FIFO read
@@ -1242,8 +1157,7 @@ generate
             begin
                 // Set
                 // At the start of a new line 
-                // the BE symbol is located in the last fifo. 
-                if (lclk_vid.hs_fe)
+                if (lclk_lnk.dp_clr)
                     lclk_fifo.rd_sel <= 1;
 
                 // Toggle
@@ -1617,90 +1531,8 @@ generate
     end
 endgenerate
 
-// Vsync clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VS_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_vid.vs),      // Data
-        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
-        .DST_DAT_OUT    (lclk_vid.vs)       // Data
-    );
 
-// Vsync clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_HS_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_vid.hs),      // Data
-        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
-        .DST_DAT_OUT    (lclk_vid.hs)       // Data
-    );
-
-// Vertical blanking flag clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VBF_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_vid.vbf),     // Data
-        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
-        .DST_DAT_OUT    (lclk_vid.vbf)      // Data
-    );
-
-// Video active clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VID_ACT_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),        // Clock
-        .SRC_DAT_IN     (vclk_vid.act),      // Data
-        .DST_CLK_IN     (LNK_CLK_IN),        // Clock
-        .DST_DAT_OUT    (lclk_vid.act)       // Data
-    );
-
-// Video active rising edge
-    prt_dp_lib_edge
-    LNK_VID_ACT_EDGE_INST
-    (
-        .CLK_IN         (LNK_CLK_IN),         // Clock
-        .CKE_IN         (1'b1),               // Clock enable
-        .A_IN           (lclk_vid.act),       // Input
-        .RE_OUT         (lclk_vid.act_re),    // Rising edge
-        .FE_OUT         ()                    // Falling edge
-    );
-
-// Video blanking clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VID_BLNK_CDC_INST
-    (
-        .SRC_CLK_IN     (VID_CLK_IN),       // Clock
-        .SRC_DAT_IN     (vclk_vid.blnk),    // Data
-        .DST_CLK_IN     (LNK_CLK_IN),       // Clock
-        .DST_DAT_OUT    (lclk_vid.blnk)     // Data
-    );
-
-// Video blanking rising edge
-    prt_dp_lib_edge
-    LNK_VID_BLNK_EDGE_INST
-    (
-        .CLK_IN         (LNK_CLK_IN),        // Clock
-        .CKE_IN         (1'b1),              // Clock enable
-        .A_IN           (lclk_vid.blnk),     // Input
-        .RE_OUT         (lclk_vid.blnk_re),  // Rising edge
-        .FE_OUT         ()                   // Falling edge
-    );
-
-// Hsync edge
-    prt_dp_lib_edge
-    LNK_HS_EDGE_INST
-    (
-        .CLK_IN         (LNK_CLK_IN),       // Clock
-        .CKE_IN         (1'b1),             // Clock enable
-        .A_IN           (lclk_vid.hs),      // Input
-        .RE_OUT         (),                // Rising edge
-        .FE_OUT         (lclk_vid.hs_fe)    // Falling edge
-    );
-
-// Video active event
+// Video active phase
 // This flag is asserted when there is an active video line.
 // The flag is sticky.
     always_ff @ (posedge LNK_CLK_IN)
@@ -1709,21 +1541,21 @@ endgenerate
         if (lclk_vid.run)
         begin
             // Clear
-            if (lclk_map.bs[1] || lclk_vid.hs_fe)
-                lclk_vid.act_evt <= 0;
+            if (lclk_lnk.dp_clr)
+                lclk_vid.act_ph <= 0;
 
             // Set
-            else if (lclk_vid.act_re)
-                lclk_vid.act_evt <= 1;
+            else if (lclk_lnk.tu_str && lclk_vid.act)
+                lclk_vid.act_ph <= 1;
         end
 
         // Idle
         else
-            lclk_vid.act_evt <= 0;
+            lclk_vid.act_ph <= 0;
     end
 
-// Video blanking event
-// This flag is asserted when there is an blanking video line.
+// Video blanking phase
+// This flag is asserted when there is a blank video line.
 // The flag is sticky.
     always_ff @ (posedge LNK_CLK_IN)
     begin
@@ -1731,64 +1563,66 @@ endgenerate
         if (lclk_vid.run)
         begin
             // Clear
-            if (lclk_map.bs[1] || lclk_vid.hs_fe)
-                lclk_vid.blnk_evt <= 0;
+            if (lclk_lnk.dp_clr)
+                lclk_vid.blnk_ph <= 0;
 
             // Set
-            else if (lclk_vid.blnk_re)
-                lclk_vid.blnk_evt <= 1;
+            else if (lclk_lnk.tu_str && lclk_vid.blnk)
+                lclk_vid.blnk_ph <= 1;
         end
 
         // Idle
         else
-            lclk_vid.blnk_evt <= 0;
+            lclk_vid.blnk_ph <= 0;
     end
 
 // Blanking start 
-// This flag is asserted when the blanking start bit is set in the fifo.
-    always_comb
+// This flag is asserted when the blanking symbol needs to be inserted in the link data
+    always_ff @ (posedge LNK_CLK_IN)
     begin
-        // MST
-        if (lclk_ctl.mst)
-        begin
-            if (lclk_fifo.de[0][1] && lclk_fifo.dout[0][1][P_FIFO_DAT-1])
-                lclk_lnk.bs = 1;
-            else
-                lclk_lnk.bs = 0;
-        end
-
-        // SST
-        else
-        begin
-            if (lclk_fifo.de[P_LANES-1][P_FIFO_STRIPES-1] && lclk_fifo.dout[P_LANES-1][P_FIFO_STRIPES-1][P_FIFO_DAT-1])
-                lclk_lnk.bs = 1;
-            else
-                lclk_lnk.bs = 0;
-        end
+        lclk_lnk.bs_pipe <= {lclk_lnk.bs_pipe[0+:$high(lclk_lnk.bs_pipe)], lclk_fifo.last};
     end
+
+    assign lclk_lnk.bs = lclk_lnk.bs_pipe[$high(lclk_lnk.bs_pipe)];
 
 // Blanking end
 // This flag is asserted when the blanking start bit is set in the first stripe of the first fifo
-    always_comb
-    begin
-        if (lclk_fifo.de[0][2] && lclk_fifo.dout[0][2][P_FIFO_DAT-1])
-            lclk_lnk.be = 1;
-        else
-            lclk_lnk.be = 0;
+// Only used in MST 
+// This needs to be updated
+    assign lclk_lnk.be = 0;
+
+// Transfer unit start
+// This signal is asserted when the FIFO has enough words to start the initial TU.
+// This logic is only needed in SST 
+generate
+    if (P_STREAM == 0)
+    begin : gen_tu_str
+        always_ff @ (posedge LNK_CLK_IN)
+        begin
+            if ((lclk_lnk.vu_len >= P_TU_STR_THRESHOLD) && !lclk_lnk.tu_run)
+                lclk_lnk.tu_str <= 1;
+            else
+                lclk_lnk.tu_str <= 0;
+        end
     end
 
+    else
+        assign lclk_lnk.tu_str = 0;
+endgenerate
+
 // Transfer unit run
+// This flag is asserted when the TU is running.
     always_ff @ (posedge LNK_CLK_IN)
     begin
         // Run (only in SST)
         if (lclk_vid.run && !lclk_ctl.mst)
         begin
             // Clear 
-            if (lclk_map.bs[1] || lclk_vid.hs_fe)
+            if (lclk_lnk.dp_clr || lclk_lnk.bs)
                 lclk_lnk.tu_run <= 0;
             
             // Set
-            else if (lclk_lnk.fifo_rdy && (lclk_vid.act_evt || lclk_vid.blnk_evt))
+            else if (lclk_lnk.tu_str)
                 lclk_lnk.tu_run <= 1;
         end
 
@@ -1848,33 +1682,58 @@ endgenerate
 
 // Video unit length
 // This process determines the length of the video unit 
-// Todo: check all modes
 // This logic is only needed in SST
 generate
     if (P_STREAM == 0)
     begin : gen_vu_len
         if (P_SPL == 4)
         begin : gen_vu_len_4spl
-            always_ff @ (posedge LNK_CLK_IN)
-            begin
-                lclk_lnk.vu_len <= lclk_fifo.delta[0+:$size(lclk_lnk.vu_len)];
-            end
+            // The burst length needs to be an even number.
+            assign lclk_lnk.vu_len_in = {lclk_fifo.lvl[1+:$size(lclk_lnk.vu_len)-1], 1'b0};
         end
 
         else
         begin : gen_vu_len_2spl
-            always_ff @ (posedge LNK_CLK_IN)
-            begin
-                lclk_lnk.vu_len <= lclk_fifo.delta[0+:$size(lclk_lnk.vu_len)];
-            end
+            // The fifo level reports the number of bytes available in a fifo row (4 bytes)
+            // In 2 sublanes two bytes are read per clock. So the video unit length is the fifo level multiplied by two. 
+            assign lclk_lnk.vu_len_in = {lclk_fifo.lvl[0+:$size(lclk_lnk.vu_len)-1], 1'b0};
+        end
+
+        always_comb
+        begin
+            if (lclk_lnk.vu_len_in > (P_TU_SIZE / P_SPL))
+                lclk_lnk.vu_len = P_TU_SIZE /P_SPL;
+            else
+                lclk_lnk.vu_len = lclk_lnk.vu_len_in;
         end
     end
 
     else
+    begin
+        assign lclk_lnk.vu_len_in = 0;
         assign lclk_lnk.vu_len = 0;
+    end
 endgenerate
 
-// Video data read counter
+// Video unit read in
+    always_comb
+    begin
+        // If the video unit counter is still running while data is read from the fifo, the fifo level is lagging due to the read latency.
+        // In this case the read counter in must be adjusted, else too much data is read from the fifo.
+        if (!lclk_lnk.vu_rd_cnt_end)
+        begin
+            // Check if there is no underflow.
+            if (lclk_lnk.vu_len >= 'd2)
+                lclk_lnk.vu_rd_cnt_in = lclk_lnk.vu_len - 'd2;
+            else
+                lclk_lnk.vu_rd_cnt_in = 0;
+        end
+
+        else
+            lclk_lnk.vu_rd_cnt_in = lclk_lnk.vu_len;
+    end
+
+// Video unit read counter
 // This counter counts video symbols in a transfer unit during read
 // This logic is only needed in SST
 generate
@@ -1886,8 +1745,8 @@ generate
             if (lclk_lnk.tu_run)
             begin    
                 // Load
-                if (lclk_lnk.tu_cnt == P_TU_CNT_LD)
-                    lclk_lnk.vu_rd_cnt <= lclk_lnk.vu_len;
+                if (lclk_lnk.vu_rd_cnt_ld)
+                    lclk_lnk.vu_rd_cnt <= lclk_lnk.vu_rd_cnt_in;
 
                 // Decrement
                 else if (!lclk_lnk.vu_rd_cnt_end)
@@ -1911,6 +1770,15 @@ endgenerate
             lclk_lnk.vu_rd_cnt_end = 1;
         else
             lclk_lnk.vu_rd_cnt_end = 0;
+    end
+
+// Video data read counter load
+    always_comb
+    begin
+        if (lclk_lnk.tu_cnt == P_TU_CNT_LD)
+            lclk_lnk.vu_rd_cnt_ld = 1;
+        else
+            lclk_lnk.vu_rd_cnt_ld = 0;
     end
 
 
@@ -2599,19 +2467,15 @@ generate
     begin : gen_map_de
         always_ff @ (posedge LNK_CLK_IN)
         begin
-            lclk_map.de <= {lclk_map.de[0+:$size(lclk_map.de)-1], lclk_map.rd};
+            lclk_map.de_pipe <= {lclk_map.de_pipe[0+:$high(lclk_map.de_pipe)], lclk_map.rd};
         end
     end
 
     else
-        assign lclk_map.de = 0;
+        assign lclk_map.de_pipe = 0;
 endgenerate
 
-// Blanking start
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        lclk_map.bs <= {lclk_map.bs[0], lclk_lnk.bs};
-    end
+    assign lclk_map.de = lclk_map.de_pipe[$high(lclk_map.de_pipe)];
 
 // Data enable edge detector
 generate
@@ -2622,7 +2486,7 @@ generate
         (
             .CLK_IN    (LNK_CLK_IN),        // Clock
             .CKE_IN    (1'b1),              // Clock enable
-            .A_IN      (lclk_map.de[$size(lclk_map.de)-1]),    // Input
+            .A_IN      (lclk_map.de),       // Input
             .RE_OUT    (),                  // Rising edge
             .FE_OUT    (lclk_map.de_fe)     // Falling edge
         );
@@ -2638,6 +2502,31 @@ endgenerate
     always_ff @ (posedge LNK_CLK_IN)
     begin
         lclk_lnk.ins_be <= {lclk_lnk.ins_be[0+:$left(lclk_lnk.ins_be)], lclk_lnk.tu_run_re};
+    end
+
+// Stuff data flag
+// For very low bandwidth video there might not be enough data in the fifo to fill a video unit.
+// In this case the data stuffing period is extended.
+// To prevent the fill end symbol insertion by the link symbol logic, 
+// this flag indicates the data stuffing period.
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Run
+        if (lclk_lnk.tu_run)
+        begin
+            // Clear
+            // When the mapper starts to read
+            if (lclk_lnk.dp_clr || lclk_map.rd)
+                lclk_lnk.stuff <= 0;
+
+            // Set
+            else if (lclk_map.de_fe && lclk_vid.act_ph)
+                lclk_lnk.stuff <= 1;
+        end
+
+        // Idle
+        else
+            lclk_lnk.stuff <= 0;
     end
 
 // Link symbol output
@@ -2704,21 +2593,21 @@ generate
                 end
 
                 // Blanking start
-                if (lclk_map.bs[1])
+                if (lclk_lnk.bs)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][0] <= TX_LNK_SYM_BS; // First Sublane 
                 end
 
                 // Blanking end
-                else if (lclk_lnk.ins_be[$size(lclk_lnk.ins_be)-1] && lclk_vid.act_evt)
+                else if (lclk_lnk.ins_be[$size(lclk_lnk.ins_be)-1] && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][P_SPL-1] <= TX_LNK_SYM_BE;
                 end
 
                 // Single fill word
-                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_map.de_fe && lclk_vid.act_evt)
+                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_map.de_fe && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                     begin
@@ -2728,14 +2617,14 @@ generate
                 end
 
                 // Fill start
-                else if (lclk_map.de_fe && lclk_vid.act_evt)
+                else if (lclk_map.de_fe && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][0] <= TX_LNK_SYM_FS;     // Sublane 0
                 end
 
                 // Fill end
-                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_vid.act_evt)
+                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_vid.act_ph && !lclk_map.de && !lclk_lnk.stuff)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][P_SPL-1] <= TX_LNK_SYM_FE;     // Sublane 1
@@ -2805,21 +2694,21 @@ generate
                 end
 
                 // Blanking start
-                if (lclk_map.bs[1])
+                if (lclk_lnk.bs)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][0] <= TX_LNK_SYM_BS; // First Sublane 
                 end
 
                 // Blanking end
-                else if (lclk_lnk.ins_be[$size(lclk_lnk.ins_be)-1] && lclk_vid.act_evt)
+                else if (lclk_lnk.ins_be[$size(lclk_lnk.ins_be)-1] && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][P_SPL-1] <= TX_LNK_SYM_BE;
                 end
 
                 // Single fill word
-                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_map.de_fe && lclk_vid.act_evt)
+                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_map.de_fe && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                     begin
@@ -2829,14 +2718,14 @@ generate
                 end
 
                 // Fill start
-                else if (lclk_map.de_fe && lclk_vid.act_evt)
+                else if (lclk_map.de_fe && lclk_vid.act_ph)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][0] <= TX_LNK_SYM_FS;     // Sublane 0
                 end
 
                 // Fill end
-                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_vid.act_evt)
+                else if ((lclk_lnk.tu_cnt == P_TU_FE) && lclk_vid.act_ph && !lclk_map.de && !lclk_lnk.stuff)
                 begin
                     for (int i = 0; i < P_LANES; i++)
                         lclk_src.sym[i][P_SPL-1] <= TX_LNK_SYM_FE;     // Sublane 1
@@ -2881,7 +2770,7 @@ generate
                         begin
                             for (int j = 0; j < P_SPL; j++)
                             begin
-                                if (lclk_map.de[$size(lclk_map.de)-1] && lclk_vid.act_evt)
+                                if (lclk_map.de && lclk_vid.act_ph)
                                     lclk_src.dat[i][j] <= lclk_map.dat[i][j]; 
                                 else
                                     lclk_src.dat[i][j] <= 0;
@@ -2942,7 +2831,7 @@ generate
                         begin
                             for (int j = 0; j < P_SPL; j++)
                             begin
-                                if (lclk_map.de[$size(lclk_map.de)-1] && lclk_vid.act_evt)
+                                if (lclk_map.de && lclk_vid.act_ph)
                                     lclk_src.dat[i][j] <= lclk_map.dat[i][j]; 
                                 else
                                     lclk_src.dat[i][j] <= 0;

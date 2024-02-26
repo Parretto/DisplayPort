@@ -10,7 +10,8 @@
     History
     =======
     v1.0 - Initial release
-    v1.2 - Added 10-bits video 
+    v1.1 - Added 10-bits video 
+    v1.2 - Updated DRP peripheral with PIO
 
     License
     =======
@@ -79,20 +80,24 @@ localparam P_SYS_FREQ       = 50_000_000;      // System frequency - 50 MHz
 localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
 localparam P_REF_VER_MINOR  = 0;     // Reference design minor
-localparam P_PIO_IN_WIDTH   = 8;
-localparam P_PIO_OUT_WIDTH  = 22;
+localparam P_PIO_IN_WIDTH   = 4;
+localparam P_PIO_OUT_WIDTH  = 3;
 
 localparam P_LANES          = 4;
-localparam P_DATA_MODE      = "quad";                               // Data path mode; dual - 2 pixels per clock / 2 symbols per lane / quad - 4 pixels per clock / 4 symbols per lane
-localparam P_SPL            = (P_DATA_MODE == "dual") ? 2 : 4;      // Symbols per lane. Valid options - 2, 4. 
-localparam P_PPC            = (P_DATA_MODE == "dual") ? 2 : 4;      // Pixels per clock. Valid options - 2, 4.
-localparam P_BPC            = 10;                                    // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
+localparam P_SPL            = 4;      // Symbols per lane. Valid options - 2, 4. 
+localparam P_PPC            = 4;      // Pixels per clock. Valid options - 2, 4.
+localparam P_BPC            = 10;     // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH      = (P_PPC == 2) ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
 localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
+
+localparam P_APP_ROM_SIZE   = 64;
+localparam P_APP_RAM_SIZE   = 64;
 localparam P_APP_ROM_INIT   = "dp_app_tb_a7_200t_img_rom.mem";
 localparam P_APP_RAM_INIT   = "dp_app_tb_a7_200t_img_ram.mem";
 
-localparam P_DRP_PORTS      = 7;
+localparam P_PHY_CTL_DRP_PORTS  = 7;
+localparam P_PHY_CTL_PIO_IN     = 6;
+localparam P_PHY_CTL_PIO_OUT    = 19;
 
 // Interfaces
 
@@ -135,11 +140,10 @@ misc_if();
 
 // Signals
 // Clocks
-wire                            clk_from_sys_ibuf;
-wire                            sys_clk_from_pll;
-wire                            clk_from_vid_ibuf;
-wire                            clk_from_vid_bufg;
-wire                            clk_from_gt_ibuf;
+wire                                    clk_from_sys_ibuf;
+wire                                    sys_clk_from_pll;
+wire                                    clk_from_vid_ibuf;
+wire                                    clk_from_vid_bufg;
 
 // Reset
 (* dont_touch = "yes" *) logic [7:0]    clk_por_line = 0;
@@ -148,80 +152,84 @@ wire                            clk_from_gt_ibuf;
 (* dont_touch = "yes" *) logic          clk_rst;
 
 // PIO
-wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
-wire [P_PIO_OUT_WIDTH-1:0]      pio_dat_from_app;
+wire [P_PIO_IN_WIDTH-1:0]               pio_dat_to_app;
+wire [P_PIO_OUT_WIDTH-1:0]              pio_dat_from_app;
 
-wire                            dptx_rst_from_app;
-wire                            dprx_rst_from_app;
-wire                            phy_gttx_rst_from_app;
-wire                            phy_gtrx_rst_from_app;
-wire                            phy_txpll_rst_from_app;
-wire                            phy_rxpll_rst_from_app;
-wire [3:0]                      phy_tx_diffctrl_from_app;
-wire [4:0]                      phy_tx_postcursor_from_app;
-wire [2:0]                      phy_tx_rate_from_app;
-wire [2:0]                      phy_rx_rate_from_app;
+wire                                    dptx_rst_from_app;
+wire                                    dprx_rst_from_app;
 
 // PHY
-wire                            gt_refclk_from_phy;
-wire                            tx_rst_done_from_phy;
-wire                            rx_rst_done_from_phy;
-wire                            txclk_from_phy;
-wire                            rxclk_from_phy;
-wire [1:0]                      gtpll_lock_from_phy;
-wire                            txpll_lock_from_phy;
-wire                            rxpll_lock_from_phy;
+wire                                    gt_refclk_from_phy;
+wire                                    tx_rst_done_from_phy;
+wire                                    rx_rst_done_from_phy;
+wire                                    txclk_from_phy;
+wire                                    rxclk_from_phy;
+wire [1:0]                              gtpll_lock_from_phy;
+wire                                    txpll_lock_from_phy;
+wire                                    rxpll_lock_from_phy;
 
-wire [P_PHY_DAT_WIDTH-1:0]      txdat_to_phy;
-wire [(P_PHY_DAT_WIDTH/8)-1:0]  txdatk_to_phy;
-wire [(P_PHY_DAT_WIDTH/8)-1:0]  txdispmode_to_phy;
-wire [(P_PHY_DAT_WIDTH/8)-1:0]  txdispval_to_phy;
+wire [P_PHY_DAT_WIDTH-1:0]              txdat_to_phy;
+wire [(P_PHY_DAT_WIDTH/8)-1:0]          txdatk_to_phy;
+wire [(P_PHY_DAT_WIDTH/8)-1:0]          txdispmode_to_phy;
+wire [(P_PHY_DAT_WIDTH/8)-1:0]          txdispval_to_phy;
 
-wire [P_PHY_DAT_WIDTH-1:0]      rxdat_from_phy;
-wire [(P_PHY_DAT_WIDTH/8)-1:0]  rxdatk_from_phy;
+wire [P_PHY_DAT_WIDTH-1:0]              rxdat_from_phy;
+wire [(P_PHY_DAT_WIDTH/8)-1:0]          rxdatk_from_phy;
 
-wire [(P_DRP_PORTS * 16)-1:0]   drp_dat_from_phy;
-wire [P_DRP_PORTS-1:0]          drp_rdy_from_phy;
+wire [(P_PHY_CTL_DRP_PORTS * 16)-1:0]   drp_dat_from_phy;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_rdy_from_phy;
 
 // DPTX
-wire [(P_LANES*P_SPL*11)-1:0]   lnk_dat_from_dptx;
-wire                            irq_from_dptx;
-wire                            hb_from_dptx;
+wire [(P_LANES*P_SPL*11)-1:0]           lnk_dat_from_dptx;
+wire                                    irq_from_dptx;
+wire                                    hb_from_dptx;
 
 // DPRX
-wire [(P_LANES*P_SPL*9)-1:0]    lnk_dat_to_dprx;
-wire                            irq_from_dprx;
-wire                            hb_from_dprx;
-wire                            lnk_sync_from_dprx;
-wire                            vid_sof_from_dprx;   // Start of frame
-wire                            vid_eol_from_dprx;   // End of line
-wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
-wire                            vid_vld_from_dprx;   // Valid
+wire [(P_LANES*P_SPL*9)-1:0]            lnk_dat_to_dprx;
+wire                                    irq_from_dprx;
+wire                                    hb_from_dprx;
+wire                                    lnk_sync_from_dprx;
+wire                                    vid_sof_from_dprx;   // Start of frame
+wire                                    vid_eol_from_dprx;   // End of line
+wire [P_AXI_WIDTH-1:0]                  vid_dat_from_dprx;   // Data
+wire                                    vid_vld_from_dprx;   // Valid
 
 // VTB
-wire                            lock_from_vtb;
-wire                            vs_from_vtb;
-wire                            hs_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        r_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        g_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        b_from_vtb;
-wire                            de_from_vtb;
+wire                                    lock_from_vtb;
+wire                                    vs_from_vtb;
+wire                                    hs_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]                r_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]                g_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]                b_from_vtb;
+wire                                    de_from_vtb;
 
 // DIA
-wire                            dia_rdy_from_app;
-wire [31:0]                     dia_dat_from_vtb;
-wire                            dia_vld_from_vtb;
+wire                                    dia_rdy_from_app;
+wire [31:0]                             dia_dat_from_vtb;
+wire                                    dia_vld_from_vtb;
 
-// DRP
-wire [(P_DRP_PORTS * 9)-1:0]    adr_from_drp;
-wire [(P_DRP_PORTS * 16)-1:0]   dat_from_drp;
-wire [P_DRP_PORTS-1:0]          en_from_drp;
-wire [P_DRP_PORTS-1:0]          wr_from_drp;
+// PHY controller
+wire [(P_PHY_CTL_DRP_PORTS * 9)-1:0]    drp_adr_from_phy_ctl;
+wire [(P_PHY_CTL_DRP_PORTS * 16)-1:0]   drp_dat_from_phy_ctl;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_en_from_phy_ctl;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_wr_from_phy_ctl;
+
+wire [P_PHY_CTL_PIO_IN-1:0]             pio_dat_to_phy_ctl;
+wire [P_PHY_CTL_PIO_OUT-1:0]            pio_dat_from_phy_ctl;
+
+wire                                    gttx_rst_from_phy_ctl;
+wire                                    gtrx_rst_from_phy_ctl;
+wire                                    txpll_rst_from_phy_ctl;
+wire                                    rxpll_rst_from_phy_ctl;
+wire [3:0]                              tx_diffctrl_from_phy_ctl;
+wire [4:0]                              tx_postcursor_from_phy_ctl;
+wire [2:0]                              tx_rate_from_phy_ctl;
+wire [2:0]                              rx_rate_from_phy_ctl;
 
 // Heartbeat
-wire                            led_from_sys_hb;
-wire                            led_from_vid_hb;
-wire                            led_from_gt_hb;
+wire                                    led_from_sys_hb;
+wire                                    led_from_vid_hb;
+wire                                    led_from_gt_hb;
 
 genvar i;
 
@@ -303,6 +311,8 @@ genvar i;
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_SIZE         (P_APP_ROM_SIZE),       // ROM size (in Kbytes)
+        .P_RAM_SIZE         (P_APP_RAM_SIZE),       // RAM size (in Kbytes)
         .P_ROM_INIT         (P_APP_ROM_INIT),
         .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
@@ -358,29 +368,16 @@ genvar i;
         .AQUA_DAT_IN        (1'b0)
     );
 
-
     // PIO in mapping
-    assign pio_dat_to_app[0]            = TENTIVA_GT_CLK_LOCK_IN; 
-    assign pio_dat_to_app[1]            = TENTIVA_VID_CLK_LOCK_IN;
-    assign pio_dat_to_app[2]            = tx_rst_done_from_phy;
-    assign pio_dat_to_app[3]            = rx_rst_done_from_phy;
-    assign pio_dat_to_app[4]            = gtpll_lock_from_phy[0];
-    assign pio_dat_to_app[5]            = gtpll_lock_from_phy[1];
-    assign pio_dat_to_app[6]            = txpll_lock_from_phy;
-    assign pio_dat_to_app[7]            = rxpll_lock_from_phy;
+    assign pio_dat_to_app[0]            = (P_PPC == 4) ? 1 : 0;             // Pixels per clock
+    assign pio_dat_to_app[1]            = (P_BPC == 10) ? 1 : 0;            // Bits per component
+    assign pio_dat_to_app[2]            = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[3]            = TENTIVA_VID_CLK_LOCK_IN;
 
     // PIO out mapping
     assign TENTIVA_CLK_SEL_OUT          = pio_dat_from_app[0];
     assign dptx_rst_from_app            = pio_dat_from_app[1];
     assign dprx_rst_from_app            = pio_dat_from_app[2];
-    assign phy_gttx_rst_from_app        = pio_dat_from_app[3];
-    assign phy_gtrx_rst_from_app        = pio_dat_from_app[4];
-    assign phy_txpll_rst_from_app       = pio_dat_from_app[5];
-    assign phy_rxpll_rst_from_app       = pio_dat_from_app[6];
-    assign phy_tx_diffctrl_from_app      = pio_dat_from_app[7+:4];
-    assign phy_tx_postcursor_from_app    = pio_dat_from_app[11+:5];
-    assign phy_tx_rate_from_app          = pio_dat_from_app[16+:3];
-    assign phy_rx_rate_from_app          = pio_dat_from_app[19+:3];
     
 // Displayport TX
     prt_dptx_top
@@ -567,14 +564,16 @@ genvar i;
         .VID_DE_OUT             (de_from_vtb)
     );
 
-// DRP bridge
-    prt_xil_drp
+// PHY controller
+    prt_phy_ctl_amd
     #(
-        .P_DRP_PORTS        (P_DRP_PORTS),
+        .P_DRP_PORTS        (P_PHY_CTL_DRP_PORTS),
         .P_DRP_ADR          (9),
-        .P_DRP_DAT          (16)
+        .P_DRP_DAT          (16),
+        .P_PIO_IN           (P_PHY_CTL_PIO_IN),
+        .P_PIO_OUT          (P_PHY_CTL_PIO_OUT)
     )
-    DRP_INST
+    PHY_CTL_INST
     (
         // Reset and clock
         .SYS_RST_IN         (clk_rst),              // Reset
@@ -585,13 +584,35 @@ genvar i;
 
         // DRP
         .DRP_CLK_IN         (sys_clk_from_pll),
-        .DRP_ADR_OUT        (adr_from_drp),
-        .DRP_DAT_OUT        (dat_from_drp),
-        .DRP_EN_OUT         (en_from_drp),
-        .DRP_WR_OUT         (wr_from_drp),
+        .DRP_ADR_OUT        (drp_adr_from_phy_ctl),
+        .DRP_DAT_OUT        (drp_dat_from_phy_ctl),
+        .DRP_EN_OUT         (drp_en_from_phy_ctl),
+        .DRP_WR_OUT         (drp_wr_from_phy_ctl),
         .DRP_DAT_IN         (drp_dat_from_phy),
-        .DRP_RDY_IN         (drp_rdy_from_phy)
+        .DRP_RDY_IN         (drp_rdy_from_phy),
+
+        // PIO
+        .PIO_DAT_IN         (pio_dat_to_phy_ctl),
+        .PIO_DAT_OUT        (pio_dat_from_phy_ctl)
     );
+
+    // DRP PIO in mapping
+    assign pio_dat_to_phy_ctl[0]        = tx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[1]        = rx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[2]        = gtpll_lock_from_phy[0];
+    assign pio_dat_to_phy_ctl[3]        = gtpll_lock_from_phy[1];
+    assign pio_dat_to_phy_ctl[4]        = txpll_lock_from_phy;
+    assign pio_dat_to_phy_ctl[5]        = rxpll_lock_from_phy;
+
+    // PIO out mapping
+    assign gttx_rst_from_phy_ctl        = pio_dat_from_phy_ctl[0];
+    assign gtrx_rst_from_phy_ctl        = pio_dat_from_phy_ctl[1];
+    assign txpll_rst_from_phy_ctl       = pio_dat_from_phy_ctl[2];
+    assign rxpll_rst_from_phy_ctl       = pio_dat_from_phy_ctl[3];
+    assign tx_diffctrl_from_phy_ctl     = pio_dat_from_phy_ctl[4+:4];
+    assign tx_postcursor_from_phy_ctl   = pio_dat_from_phy_ctl[8+:5];
+    assign tx_rate_from_phy_ctl         = pio_dat_from_phy_ctl[13+:3];
+    assign rx_rate_from_phy_ctl         = pio_dat_from_phy_ctl[16+:3];
 
 // PHY - GTP
     dp_phy_a7_gtp
@@ -608,34 +629,34 @@ genvar i;
         .GT_TX_OUT_N        (GT_TX_OUT_N),
 
         // TX
-        .TX_RST_IN          (phy_gttx_rst_from_app),
+        .TX_RST_IN          (gttx_rst_from_phy_ctl),
         .TX_RST_DONE_OUT    (tx_rst_done_from_phy),
         .TX_DAT_IN          (txdat_to_phy), 
         .TX_DATK_IN         (txdatk_to_phy),
         .TX_DISPMODE_IN     (txdispmode_to_phy),
         .TX_DISPVAL_IN      (txdispval_to_phy),
-        .TX_DIFFCTRL_IN     (phy_tx_diffctrl_from_app), 
-        .TX_POSTCURSOR_IN   (phy_tx_postcursor_from_app),
+        .TX_DIFFCTRL_IN     (tx_diffctrl_from_phy_ctl), 
+        .TX_POSTCURSOR_IN   (tx_postcursor_from_phy_ctl),
         .TX_USRCLK_OUT      (txclk_from_phy),
-        .TX_PLL_RST_IN      (phy_txpll_rst_from_app),
+        .TX_PLL_RST_IN      (txpll_rst_from_phy_ctl),
         .TX_PLL_LOCK_OUT    (txpll_lock_from_phy),
-        .TX_RATE_IN         (phy_tx_rate_from_app),
+        .TX_RATE_IN         (tx_rate_from_phy_ctl),
 
         // RX
-        .RX_RST_IN          (phy_gtrx_rst_from_app),
+        .RX_RST_IN          (gtrx_rst_from_phy_ctl),
         .RX_RST_DONE_OUT    (rx_rst_done_from_phy),
         .RX_DAT_OUT         (rxdat_from_phy),
         .RX_DATK_OUT        (rxdatk_from_phy),
         .RX_USRCLK_OUT      (rxclk_from_phy),
-        .RX_PLL_RST_IN      (phy_rxpll_rst_from_app),
+        .RX_PLL_RST_IN      (rxpll_rst_from_phy_ctl),
         .RX_PLL_LOCK_OUT    (rxpll_lock_from_phy),
-        .RX_RATE_IN         (phy_rx_rate_from_app),
+        .RX_RATE_IN         (rx_rate_from_phy_ctl),
 
         // DRP
-        .DRP_ADR_IN         (adr_from_drp),
-        .DRP_DAT_IN         (dat_from_drp),
-        .DRP_EN_IN          (en_from_drp),
-        .DRP_WR_IN          (wr_from_drp),
+        .DRP_ADR_IN         (drp_adr_from_phy_ctl),
+        .DRP_DAT_IN         (drp_dat_from_phy_ctl),
+        .DRP_EN_IN          (drp_en_from_phy_ctl),
+        .DRP_WR_IN          (drp_wr_from_phy_ctl),
         .DRP_DAT_OUT        (drp_dat_from_phy),
         .DRP_RDY_OUT        (drp_rdy_from_phy),
 

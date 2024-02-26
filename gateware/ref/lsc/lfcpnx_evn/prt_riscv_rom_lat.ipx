@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<RadiantModule architecture="LFCPNX" date="2023 08 16 17:24:36" device="LFCPNX-100" gen_platform="Radiant" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.0.0">
+<RadiantModule architecture="LFCPNX" date="2023 08 16 17:24:36" device="LFCPNX-100" gen_platform="Radiant" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.2.0">
  <Package>
   <File modified="2023 08 16 17:24:36" name="rtl/prt_riscv_rom_lat_bb.v" type="black_box_verilog"/>
   <File modified="2023 08 16 17:24:36" name="prt_riscv_rom_lat.cfg" type="cfg"/>

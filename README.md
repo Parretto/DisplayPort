@@ -18,11 +18,13 @@ The thin host driver has a simple API, which is used by the application to inter
 	- Clock recovery
 - Supported devices
 	- AMD UltraScale+
+	- AMD Artix-7
 	- Lattice CertusPro-NX
 	- Intel Cyclone 10 GX
+	- Intel Arria 10 GX
 
 # Documentation
-The documentation is available online at https://displayport-manual.readthedocs.io/en/latest/
+The documentation is available online at www.parretto.com/dp
 
 # License
 This License will apply to the use of the IP-core (as defined in the License).   
@@ -39,4 +41,4 @@ a physical or non-tangible product or service that has substantial commercial, i
 # Contact
 Send an email to dp@parretto.com
 
-(c) 2021 - 2023 by Parretto B.V.
+(c) 2021 - 2024 by Parretto B.V.

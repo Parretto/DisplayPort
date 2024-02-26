@@ -5,7 +5,7 @@
 
 
     Module: Tentiva Driver
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -13,6 +13,7 @@
 	v1.1 - Added set clock configuration function
 	v1.2 - Added TDP142 snoop disable function
 	v1.3 - Removed DP Application header dependency
+	v1.4 - Added multiple clock configurations support
 
     License
     =======
@@ -20,7 +21,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -54,29 +55,33 @@ void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, p
 	tentiva->pio_vid_refclk_lock = pio_vid_refclk_lock;
 	tentiva->pio_clk_sel 		 = pio_clk_sel;
 
-	// Clear PHY frequency
+	// Clear variables
 	tentiva->phy_freq = 0;
+	tentiva->phy_clk_cfg = 0;
+	tentiva->vid_clk_cfg = 0;
 }
 
 // Set clock configuration
-void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_rc22504a_reg_struct *prt, prt_u16 len) 
+// This function is used by the application to set the pointer to the clock configuation.
+void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u8 cfg, prt_rc22504a_reg_struct *prt, prt_u16 len) 
 {
 	// PHY clock driver
 	if (dev == PRT_TENTIVA_PHY_DEV)
 	{
-		tentiva->phy_clk_cfg_prt = prt;
+		tentiva->phy_clk_cfg_prt[cfg] = prt;
 		tentiva->phy_clk_cfg_len = len;
 	}
 
 	// Video clock driver
 	else
 	{
-		tentiva->vid_clk_cfg_prt = prt;
+		tentiva->vid_clk_cfg_prt[cfg] = prt;
 		tentiva->vid_clk_cfg_len = len;
 	}
 }
 
 // Configuration
+// This function configures all the Tentiva components.
 prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_err)
 {
 	// Variables
@@ -88,7 +93,7 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 	*/
 
 	// PHY clock
-	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt, tentiva->pio_phy_refclk_lock);
+	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt[0], tentiva->pio_phy_refclk_lock);
 
 	if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
 	{
@@ -97,7 +102,7 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 	}	
 
 	// VID clock
-	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_VID_DEV, tentiva->vid_clk_cfg_len, tentiva->vid_clk_cfg_prt, tentiva->pio_vid_refclk_lock);
+	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_VID_DEV, tentiva->vid_clk_cfg_len, tentiva->vid_clk_cfg_prt[0], tentiva->pio_vid_refclk_lock);
 
 	if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
 	{
@@ -132,6 +137,7 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 }
 
 // Clock configuration
+// This function configures the clock generator.
 prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, prt_u32 pio_phy_lock)
 {
 	// Variables
@@ -141,7 +147,7 @@ prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, pr
 		Clocking
 	*/
 
-	// Select GT clock device
+	// Select clock device
 	prt_tentiva_sel_dev (tentiva, dev);
 
 	// Set two byte addressing mode
@@ -188,7 +194,7 @@ prt_sta_type prt_tentiva_phy_cfg (prt_tentiva_ds_struct *tentiva)
 	prt_sta_type sta;
 
 	// PHY clock
-	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt, tentiva->pio_phy_refclk_lock);
+	sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt[0], tentiva->pio_phy_refclk_lock);
 
 	return sta;
 }
@@ -201,7 +207,7 @@ prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, prt_u8 re
 	prt_u8 out;
 	prt_u16 div;
 
-	// Don't do anything if the requested frequency is already generated.
+	// Just return if the requested frequency is already generated.
 	if (tentiva->phy_freq == freq)
 	{
 		return PRT_STA_OK;
@@ -212,31 +218,53 @@ prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, prt_u8 re
 		// Store frequency
 		tentiva->phy_freq = freq;
 
-		// Select PHY clock device
-		prt_tentiva_sel_dev (tentiva, PRT_TENTIVA_PHY_DEV);
-
-		// Select RC22504 output
-		if (ref == 0)
-			out = 1;
-		else
-			out = 2;
-
-		// Select divider
-		switch (freq)
+		// This frequency uses configuration 1
+		if (tentiva->phy_freq == PRT_TENTIVA_PHY_FREQ_270_MHZ)
 		{
-			case PRT_TENTIVA_PHY_FREQ_81_MHZ 	: div = 125; break;	// 81 MHz
-			case PRT_TENTIVA_PHY_FREQ_135_MHZ 	: div = 75; break;	// 135 MHz
-			case PRT_TENTIVA_PHY_FREQ_202_5_MHZ : div = 50; break;	// 202.5 MHz
-			case PRT_TENTIVA_PHY_FREQ_270_MHZ 	: div = 39; break; 	// 270 MHz
-			default : prt_printf ("Tentiva: unsupported PHY reference clock\n"); return PRT_STA_FAIL; break;
+			// PHY clock
+			sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt[1], tentiva->pio_phy_refclk_lock);
+		
+			// Store current configuration
+			tentiva->phy_clk_cfg = 1;
 		}
 
-		// Set output divider
-		sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, out, div);
+		else
+		{
+			// This frequency uses configuration 0
+			// If this configuration isn't active, the clock generator needs to be configured.
+			if (tentiva->phy_clk_cfg != 0)
+			{
+				// PHY clock
+				sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_PHY_DEV, tentiva->phy_clk_cfg_len, tentiva->phy_clk_cfg_prt[0], tentiva->pio_phy_refclk_lock);
+			
+				// Store current configuration
+				tentiva->phy_clk_cfg = 0;
+			}
 
-		// Wait for lock
-		sta = prt_tentiva_get_lock (tentiva, tentiva->pio_phy_refclk_lock);
-	
+			// Select PHY clock device
+			prt_tentiva_sel_dev (tentiva, PRT_TENTIVA_PHY_DEV);
+
+			// Select RC22504 output
+			if (ref == 0)
+				out = 1;
+			else
+				out = 2;
+
+			// Select divider
+			switch (freq)
+			{
+				case PRT_TENTIVA_PHY_FREQ_81_MHZ 	: div = 125; break;	// 81 MHz
+				case PRT_TENTIVA_PHY_FREQ_135_MHZ 	: div = 75; break;	// 135 MHz
+				case PRT_TENTIVA_PHY_FREQ_202_5_MHZ : div = 50; break;	// 202.5 MHz
+				default : prt_printf ("Tentiva: unsupported PHY reference clock\n"); return PRT_STA_FAIL; break;
+			}
+
+			// Set output divider
+			sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, out, div);
+
+			// Wait for lock
+			sta = prt_tentiva_get_lock (tentiva, tentiva->pio_phy_refclk_lock);
+		}	
 		return sta;
 	}
 }
@@ -248,26 +276,55 @@ prt_sta_type prt_tentiva_set_vid_freq (prt_tentiva_ds_struct *tentiva, prt_u8 fr
 	prt_sta_type sta;
 	prt_u16 div;
 
-	// Select video clock device
-	prt_tentiva_sel_dev (tentiva, PRT_TENTIVA_VID_DEV);
-
-	// Select divider
-	switch (freq)
-	{
-		case PRT_TENTIVA_VID_FREQ_297_MHZ   : div = 34; break;	// 297 MHz
-		case PRT_TENTIVA_VID_FREQ_1485_MHZ  : div = 68; break;	// 148.5 MHz
-		case PRT_TENTIVA_VID_FREQ_7425_MHZ  : div = 136; break;	// 74.25 MHz
-		case PRT_TENTIVA_VID_FREQ_37125_MHZ : div = 272; break;	// 37.125 MHz
-		default : div = 544; break;								// 18.5625 MHz
+	// Clock 254.974 MHz
+	if (freq == PRT_TENTIVA_VID_FREQ_254974_MHZ)
+	{	
+		// This frequency uses configuration 1. 
+		// If this configuration isn't active, the clock generator needs to be configured.
+		if (tentiva->vid_clk_cfg != 1)
+		{
+			// VID clock
+			sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_VID_DEV, tentiva->vid_clk_cfg_len, tentiva->vid_clk_cfg_prt[1], tentiva->pio_vid_refclk_lock);
+			
+			// Store current configuration
+			tentiva->vid_clk_cfg = 1;
+		}
 	}
 
-	// Set output divider
-	sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 0, div);
-	sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 1, div);
-	sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 2, div);
+	else
+	{
+		// This frequency uses configuration 0. 
+		// If this configuration isn't active, the clock generator needs to be configured.
+		if (tentiva->vid_clk_cfg != 0)
+		{
+			// VID clock
+			sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_VID_DEV, tentiva->vid_clk_cfg_len, tentiva->vid_clk_cfg_prt[0], tentiva->pio_vid_refclk_lock);
+			
+			// Store current configuration
+			tentiva->vid_clk_cfg = 0;
+		}
 
-	// Wait for lock
-	sta = prt_tentiva_get_lock (tentiva, tentiva->pio_vid_refclk_lock);
+		// Select video clock device
+		prt_tentiva_sel_dev (tentiva, PRT_TENTIVA_VID_DEV);
+
+		// Select divider
+		switch (freq)
+		{
+			case PRT_TENTIVA_VID_FREQ_297_MHZ   : div = 34; break;	// 297 MHz
+			case PRT_TENTIVA_VID_FREQ_1485_MHZ  : div = 68; break;	// 148.5 MHz
+			case PRT_TENTIVA_VID_FREQ_7425_MHZ  : div = 136; break;	// 74.25 MHz
+			case PRT_TENTIVA_VID_FREQ_37125_MHZ : div = 272; break;	// 37.125 MHz
+			default : div = 544; break;								// 18.5625 MHz
+		}
+
+		// Set output divider
+		sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 0, div);
+		sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 1, div);
+		sta = prt_rc22504a_out_div (tentiva->i2c, PRT_TENTIVA_I2C_RC22504A_ADR, 2, div);
+
+		// Wait for lock
+		sta = prt_tentiva_get_lock (tentiva, tentiva->pio_vid_refclk_lock);
+	}
 
 	return sta;
 }

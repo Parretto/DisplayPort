@@ -77,17 +77,15 @@ import prt_dp_pkg::*;
 localparam P_FIFO_WRDS = 64;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 9;
+localparam P_FIFO_SEGMENTS = 4;
 localparam P_FIFO_STRIPES = 4;
-
-localparam P_SEGMENTS = 4;
-localparam P_STRIPES = 4;
 localparam P_MAP_CH = (P_PPC == 4) ? 4 : 8; // Mapper input channels
 
 // Structures
 typedef struct {
     logic [1:0]                     lanes;      // Active lanes
     logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
-} ctl_struct;
+} lnk_ctl_struct;
 
 typedef struct {
     logic   [P_MSG_IDX-1:0]         idx;
@@ -101,14 +99,15 @@ typedef struct {
     logic                           lock;                   // Lock
     logic [P_SPL-1:0]               sol[0:P_LANES-1];
     logic [P_SPL-1:0]               eol[0:P_LANES-1];
-    logic [P_SPL-1:0]               eol_reg[0:P_LANES-1];
-    logic [P_SPL-1:0]               eol_reg_del[0:P_LANES-1];
     logic [P_SPL-1:0]               vid[0:P_LANES-1];
     logic [P_SPL-1:0]               vid_reg[0:P_LANES-1];
     logic [P_SPL-1:0]               vid_reg_del[0:P_LANES-1];
     logic                           str;                    // Start
     logic                           str_sticky;             // Start
     logic                           str_toggle;
+    logic [P_LANES-1:0]             stp_lane;
+    logic                           stp;
+    logic                           stp_re;
     logic [P_SPL-1:0]               vbid[0:P_LANES-1];
     logic [P_SPL-1:0]               vbid_reg[0:P_LANES-1];
     logic [P_LANES-1:0]             nvs_lane; // No video stream flag per lane
@@ -125,7 +124,6 @@ typedef struct {
     logic [1:0]                     lph[0:P_LANES-1];
     logic [1:0]                     fph[0:P_LANES-1];
     logic [1:0]                     sel[0:P_LANES-1];
-    logic [P_SPL-1:0]               eol[0:P_LANES-1];
     logic [P_LANES-1:0]             str;
     logic [P_SPL-1:0]               wr[0:P_LANES-1];
     logic [7:0]                     dat[0:P_LANES-1][0:P_SPL-1];
@@ -133,29 +131,35 @@ typedef struct {
 
 typedef struct {
     logic [4:0]                     cnt[0:P_LANES-1][0:P_SPL-1];
-    logic [P_FIFO_STRIPES-1:0]      eol[0:P_LANES-1];
     logic [P_FIFO_STRIPES-1:0]      wr[0:P_LANES-1];
-    logic [7:0]                     dat[0:P_LANES-1][0:P_FIFO_STRIPES-1];
+    logic [7:0]                     dat[0:P_LANES-1][P_FIFO_STRIPES];
 } lnk_map_struct;
 
 typedef struct {
+    logic [3:0]                     last_pipe;
+    logic                           last;
     logic                           clr;
 } lnk_fifo_struct;
 
 typedef struct {
+    logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
+} vid_ctl_struct;
+
+typedef struct {
     logic                           clr;
-    logic	[1:0]                   dout[P_LANES][P_SEGMENTS][P_STRIPES];
-    logic	[P_STRIPES-1:0]	        de[P_LANES][P_SEGMENTS];
+    logic	[1:0]                   dout[P_LANES][P_FIFO_SEGMENTS][P_FIFO_STRIPES];
+    logic	[P_FIFO_STRIPES-1:0]	de[P_LANES][P_FIFO_SEGMENTS];
     logic   [5:0]                   lvl;
 } vid_fifo_struct;
 
 typedef struct {
-    logic	[P_STRIPES-1:0]   	    rd[P_LANES][P_SEGMENTS];
+    logic	[P_FIFO_STRIPES-1:0]    rd[P_LANES][P_FIFO_SEGMENTS];
     logic 	[P_VID_DAT-1:0]         dat;
     logic                           vld;
 } vid_map_struct;
 
 typedef struct {
+    logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
     logic [7:0]                     run_pipe;   
     logic                           run;        // Run
     logic [15:0]                    hwidth;
@@ -175,13 +179,13 @@ typedef struct {
 } vid_struct;
 
 // Signals
-ctl_struct          lclk_ctl;
+lnk_ctl_struct      lclk_ctl;
 lnk_struct          lclk_lnk;
 aln_struct          lclk_aln;
 lnk_map_struct      lclk_map;
 lnk_fifo_struct     lclk_fifo;
-ctl_struct          vclk_ctl;
-msg_struct          vclk_msg;    // Message
+vid_ctl_struct      vclk_ctl;
+msg_struct          vclk_msg;    
 vid_fifo_struct     vclk_fifo;
 vid_map_struct      vclk_map;
 vid_struct          vclk_vid;
@@ -205,26 +209,8 @@ genvar i, j;
         for (int i = 0; i < P_LANES; i++)
         begin
             lclk_lnk.vbid[i] = LNK_SNK_IF.vbid[i];
-
-            lclk_lnk.sol[i] = LNK_SNK_IF.sol[i];
-
-            // For the end of line we are only interested in the last (active) lane
-
-            // Four active lanes
-            if ((lclk_ctl.lanes == 'd3) && (i == 3))
-                lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
-
-            // Two active lanes
-            else if ((lclk_ctl.lanes == 'd2) && (i == 1))
-                lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
-
-            // One active lanes
-            else if ((lclk_ctl.lanes == 'd1) && (i == 0))
-                lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
-            
-            else
-                lclk_lnk.eol[i] = 0;
-
+            lclk_lnk.sol[i]  = LNK_SNK_IF.sol[i];
+            lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
             lclk_lnk.vid[i]  = LNK_SNK_IF.vid[i];
             lclk_lnk.k[i]    = LNK_SNK_IF.k[i];
             lclk_lnk.dat[i]  = LNK_SNK_IF.dat[i];
@@ -240,7 +226,6 @@ genvar i, j;
             lclk_lnk.vbid_reg[i]    <= lclk_lnk.vbid[i];
             lclk_lnk.vid_reg[i]     <= lclk_lnk.vid[i];
             lclk_lnk.dat_reg[i]     <= lclk_lnk.dat[i];
-            lclk_lnk.eol_reg[i]     <= lclk_lnk.eol[i];
         end
     end
 
@@ -253,7 +238,6 @@ genvar i, j;
             for (int j = 0; j < P_SPL; j++)
                 lclk_lnk.dat_reg_del[i][j] <= lclk_lnk.dat_reg[i][j]; 
             lclk_lnk.vid_reg_del[i] <= lclk_lnk.vid_reg[i];
-            lclk_lnk.eol_reg_del[i] <= lclk_lnk.eol_reg[i];
         end
     end
 
@@ -308,6 +292,62 @@ genvar i, j;
             lclk_lnk.str_sticky <= 0;
         end
     end
+
+// Link stop
+// This signal is used to generate the fifo last input.
+// The individual lanes might be lagging or leading. 
+// We want to assert this signal when an end-of-line is seen on all (active) lanes.
+generate
+    for (i = 0; i < P_LANES; i++)
+    begin : gen_lnk_stp_lane
+        always_ff @ (posedge LNK_CLK_IN)
+        begin
+            // Lock
+            if (lclk_lnk.lock)
+            begin
+                // Clear 
+                if (lclk_lnk.str)
+                    lclk_lnk.stp_lane[i] <= 0;
+
+                // Set
+                else if (|lclk_lnk.eol[i])                           
+                    lclk_lnk.stp_lane[i] <= 1;      
+            end
+
+            else
+                lclk_lnk.stp_lane[i] <= 0;
+        end
+    end
+endgenerate
+
+// Combine into a single signal
+    always_comb
+    begin
+        // Two active lanes
+        if (lclk_ctl.lanes == 'd2)
+            lclk_lnk.stp = &lclk_lnk.stp_lane[0+:2];
+
+        // One active lanes
+        else if (lclk_ctl.lanes == 'd1)
+            lclk_lnk.stp = &lclk_lnk.stp_lane[0];
+
+        // Four active lanes
+        else
+            lclk_lnk.stp = &lclk_lnk.stp_lane[0+:4];
+    end
+
+// Link stop edge
+// This is used to generate the fifo last signal.
+    prt_dp_lib_edge
+    LNK_STP_EDGE_INST
+    (
+        .CLK_IN    (LNK_CLK_IN),            // Clock
+        .CKE_IN    (1'b1),                  // Clock enable
+        .A_IN      (lclk_lnk.stp),          // Input
+        .RE_OUT    (lclk_lnk.stp_re),       // Rising edge
+        .FE_OUT    ()                       // Falling edge
+    );
+
 
 // Start toggle
 // The start of line is used to reset some processes in both the link and video clock domains.
@@ -785,11 +825,6 @@ generate
                     lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[i][2];
                     lclk_aln.wr[i][2] <= lclk_lnk.vid_reg_del[i][3];
                     lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][0];
-
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg_del[i][1];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg_del[i][2];
-                    lclk_aln.eol[i][2] <= lclk_lnk.eol_reg_del[i][3];
-                    lclk_aln.eol[i][3] <= lclk_lnk.eol_reg[i][0];
                 end
 
                 // Phase 2
@@ -804,11 +839,6 @@ generate
                     lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[i][3];
                     lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][0];
                     lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][1];
-
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg_del[i][2];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg_del[i][3];
-                    lclk_aln.eol[i][2] <= lclk_lnk.eol_reg[i][0];
-                    lclk_aln.eol[i][3] <= lclk_lnk.eol_reg[i][1];
                 end
 
                 // Phase 3
@@ -823,11 +853,6 @@ generate
                     lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[i][0];
                     lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][1];
                     lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][2];
-
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg_del[i][3];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg[i][0];
-                    lclk_aln.eol[i][2] <= lclk_lnk.eol_reg[i][1];
-                    lclk_aln.eol[i][3] <= lclk_lnk.eol_reg[i][2];
                 end
 
                 // Normal
@@ -842,11 +867,6 @@ generate
                     lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[i][1];
                     lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][2];
                     lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][3];
-                    
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg[i][0];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg[i][1];
-                    lclk_aln.eol[i][2] <= lclk_lnk.eol_reg[i][2];
-                    lclk_aln.eol[i][3] <= lclk_lnk.eol_reg[i][3];
                 end
             end
         end
@@ -866,8 +886,6 @@ generate
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg[i][0];
                     lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg_del[i][1];
                     lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[i][0];
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg_del[i][1];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg[i][0];
                 end
 
                 // Normal
@@ -877,8 +895,6 @@ generate
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg[i][1];
                     lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg[i][0];
                     lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[i][1];
-                    lclk_aln.eol[i][0] <= lclk_lnk.eol_reg[i][0];
-                    lclk_aln.eol[i][1] <= lclk_lnk.eol_reg[i][1];
                 end
             end
         end
@@ -964,13 +980,6 @@ generate
             if (lclk_ctl.lanes == 'd1)
             begin
 
-                // Default
-                for (int i = 0; i < P_LANES; i++)
-                begin
-                    for (int j = 0; j < P_SPL; j++)
-                        lclk_map.eol[i][j] <= 0;
-                end
-
             // Stripe 0
 
                 // R0
@@ -992,7 +1001,6 @@ generate
                 begin
                     lclk_map.dat[0][0] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][0] <= 1;
-                    lclk_map.eol[0][0] <= lclk_aln.eol[0][2];
                 end
 
                 // Idle
@@ -1016,7 +1024,6 @@ generate
                 begin
                     lclk_map.dat[0][1] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][1] <= 1;
-                    lclk_map.eol[0][1] <= lclk_aln.eol[0][2];
                 end
 
                 // R12
@@ -1040,7 +1047,6 @@ generate
                 begin
                     lclk_map.dat[0][2] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][2] <= 1;
-                    lclk_map.eol[0][2] <= lclk_aln.eol[0][2];
                 end
 
                 // R8
@@ -1085,7 +1091,6 @@ generate
                 begin
                     lclk_map.dat[0][3] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][3] <= 1;
-                    lclk_map.eol[0][3] <= lclk_aln.eol[0][2];
                 end
 
                 // Idle
@@ -1116,7 +1121,6 @@ generate
                 begin
                     lclk_map.dat[1][0] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][0] <= 1;
-                    lclk_map.eol[1][0] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -1140,7 +1144,6 @@ generate
                 begin
                     lclk_map.dat[1][1] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][1] <= 1;
-                    lclk_map.eol[1][1] <= lclk_aln.eol[0][1];
                 end
 
                 // R13
@@ -1164,7 +1167,6 @@ generate
                 begin
                     lclk_map.dat[1][2] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][2] <= 1;
-                    lclk_map.eol[1][2] <= lclk_aln.eol[0][1];
                 end
 
                 // R9
@@ -1209,7 +1211,6 @@ generate
                 begin
                     lclk_map.dat[1][3] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][3] <= 1;
-                    lclk_map.eol[1][3] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -1240,7 +1241,6 @@ generate
                 begin
                     lclk_map.dat[2][0] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][0] <= 1;
-                    lclk_map.eol[2][0] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -1264,7 +1264,6 @@ generate
                 begin
                     lclk_map.dat[2][1] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][1] <= 1;
-                    lclk_map.eol[2][1] <= lclk_aln.eol[0][0];
                 end
 
                 // R14
@@ -1288,7 +1287,6 @@ generate
                 begin
                     lclk_map.dat[2][2] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][2] <= 1;
-                    lclk_map.eol[2][2] <= lclk_aln.eol[0][0];
                 end
 
                 // R10
@@ -1333,7 +1331,6 @@ generate
                 begin
                     lclk_map.dat[2][3] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][3] <= 1;
-                    lclk_map.eol[2][3] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -1364,7 +1361,6 @@ generate
                 begin
                     lclk_map.dat[3][0] <= lclk_aln.dat[0][3];
                     lclk_map.wr[3][0] <= 1;
-                    lclk_map.eol[3][0] <= lclk_aln.eol[0][3];
                 end
 
                 // Idle
@@ -1388,7 +1384,6 @@ generate
                 begin
                     lclk_map.dat[3][1] <= lclk_aln.dat[0][3];
                     lclk_map.wr[3][1] <= 1;
-                    lclk_map.eol[3][1] <= lclk_aln.eol[0][3];
                 end
 
                 // R15
@@ -1412,7 +1407,6 @@ generate
                 begin
                     lclk_map.dat[3][2] <= lclk_aln.dat[0][3];
                     lclk_map.wr[3][2] <= 1;
-                    lclk_map.eol[3][2] <= lclk_aln.eol[0][3];
                 end
 
                 // R11
@@ -1457,7 +1451,6 @@ generate
                 begin
                     lclk_map.dat[3][3] <= lclk_aln.dat[0][3];
                     lclk_map.wr[3][3] <= 1;
-                    lclk_map.eol[3][3] <= lclk_aln.eol[0][3];
                 end
 
                 // Idle
@@ -1471,13 +1464,6 @@ generate
             // 2 lanes
             else if (lclk_ctl.lanes == 'd2)
             begin
-
-                // Default
-                for (int i = 0; i < P_LANES; i++)
-                begin
-                    for (int j = 0; j < P_SPL; j++)
-                        lclk_map.eol[i][j] <= 0;
-                end
 
             // Stripe 0
 
@@ -1500,7 +1486,6 @@ generate
                 begin
                     lclk_map.dat[0][0] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][0] <= 1;
-                    lclk_map.eol[0][0] <= lclk_aln.eol[0][2];
                 end
 
                 // Idle
@@ -1524,7 +1509,6 @@ generate
                 begin
                     lclk_map.dat[0][1] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][1] <= 1;
-                    lclk_map.eol[0][1] <= lclk_aln.eol[0][0];
                 end
 
                 // R12
@@ -1548,7 +1532,6 @@ generate
                 begin
                     lclk_map.dat[0][2] <= lclk_aln.dat[0][2];
                     lclk_map.wr[0][2] <= 1;
-                    lclk_map.eol[0][2] <= lclk_aln.eol[0][2];
                 end
 
                 // R8
@@ -1593,7 +1576,6 @@ generate
                 begin
                     lclk_map.dat[0][3] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][3] <= 1;
-                    lclk_map.eol[0][3] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -1624,7 +1606,6 @@ generate
                 begin
                     lclk_map.dat[1][0] <= lclk_aln.dat[1][2];
                     lclk_map.wr[1][0] <= 1;
-                    lclk_map.eol[1][0] <= lclk_aln.eol[1][2];
                 end
 
                 // Idle
@@ -1648,7 +1629,6 @@ generate
                 begin
                     lclk_map.dat[1][1] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][1] <= 1;
-                    lclk_map.eol[1][1] <= lclk_aln.eol[1][0];
                 end
 
                 // R13
@@ -1672,7 +1652,6 @@ generate
                 begin
                     lclk_map.dat[1][2] <= lclk_aln.dat[1][2];
                     lclk_map.wr[1][2] <= 1;
-                    lclk_map.eol[1][2] <= lclk_aln.eol[1][2];
                 end
 
                 // R9
@@ -1717,7 +1696,6 @@ generate
                 begin
                     lclk_map.dat[1][3] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][3] <= 1;
-                    lclk_map.eol[1][3] <= lclk_aln.eol[1][0];
                 end
 
                 // Idle
@@ -1748,7 +1726,6 @@ generate
                 begin
                     lclk_map.dat[2][0] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][0] <= 1;
-                    lclk_map.eol[2][0] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -1772,7 +1749,6 @@ generate
                 begin
                     lclk_map.dat[2][1] <= lclk_aln.dat[0][3];
                     lclk_map.wr[2][1] <= 1;
-                    lclk_map.eol[2][1] <= lclk_aln.eol[0][3];
                 end
 
                 // R14
@@ -1796,7 +1772,6 @@ generate
                 begin
                     lclk_map.dat[2][2] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][2] <= 1;
-                    lclk_map.eol[2][2] <= lclk_aln.eol[0][1];
                 end
 
                 // R10
@@ -1841,7 +1816,6 @@ generate
                 begin
                     lclk_map.dat[2][3] <= lclk_aln.dat[0][3];
                     lclk_map.wr[2][3] <= 1;
-                    lclk_map.eol[2][3] <= lclk_aln.eol[0][3];
                 end
 
                 // Idle
@@ -1872,7 +1846,6 @@ generate
                 begin
                     lclk_map.dat[3][0] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][0] <= 1;
-                    lclk_map.eol[3][0] <= lclk_aln.eol[1][1];
                 end
 
                 // Idle
@@ -1896,7 +1869,6 @@ generate
                 begin
                     lclk_map.dat[3][1] <= lclk_aln.dat[1][3];
                     lclk_map.wr[3][1] <= 1;
-                    lclk_map.eol[3][1] <= lclk_aln.eol[1][3];
                 end
 
                 // R15
@@ -1920,7 +1892,6 @@ generate
                 begin
                     lclk_map.dat[3][2] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][2] <= 1;
-                    lclk_map.eol[3][2] <= lclk_aln.eol[1][1];
                 end
 
                 // R11
@@ -1965,7 +1936,6 @@ generate
                 begin
                     lclk_map.dat[3][3] <= lclk_aln.dat[1][3];
                     lclk_map.wr[3][3] <= 1;
-                    lclk_map.eol[3][3] <= lclk_aln.eol[1][3];
                 end
 
                 // Idle
@@ -1985,7 +1955,6 @@ generate
                     begin
                         lclk_map.wr[i][j] <= lclk_aln.wr[i][j];
                         lclk_map.dat[i][j] <= lclk_aln.dat[i][j];
-                        lclk_map.eol[i][j] <= lclk_aln.eol[i][j];
                     end
                 end
             end
@@ -2004,20 +1973,12 @@ generate
                 begin
                         lclk_map.dat[i][j] <= 0;
                         lclk_map.wr[i][j] <= 0;
-                        lclk_map.eol[i][j] <= 0;
                 end
             end
 
             // 1 lane
             if (lclk_ctl.lanes == 'd1)
             begin
-
-                // Default
-                for (int i = 0; i < P_LANES; i++)
-                begin
-                    for (int j = 0; j < P_SPL; j++)
-                        lclk_map.eol[i][j] <= 0;
-                end
 
             // Stripe 0
 
@@ -2040,7 +2001,6 @@ generate
                 begin
                     lclk_map.dat[0][0] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][0] <= 1;
-                    lclk_map.eol[0][0] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2064,7 +2024,6 @@ generate
                 begin
                     lclk_map.dat[0][1] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][1] <= 1;
-                    lclk_map.eol[0][1] <= lclk_aln.eol[0][0];
                 end
 
                 // R12
@@ -2088,7 +2047,6 @@ generate
                 begin
                     lclk_map.dat[0][2] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][2] <= 1;
-                    lclk_map.eol[0][2] <= lclk_aln.eol[0][0];
                 end
 
                 // R8
@@ -2133,7 +2091,6 @@ generate
                 begin
                     lclk_map.dat[0][3] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][3] <= 1;
-                    lclk_map.eol[0][3] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2164,7 +2121,6 @@ generate
                 begin
                     lclk_map.dat[1][0] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][0] <= 1;
-                    lclk_map.eol[1][0] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2188,7 +2144,6 @@ generate
                 begin
                     lclk_map.dat[1][1] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][1] <= 1;
-                    lclk_map.eol[1][1] <= lclk_aln.eol[0][1];
                 end
 
                 // R13
@@ -2212,7 +2167,6 @@ generate
                 begin
                     lclk_map.dat[1][2] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][2] <= 1;
-                    lclk_map.eol[1][2] <= lclk_aln.eol[0][1];
                 end
 
                 // R9
@@ -2257,7 +2211,6 @@ generate
                 begin
                     lclk_map.dat[1][3] <= lclk_aln.dat[0][1];
                     lclk_map.wr[1][3] <= 1;
-                    lclk_map.eol[1][3] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2288,7 +2241,6 @@ generate
                 begin
                     lclk_map.dat[2][0] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][0] <= 1;
-                    lclk_map.eol[2][0] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2312,7 +2264,6 @@ generate
                 begin
                     lclk_map.dat[2][1] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][1] <= 1;
-                    lclk_map.eol[2][1] <= lclk_aln.eol[0][0];
                 end
 
                 // R14
@@ -2336,7 +2287,6 @@ generate
                 begin
                     lclk_map.dat[2][2] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][2] <= 1;
-                    lclk_map.eol[2][2] <= lclk_aln.eol[0][0];
                 end
 
                 // R10
@@ -2381,7 +2331,6 @@ generate
                 begin
                     lclk_map.dat[2][3] <= lclk_aln.dat[0][0];
                     lclk_map.wr[2][3] <= 1;
-                    lclk_map.eol[2][3] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2412,7 +2361,6 @@ generate
                 begin
                     lclk_map.dat[3][0] <= lclk_aln.dat[0][1];
                     lclk_map.wr[3][0] <= 1;
-                    lclk_map.eol[3][0] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2436,7 +2384,6 @@ generate
                 begin
                     lclk_map.dat[3][1] <= lclk_aln.dat[0][1];
                     lclk_map.wr[3][1] <= 1;
-                    lclk_map.eol[3][1] <= lclk_aln.eol[0][1];
                 end
 
                 // R15
@@ -2460,7 +2407,6 @@ generate
                 begin
                     lclk_map.dat[3][2] <= lclk_aln.dat[0][1];
                     lclk_map.wr[3][2] <= 1;
-                    lclk_map.eol[3][2] <= lclk_aln.eol[0][1];
                 end
 
                 // R11
@@ -2505,7 +2451,6 @@ generate
                 begin
                     lclk_map.dat[3][3] <= lclk_aln.dat[0][1];
                     lclk_map.wr[3][3] <= 1;
-                    lclk_map.eol[3][3] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2541,7 +2486,6 @@ generate
                 begin
                     lclk_map.dat[0][0] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][0] <= 1;
-                    lclk_map.eol[0][0] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2565,7 +2509,6 @@ generate
                 begin
                     lclk_map.dat[0][1] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][1] <= 1;
-                    lclk_map.eol[0][1] <= lclk_aln.eol[0][0];
                 end
 
                 // R12
@@ -2589,7 +2532,6 @@ generate
                 begin
                     lclk_map.dat[0][2] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][2] <= 1;
-                    lclk_map.eol[0][2] <= lclk_aln.eol[0][0];
                 end
 
                 // R8
@@ -2634,7 +2576,6 @@ generate
                 begin
                     lclk_map.dat[0][3] <= lclk_aln.dat[0][0];
                     lclk_map.wr[0][3] <= 1;
-                    lclk_map.eol[0][3] <= lclk_aln.eol[0][0];
                 end
 
                 // Idle
@@ -2665,7 +2606,6 @@ generate
                 begin
                     lclk_map.dat[1][0] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][0] <= 1;
-                    lclk_map.eol[1][0] <= lclk_aln.eol[1][0];
                 end
 
                 // Idle
@@ -2689,7 +2629,6 @@ generate
                 begin
                     lclk_map.dat[1][1] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][1] <= 1;
-                    lclk_map.eol[1][1] <= lclk_aln.eol[1][0];
                 end
 
                 // R13
@@ -2713,7 +2652,6 @@ generate
                 begin
                     lclk_map.dat[1][2] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][2] <= 1;
-                    lclk_map.eol[1][2] <= lclk_aln.eol[1][0];
                 end
 
                 // R9
@@ -2758,7 +2696,6 @@ generate
                 begin
                     lclk_map.dat[1][3] <= lclk_aln.dat[1][0];
                     lclk_map.wr[1][3] <= 1;
-                    lclk_map.eol[1][3] <= lclk_aln.eol[1][0];
                 end
 
                 // Idle
@@ -2789,7 +2726,6 @@ generate
                 begin
                     lclk_map.dat[2][0] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][0] <= 1;
-                    lclk_map.eol[2][0] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2813,7 +2749,6 @@ generate
                 begin
                     lclk_map.dat[2][1] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][1] <= 1;
-                    lclk_map.eol[2][1] <= lclk_aln.eol[0][1];
                 end
 
                 // R14
@@ -2837,7 +2772,6 @@ generate
                 begin
                     lclk_map.dat[2][2] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][2] <= 1;
-                    lclk_map.eol[2][2] <= lclk_aln.eol[0][1];
                 end
 
                 // R10
@@ -2882,7 +2816,6 @@ generate
                 begin
                     lclk_map.dat[2][3] <= lclk_aln.dat[0][1];
                     lclk_map.wr[2][3] <= 1;
-                    lclk_map.eol[2][3] <= lclk_aln.eol[0][1];
                 end
 
                 // Idle
@@ -2913,7 +2846,6 @@ generate
                 begin
                     lclk_map.dat[3][0] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][0] <= 1;
-                    lclk_map.eol[3][0] <= lclk_aln.eol[1][1];
                 end
 
                 // Idle
@@ -2937,7 +2869,6 @@ generate
                 begin
                     lclk_map.dat[3][1] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][1] <= 1;
-                    lclk_map.eol[3][1] <= lclk_aln.eol[1][1];
                 end
 
                 // R15
@@ -2961,7 +2892,6 @@ generate
                 begin
                     lclk_map.dat[3][2] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][2] <= 1;
-                    lclk_map.eol[3][2] <= lclk_aln.eol[1][1];
                 end
 
                 // R11
@@ -3006,7 +2936,6 @@ generate
                 begin
                     lclk_map.dat[3][3] <= lclk_aln.dat[1][1];
                     lclk_map.wr[3][3] <= 1;
-                    lclk_map.eol[3][3] <= lclk_aln.eol[1][1];
                 end
 
                 // Idle
@@ -3029,7 +2958,6 @@ generate
                         begin
                             lclk_map.dat[i][j] <= lclk_aln.dat[i][j];
                             lclk_map.wr[i][j] <= 1;
-                            lclk_map.eol[i][j] <= lclk_aln.eol[i][j];
                         end
 
                         // Upper sublane
@@ -3037,7 +2965,6 @@ generate
                         begin
                             lclk_map.dat[i][j+2] <= lclk_aln.dat[i][j];
                             lclk_map.wr[i][j+2] <= 1;
-                            lclk_map.eol[i][j+2] <= lclk_aln.eol[i][j];
                         end
                     end
                 end
@@ -3046,7 +2973,16 @@ generate
     end 
 endgenerate
 
-
+// FIFO last
+// The FIFO last signal indicates that the last data has been written in the FIFO.
+// This information is used by the FIFO module to store the last head counter.
+// Preventing invalid level information during clearing at the begin of a new line. 
+// To compensate for the alignment and mapping latency, the last signal must be delayed.
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        lclk_fifo.last_pipe <= {lclk_fifo.last_pipe[0+:$high(lclk_fifo.last_pipe)], lclk_lnk.stp_re};
+    end
+    assign  lclk_fifo.last = lclk_fifo.last_pipe[$high(lclk_fifo.last_pipe)];
 
 /*
     FIFO
@@ -3054,30 +2990,31 @@ endgenerate
 
     prt_dprx_vid_fifo
     #(
-        .P_VENDOR           (P_VENDOR),     // Vendor
-        .P_SIM              (P_SIM),        // Simulation
-        .P_FIFO_WRDS        (P_FIFO_WRDS),  // FIFO words
-        .P_LANES            (P_LANES),      // Lanes
-        .P_SEGMENTS         (P_SEGMENTS),   // Segments
-        .P_STRIPES          (P_STRIPES)     // Stripes
+        .P_VENDOR           (P_VENDOR),             // Vendor
+        .P_SIM              (P_SIM),                // Simulation
+        .P_FIFO_WRDS        (P_FIFO_WRDS),          // FIFO words
+        .P_LANES            (P_LANES),              // Lanes
+        .P_SEGMENTS         (P_FIFO_SEGMENTS),      // Segments
+        .P_STRIPES          (P_FIFO_STRIPES)        // Stripes
     )
     FIFO_INST
     (
         // Link port
-        .LNK_RST_IN     (LNK_RST_IN),
-        .LNK_CLK_IN     (LNK_CLK_IN),
-        .LNK_CLR_IN     (lclk_fifo.clr),
-        .LNK_DAT_IN     (lclk_map.dat),
-        .LNK_WR_IN      (lclk_map.wr),
+        .LNK_RST_IN     (LNK_RST_IN),               // Reset
+        .LNK_CLK_IN     (LNK_CLK_IN),               // Clock
+        .LNK_CLR_IN     (lclk_fifo.clr),            // Clear
+        .LNK_DAT_IN     (lclk_map.dat),             // Data
+        .LNK_WR_IN      (lclk_map.wr),              // Write
+        .LNK_LAST_IN    (lclk_fifo.last),           // Last
 
         // Video port
-        .VID_RST_IN     (VID_RST_IN),
-        .VID_CLK_IN     (VID_CLK_IN),
-        .VID_CLR_IN     (vclk_fifo.clr),
-        .VID_RD_IN      (vclk_map.rd),
-        .VID_DAT_OUT    (vclk_fifo.dout),
-        .VID_DE_OUT     (vclk_fifo.de),
-        .VID_LVL_OUT    (vclk_fifo.lvl)
+        .VID_RST_IN     (VID_RST_IN),               // Reset
+        .VID_CLK_IN     (VID_CLK_IN),               // Clock
+        .VID_CLR_IN     (vclk_fifo.clr),            // Clear
+        .VID_RD_IN      (vclk_map.rd),              // Read
+        .VID_DAT_OUT    (vclk_fifo.dout),           // Data
+        .VID_DE_OUT     (vclk_fifo.de),             // Data enable
+        .VID_LVL_OUT    (vclk_fifo.lvl)             // Level
     );
 
     assign lclk_fifo.clr = lclk_lnk.str;
@@ -3227,12 +3164,12 @@ endgenerate
     prt_dprx_vid_vmap
     #(
         // Video
-        .P_PPC          (P_PPC),          // Pixels per clock
-        .P_BPC          (P_BPC),          // Bits per component
-        .P_LANES        (P_LANES),        // Lanes
-        .P_SEGMENTS     (P_SEGMENTS),     // Segments
-        .P_STRIPES      (P_STRIPES),      // Stripes
-        .P_VID_DAT      (P_VID_DAT)		// AXIS data width
+        .P_PPC          (P_PPC),                // Pixels per clock
+        .P_BPC          (P_BPC),                // Bits per component
+        .P_LANES        (P_LANES),              // Lanes
+        .P_SEGMENTS     (P_FIFO_SEGMENTS),      // Segments
+        .P_STRIPES      (P_FIFO_STRIPES),       // Stripes
+        .P_VID_DAT      (P_VID_DAT)		        // AXIS data width
     )
     VMAP_INST
     (

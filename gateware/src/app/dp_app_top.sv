@@ -5,7 +5,7 @@
 
 
     Module: DP Application Top
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -21,7 +21,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -34,11 +34,13 @@
 module dp_app_top
 #(
     parameter P_VENDOR          = "none",
-    parameter P_SYS_FREQ        = 100_000_000,      // System frequency
+    parameter P_SYS_FREQ        = 50_000_000,      // System frequency
     parameter P_HW_VER_MAJOR    = 1,   // Reference design version major
     parameter P_HW_VER_MINOR    = 0,   // Reference design minor
     parameter P_PIO_IN_WIDTH    = 32,
     parameter P_PIO_OUT_WIDTH   = 32,
+    parameter P_ROM_SIZE        = 64,   // ROM size (in Kbytes)
+    parameter P_RAM_SIZE        = 64,   // RAM size (in Kbytes)
     parameter P_ROM_INIT        = "none",
     parameter P_RAM_INIT        = "none",
     parameter P_AQUA            = 0         // Implement Aqua programmer
@@ -102,10 +104,10 @@ localparam P_SIM =
 // synthesis translate_on
 0;
 
-localparam P_ROM_SIZE = 64 * 1024;                     // ROM size in bytes
-localparam P_ROM_ADR = $clog2(P_ROM_SIZE);
-localparam P_RAM_SIZE = 64 * 1024;                      // RAM size in bytes
-localparam P_RAM_ADR = $clog2(P_RAM_SIZE);
+localparam P_ROM_SIZE_BYTES = P_ROM_SIZE * 1024;                     // ROM size in bytes
+localparam P_ROM_ADR = $clog2(P_ROM_SIZE_BYTES);
+localparam P_RAM_SIZE_BYTES = P_RAM_SIZE * 1024;                      // RAM size in bytes
+localparam P_RAM_ADR = $clog2(P_RAM_SIZE_BYTES);
 localparam P_UART_BEAT = P_SYS_FREQ / 115200; 
 localparam P_TMR_BEAT = P_SYS_FREQ / 1_000_000;
 localparam P_LB_MUX_PORTS = 11;

@@ -2,7 +2,7 @@
   "schema": "xilinx.com:schema:json_instance:1.0",
   "ip_inst": {
     "xci_name": "gtp_4spl",
-    "component_reference": "xilinx.com:ip:gtwizard:1.0",
+    "component_reference": "xilinx.com:ip:gtwizard:3.6",
     "ip_revision": "14",
     "gen_directory": "../../../../dp_ref_tb_a7_200t_img.gen/sources_1/ip/gtp_4spl",
     "parameters": {

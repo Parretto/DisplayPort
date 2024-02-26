@@ -2,7 +2,7 @@
   "schema": "xilinx.com:schema:json_instance:1.0",
   "ip_inst": {
     "xci_name": "sys_pll",
-    "component_reference": "xilinx.com:ip:clk_wiz:1.0",
+    "component_reference": "xilinx.com:ip:clk_wiz:6.0",
     "ip_revision": "12",
     "gen_directory": "../../../../dp_ref_tb_a7_200t_img.gen/sources_1/ip/sys_pll",
     "parameters": {

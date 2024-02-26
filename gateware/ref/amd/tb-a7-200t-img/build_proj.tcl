@@ -33,6 +33,7 @@ add_files $SRC/tx/prt_dptx_scrm.sv
 add_files $SRC/tx/prt_dptx_skew.sv
 add_files $SRC/tx/prt_dptx_trn.sv
 add_files $SRC/tx/prt_dptx_vid_vmap.sv
+add_files $SRC/tx/prt_dptx_vid_fifo.sv
 add_files $SRC/tx/prt_dptx_vid.sv
 add_files $SRC/tx/prt_dptx_top.sv
 
@@ -75,7 +76,7 @@ add_files $SRC/pm/prt_dp_pm_tmr.sv
 add_files $SRC/pm/prt_dp_pm_top.sv
 
 # Misc
-add_files $SRC/misc/prt_xil_drp.sv
+add_files $SRC/misc/prt_phy_ctl_amd.sv
 add_files $SRC/misc/prt_i2c.sv
 add_files $SRC/misc/prt_lb_mux.sv
 add_files $SRC/misc/prt_dp_clkdet.sv

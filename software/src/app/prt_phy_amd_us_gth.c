@@ -12,7 +12,8 @@
     v1.0 - Initial release
     v1.1 - Removed DP application and DP driver header dependency
 	v1.2 - Change QPLL dynamic update 
-	
+	v1.3 - Added PIO
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -29,7 +30,6 @@
 
 // Includes
 #include "prt_types.h"
-#include "prt_pio.h"
 #include "prt_tmr.h"
 #include "prt_phy_amd_us_gth.h"
 #include "prt_printf.h"
@@ -41,7 +41,7 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
   	{
 		0x00110fc3, /* DRP address=0x11, data=0xfc3e */
 		0x0014005e, /* DRP address=0x14, data=0x5e */
-		0x00180820, /* DRP address=0x18, data=0x820 */
+		0x00180020, /* DRP address=0x18, data=0x020 */
 		0x0019021f  /* DRP address=0x19, data=0x21f */
 	},
 
@@ -49,7 +49,7 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
   	{
 		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
 		0x0014004e, /* DRP address=0x14, data=0x4e */
-		0x00180820, /* DRP address=0x18, data=0x820 */
+		0x00180020, /* DRP address=0x18, data=0x020 */
 		0x0019021f  /* DRP address=0x19, data=0x21f */
 	},
 
@@ -57,7 +57,7 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
   	{
 		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
 		0x0014004e, /* DRP address=0x14, data=0x4e */
-		0x00180820, /* DRP address=0x18, data=0x820 */
+		0x00180020, /* DRP address=0x18, data=0x020 */
 		0x0019021f  /* DRP address=0x19, data=0x21f */
 	},
 
@@ -65,50 +65,19 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
   	{
 		0x00110fc1, /* DRP address=0x11, data=0xfc1 */
 		0x00140076, /* DRP address=0x14, data=0x76 */
-		0x00180820, /* DRP address=0x18, data=0x820 */
+		0x00180020, /* DRP address=0x18, data=0x020 */
 		0x0019037f  /* DRP address=0x19, data=0x37f */
 	}
 };
 
 // Initialize
-void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base,
-	prt_u32 pio_pwrgd, 
-	prt_u32 pio_cpll_rst, prt_u32 pio_cpll_lock, prt_u32 pio_qpll_rst, prt_u32 pio_qpll_lock,
-	prt_u32 pio_tx_rst, prt_u32 pio_tx_div_rst, prt_u32 pio_tx_usr_rdy, prt_u32 pio_tx_pma_rst_done, prt_u32 pio_tx_rst_done,
-	prt_u32 pio_rx_rst, prt_u32 pio_rx_div_rst, prt_u32 pio_rx_usr_rdy, prt_u32 pio_rx_pma_rst_done, prt_u32 pio_rx_rst_done,
-	prt_u32 pio_tx_linerate_shift, prt_u32 pio_tx_volt_shift, prt_u32 pio_tx_pre_shift)
+void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base)
 {
 	// Base address
 	phy->dev = (prt_phy_amd_dev_struct *) base;
 
-	// PIO
-	phy->pio = pio;
-
 	// Timer
 	phy->tmr = tmr;
-
-	// PIO bits
-	phy->pio_pwrgd = pio_pwrgd;
-	phy->pio_cpll_rst = pio_cpll_rst;
-	phy->pio_cpll_lock = pio_cpll_lock;
-	phy->pio_qpll_rst = pio_qpll_rst;
-	phy->pio_qpll_lock = pio_qpll_lock;
-
-	phy->pio_tx_rst = pio_tx_rst;
-	phy->pio_tx_div_rst = pio_tx_div_rst;
-	phy->pio_tx_usr_rdy = pio_tx_usr_rdy;
-	phy->pio_tx_pma_rst_done = pio_tx_pma_rst_done;
-	phy->pio_tx_rst_done = pio_tx_rst_done;
-		
-	phy->pio_rx_rst = pio_rx_rst;
-	phy->pio_rx_div_rst = pio_rx_div_rst;
-	phy->pio_rx_usr_rdy = pio_rx_usr_rdy;
-	phy->pio_rx_pma_rst_done = pio_rx_pma_rst_done;
-	phy->pio_rx_rst_done = pio_rx_rst_done;
-
-	phy->pio_tx_linerate_shift = pio_tx_linerate_shift;
-	phy->pio_tx_volt_shift = pio_tx_volt_shift;
-	phy->pio_tx_pre_shift = pio_tx_pre_shift;
 }
 
 // DRP read
@@ -221,44 +190,44 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	switch (rate)
 	{
 		// 2.7 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 * (4 * 5 / 1) = 2.7 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 * (4 * 5 / 2) = 2.7 GHz
 		// Linerate = 2.7 * 2 / 2 = 2.7 Gbps
 		case PRT_PHY_AMD_LINERATE_2700 :
 			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4); 
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (5);
-			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
+			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
 			txout_div = prt_phy_amd_encode_txout_div (2);
 			break;
 
 		// 5.4 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 * (4 * 5 / 1) = 2.7 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 * (4 * 5 / 2) = 2.7 GHz
 		// Linerate = 2.7 * 2 / 1 = 5.4 Gbps
 		case PRT_PHY_AMD_LINERATE_5400 :
 			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4);
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (5);
-			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
+			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
 			txout_div = prt_phy_amd_encode_txout_div (1);
 			break;
 
 		// 8.1 Gbps
-		// Reference clock is 202.5 MHz.
-		// VCO frequency = 202.5 * (4 * 5 / 1) = 4.05 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 * (3 * 5 / 1) = 4.05 GHz
 		// Linerate = 4.05 * 2 / 1 = 8.1 Gbps
 		case PRT_PHY_AMD_LINERATE_8100 :
-			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4);
+			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (3);
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (5);
 			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
 			txout_div = prt_phy_amd_encode_txout_div (1);
 			break;
 
 		// 1.62 Gbps
-		// Reference clock is 202.5 MHz.
-		// VCO frequency = 202.5 * (4 * 4 / 1) = 3.240 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 * (3 * 4 / 1) = 3.240 GHz
 		// Linerate = 3.240 * 2 / 4 = 1.62 Gbps
 		default :
-			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4);
+			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (3);
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (4);
 			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
 			txout_div = prt_phy_amd_encode_txout_div (4);
@@ -607,27 +576,32 @@ prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div)
 // PHY TX assert reset
 prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst_set (phy, phy->pio_cpll_rst, phy->pio_tx_rst, phy->pio_tx_div_rst, phy->pio_tx_usr_rdy);
+	return prt_phy_amd_rst_set (phy, 
+		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY);
+	//phy->pio_cpll_rst, phy->pio_tx_rst, phy->pio_tx_div_rst, phy->pio_tx_usr_rdy);
 }
 
 // PHY TX release reset
 prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst_clr (phy, 
-		phy->pio_cpll_rst, phy->pio_cpll_lock, phy->pio_tx_rst, phy->pio_tx_div_rst, phy->pio_tx_pma_rst_done, phy->pio_tx_usr_rdy, phy->pio_tx_rst_done);
+	return prt_phy_amd_rst_clr (phy,
+		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_IN_CPLL_LOCK, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST,
+		PRT_PHY_AMD_PIO_IN_TX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
 
 // PHY RX assert reset
 prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst_set (phy, phy->pio_qpll_rst, phy->pio_rx_rst, phy->pio_rx_div_rst, phy->pio_rx_usr_rdy);
+	return prt_phy_amd_rst_set (phy, 
+		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
 }
 
 // PHY RX release reset
 prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst_clr (phy, 
-		phy->pio_qpll_rst, phy->pio_qpll_lock, phy->pio_rx_rst, phy->pio_rx_div_rst, phy->pio_rx_pma_rst_done, phy->pio_rx_usr_rdy, phy->pio_rx_rst_done);
+	return prt_phy_amd_rst_clr (phy,
+		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_IN_QPLL_LOCK, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, 
+		PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
 }
 
 // PHY assert reset 
@@ -639,22 +613,22 @@ prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy,
 
 	// Powergood
 	// Read PIO
-	dat = prt_pio_dat_get (phy->pio);
+	dat = prt_phy_amd_pio_dat_get (phy);
 
 	// Check if powergood signal is asserted
-	if (dat & phy->pio_pwrgd)
+	if (dat & PRT_PHY_AMD_PIO_IN_PWRGD)
 	{
 		// Assert PLL reset
-	     prt_pio_dat_set (phy->pio, PLL_RST);
+	    prt_phy_amd_pio_dat_set (phy, PLL_RST);
 
 		// De-assert PHY TX reset
-	     prt_pio_dat_clr (phy->pio, PHY_RST);
+	    prt_phy_amd_pio_dat_clr (phy, PHY_RST);
 
 	     // De-assert TXUSR ready
-		prt_pio_dat_clr (phy->pio, PHY_USR_RDY);
+		prt_phy_amd_pio_dat_clr (phy, PHY_USR_RDY);
 
 	     // De-assert divider reset
-		prt_pio_dat_clr (phy->pio, PHY_DIV_RST);
+		prt_phy_amd_pio_dat_clr (phy, PHY_DIV_RST);
 
 		return PRT_STA_OK;
 	}
@@ -675,96 +649,96 @@ prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy,
     prt_bool exit_loop;
 
 	// Release PLL reset
-     prt_pio_dat_clr (phy->pio, PLL_RST);
+    prt_phy_amd_pio_dat_clr (phy, PLL_RST);
    
-     // Wait for PLL lock
+    // Wait for PLL lock
 
-     // Set alarm 0
-     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
      
-     exit_loop = PRT_FALSE;
-     do
-     {
-          // Read PIO
-          dat = prt_pio_dat_get (phy->pio);
+    exit_loop = PRT_FALSE;
+    do
+    {
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
 
-          if (dat & PLL_LOCK)
-          {
-               exit_loop = PRT_TRUE;
-          }
+		if (dat & PLL_LOCK)
+		{
+			exit_loop = PRT_TRUE;
+		}
 
-          else if (prt_tmr_is_alrm (phy->tmr, 0))
-          {
-               prt_printf ("PHY: PLL lock timeout\n");
-               return PRT_STA_FAIL;
-          }
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHY: PLL lock timeout\n");
+			return PRT_STA_FAIL;
+		}
      } while (exit_loop == PRT_FALSE);
 
-     // Assert PHY divider reset
-     prt_pio_dat_set (phy->pio, PHY_DIV_RST);
+    // Assert PHY divider reset
+    prt_phy_amd_pio_dat_set (phy, PHY_DIV_RST);
 
-     // De-assert PHY divider reset
-     prt_pio_dat_clr (phy->pio, PHY_DIV_RST);
+    // De-assert PHY divider reset
+    prt_phy_amd_pio_dat_clr (phy, PHY_DIV_RST);
 
      // Assert PHY reset
-	prt_pio_dat_set (phy->pio, PHY_RST);
+	prt_phy_amd_pio_dat_set (phy, PHY_RST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
      
      // Release PHY reset
-	prt_pio_dat_clr (phy->pio, PHY_RST);
+	prt_phy_amd_pio_dat_clr (phy, PHY_RST);
 
-     // Wait for PMA reset done
+    // Wait for PMA reset done
 
-     // Set alarm 0
-     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
      
-     exit_loop = PRT_FALSE;
-     do
-     {
-          // Read PIO
-          dat = prt_pio_dat_get (phy->pio);
+    exit_loop = PRT_FALSE;
+    do
+    {
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
 
-          if (dat & PMA_RST_DONE)
-          {
-               exit_loop = PRT_TRUE;
-          }
+		if (dat & PMA_RST_DONE)
+		{
+			exit_loop = PRT_TRUE;
+		}
 
-          else if (prt_tmr_is_alrm (phy->tmr, 0))
-          {
-               prt_printf ("PHY: PMA reset done timeout\n");
-               return PRT_STA_FAIL;
-          }
-     } while (exit_loop == PRT_FALSE);
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHY: PMA reset done timeout\n");
+			return PRT_STA_FAIL;
+		}
+    } while (exit_loop == PRT_FALSE);
 
-     // Set TXUSR ready
-	prt_pio_dat_set (phy->pio, PHY_USR_RDY);
+    // Set TXUSR ready
+	prt_phy_amd_pio_dat_set (phy, PHY_USR_RDY);
 
-     // Wait for reset done
+    // Wait for reset done
 
-     // Set alarm 0
-     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
      
-     exit_loop = PRT_FALSE;
-     do
-     {
-          // Read PIO
-          dat = prt_pio_dat_get (phy->pio);
+    exit_loop = PRT_FALSE;
+    do
+    {
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
 
-          if (dat & PHY_RST_DONE)
-          {
-               exit_loop = PRT_TRUE;
-          }
+		if (dat & PHY_RST_DONE)
+		{
+			exit_loop = PRT_TRUE;
+		}
 
-          else if (prt_tmr_is_alrm (phy->tmr, 0))
-          {
-               prt_printf ("PHY: Reset done timeout\n");
-               return PRT_STA_FAIL;
-          }
-     } while (exit_loop == PRT_FALSE);
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHY: Reset done timeout\n");
+			return PRT_STA_FAIL;
+		}
+    } while (exit_loop == PRT_FALSE);
 
-     return PRT_STA_OK;
+    return PRT_STA_OK;
 }
 
 // Set the CPLL calibration parameters (through the pio)
@@ -789,9 +763,9 @@ void prt_phy_amd_cpll_cal (prt_phy_amd_ds_struct *phy, prt_u8 rate)
           default : dat = 0; break;
      }
 
-     msk = (0x03 << phy->pio_tx_linerate_shift);
-     dat <<= phy->pio_tx_linerate_shift;
-     prt_pio_dat_msk (phy->pio, dat, msk);
+    msk = (0x03 << PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT);
+    dat <<= PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT;
+    prt_phy_amd_pio_dat_msk (phy, dat, msk);
 }
 
 // Set PHY TX voltage and pre-emphasis
@@ -809,9 +783,9 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
           default : dat = 0x08; break;  // 400 mV
      }
 
-     msk = (0x1f << phy->pio_tx_volt_shift);
-     dat <<= phy->pio_tx_volt_shift;
-     prt_pio_dat_msk (phy->pio, dat, msk);
+     msk = (0x1f << PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT);
+     dat <<= PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, dat, msk);
 
      switch (pre)
      {
@@ -821,9 +795,9 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
           default : dat = 0; break;     // 0 dB
      }
 
-     msk = (0x1f << phy->pio_tx_pre_shift);
-     dat <<= phy->pio_tx_pre_shift;
-     prt_pio_dat_msk (phy->pio, dat, msk);
+     msk = (0x1f << PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT);
+     dat <<= PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, dat, msk);
 }
 
 // TX PLL lock
@@ -834,9 +808,9 @@ prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy)
 	prt_u32 dat;
 
      // Read PIO
-     dat = prt_pio_dat_get (phy->pio);
+     dat = prt_phy_amd_pio_dat_get (phy);
 
-     if (dat & phy->pio_cpll_lock)
+     if (dat & PRT_PHY_AMD_PIO_IN_CPLL_LOCK)
      	return PRT_TRUE;
    	else
    		return PRT_FALSE;
@@ -850,9 +824,9 @@ prt_u8 prt_phy_amd_get_rxpll_lock (prt_phy_amd_ds_struct *phy)
 	prt_u32 dat;
 
      // Read PIO
-     dat = prt_pio_dat_get (phy->pio);
+     dat = prt_phy_amd_pio_dat_get (phy);
 
-     if (dat & phy->pio_qpll_lock)
+     if (dat & PRT_PHY_AMD_PIO_IN_QPLL_LOCK)
      	return PRT_TRUE;
    	else
    		return PRT_FALSE;
@@ -932,3 +906,28 @@ void prt_phy_amd_equ_sel (prt_phy_amd_ds_struct *phy, prt_u8 lpm)
 	     prt_pio_dat_clr (phy->pio, PIO_OUT_PHYRX_EQU_SEL);
 }
 */
+
+//  PIO Data set
+void prt_phy_amd_pio_dat_set (prt_phy_amd_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_set = dat;
+}
+
+// PIO Data clear
+void prt_phy_amd_pio_dat_clr (prt_phy_amd_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_clr = dat;
+}
+
+// PIO Data mask
+void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 msk)
+{
+	phy->dev->pio_msk = msk;
+	phy->dev->pio_dout = dat;
+}
+
+// PIO Get data
+prt_u32 prt_phy_amd_pio_dat_get (prt_phy_amd_ds_struct *phy)
+{
+  return phy->dev->pio_din;
+}

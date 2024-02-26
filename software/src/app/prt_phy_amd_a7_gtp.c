@@ -5,11 +5,12 @@
 
 
     Module: PHY AMD Artix 7 GTP Driver
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added PIO
 
     License
     =======
@@ -17,7 +18,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -27,45 +28,18 @@
 
 // Includes
 #include "prt_types.h"
-#include "prt_pio.h"
 #include "prt_tmr.h"
 #include "prt_phy_amd_a7_gtp.h"
 #include "prt_printf.h"
 
 // Initialize
-void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base,
-    prt_u32 pio_gttx_rst, prt_u32 pio_gtrx_rst, prt_u32 pio_gttx_rst_done, prt_u32 pio_gtrx_rst_done,
-    prt_u32 pio_gtpll0_lock, prt_u32 pio_gtpll1_lock, 
-    prt_u32 pio_txpll_rst, prt_u32 pio_txpll_lock, 
-    prt_u32 pio_rxpll_rst, prt_u32 pio_rxpll_lock,  
-    prt_u32 pio_tx_volt_shift, prt_u32 pio_tx_pre_shift, 
-    prt_u32 pio_tx_rate_shift, prt_u32 pio_rx_rate_shift
-    )
+void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base)
 {
 	// Base address
-	phy->drp = (prt_phy_amd_drp_struct *) base;
-
-	// PIO
-	phy->pio = pio;
+	phy->dev = (prt_phy_amd_dev_struct *) base;
 
 	// Timer
 	phy->tmr = tmr;
-
-    // PIO bits
-    phy->pio_gttx_rst = pio_gttx_rst; 
-    phy->pio_gtrx_rst = pio_gtrx_rst;
-    phy->pio_gttx_rst_done = pio_gttx_rst_done; 
-    phy->pio_gtrx_rst_done = pio_gtrx_rst_done;
-    phy->pio_gtpll0_lock = pio_gtpll0_lock; 
-    phy->pio_gtpll1_lock = pio_gtpll1_lock; 
-    phy->pio_txpll_rst = pio_txpll_rst; 
-    phy->pio_txpll_lock = pio_txpll_lock; 
-    phy->pio_rxpll_rst = pio_rxpll_rst; 
-    phy->pio_rxpll_lock = pio_rxpll_lock; 
-    phy->pio_tx_volt_shift = pio_tx_volt_shift;
-    phy->pio_tx_pre_shift = pio_tx_pre_shift;
-    phy->pio_tx_rate_shift = pio_tx_rate_shift;
-    phy->pio_rx_rate_shift = pio_rx_rate_shift;
 }
 
 // DRP read
@@ -82,10 +56,10 @@ prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr
 	cmd |= (adr << PRT_PHY_AMD_DRP_ADR_SHIFT);
 
 	// Write command to drp 
-	phy->drp->itf = cmd;
+	phy->dev->drp = cmd;
 
 	// Read
-	phy->drp->ctl = PRT_PHY_AMD_DRP_CTL_RD;
+	phy->dev->ctl = PRT_PHY_AMD_DRP_CTL_RD;
 	
      // Set alarm 1 (100 us)
      prt_tmr_set_alrm (phy->tmr, 1, 100);
@@ -93,7 +67,7 @@ prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr
      exit_loop = PRT_FALSE;
      do
      {
-          if (phy->drp->sta & PRT_PHY_AMD_DRP_STA_RDY)
+          if (phy->dev->sta & PRT_PHY_AMD_DRP_STA_RDY)
           {
                exit_loop = PRT_TRUE;
           }
@@ -106,10 +80,10 @@ prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr
      } while (exit_loop == PRT_FALSE);
 
 	// Clear ready bit
-	phy->drp->sta = PRT_PHY_AMD_DRP_STA_RDY;
+	phy->dev->sta = PRT_PHY_AMD_DRP_STA_RDY;
 
 	// Return data
-	return phy->drp->itf;
+	return phy->dev->drp;
 }
 
 // DRP write
@@ -129,10 +103,10 @@ void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, p
 	cmd |= (dat << PRT_PHY_AMD_DRP_DAT_SHIFT);
 
 	// Write command 
-	phy->drp->itf = cmd;
+	phy->dev->drp = cmd;
 
 	// Write
-	phy->drp->ctl = PRT_PHY_AMD_DRP_CTL_WR;
+	phy->dev->ctl = PRT_PHY_AMD_DRP_CTL_WR;
 
      // Set alarm 1 (100 us)
      prt_tmr_set_alrm (phy->tmr, 1, 100);
@@ -140,7 +114,7 @@ void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, p
      exit_loop = PRT_FALSE;
      do
      {
-          if (phy->drp->sta & PRT_PHY_AMD_DRP_STA_RDY)
+          if (phy->dev->sta & PRT_PHY_AMD_DRP_STA_RDY)
           {
                exit_loop = PRT_TRUE;
           }
@@ -152,19 +126,19 @@ void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, p
      } while (exit_loop == PRT_FALSE);
 	
 	// Clear ready bit
-	phy->drp->sta = PRT_PHY_AMD_DRP_STA_RDY;
+	phy->dev->sta = PRT_PHY_AMD_DRP_STA_RDY;
 }
 
 // PHY TX reset
 prt_sta_type prt_phy_amd_txrst (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst (phy, phy->pio_gttx_rst, phy->pio_gttx_rst_done);
+	return prt_phy_amd_rst (phy, PRT_PHY_AMD_PIO_OUT_GTTX_RST, PRT_PHY_AMD_PIO_IN_GTTX_RST_DONE);
 }
 
 // PHY RX reset
 prt_sta_type prt_phy_amd_rxrst (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst (phy, phy->pio_gtrx_rst, phy->pio_gtrx_rst_done);
+	return prt_phy_amd_rst (phy, PRT_PHY_AMD_PIO_OUT_GTRX_RST, PRT_PHY_AMD_PIO_IN_GTRX_RST_DONE);
 }
 
 // PHY reset 
@@ -172,40 +146,40 @@ prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy,
 	prt_u32 RST, prt_u32 RST_DONE)
 {
 	// Variables
-	prt_u32 dat;
-    prt_bool exit_loop;
+     prt_u32 dat;
+     prt_bool exit_loop;
 
-    // Assert reset
-    prt_pio_dat_set (phy->pio, RST);
+     // Assert reset
+     prt_phy_amd_pio_dat_set (phy, RST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
 
-    // De-assert reset
-    prt_pio_dat_clr (phy->pio, RST);
+     // De-assert reset
+     prt_phy_amd_pio_dat_clr (phy, RST);
 
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+     // Set alarm 0
+     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
     
-    exit_loop = PRT_FALSE;
-    do
-    {
-        // Read PIO
-        dat = prt_pio_dat_get (phy->pio);
+     exit_loop = PRT_FALSE;
+     do
+     {
+          // Read PIO
+          dat = prt_phy_amd_pio_dat_get (phy);
 
-        if (dat & RST_DONE)
-        {
-            exit_loop = PRT_TRUE;
-        }
+          if (dat & RST_DONE)
+          {
+               exit_loop = PRT_TRUE;
+          }
 
-        else if (prt_tmr_is_alrm (phy->tmr, 0))
-        {
-            prt_printf ("PHY: reset timeout\n");
-            return PRT_STA_FAIL;
-        }
-    } while (exit_loop == PRT_FALSE);
+          else if (prt_tmr_is_alrm (phy->tmr, 0))
+          {
+               prt_printf ("PHY: reset timeout\n");
+               return PRT_STA_FAIL;
+          }
+     } while (exit_loop == PRT_FALSE);
 
-    return PRT_STA_OK;
+     return PRT_STA_OK;
 }
 
 // Set TX rate
@@ -278,12 +252,12 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
      // The TXRATE is controlled by the PIO.
      // For more info see Serial Clock Divider on page 109 of UG482
 
-     pio_msk = (0x7 << phy->pio_tx_rate_shift);
-     pio_dat = txout_div << phy->pio_tx_rate_shift;
-     prt_pio_dat_msk (phy->pio, pio_dat, pio_msk);
+     pio_msk = 0x7 << PRT_PHY_AMD_PIO_OUT_TX_RATE_SHIFT;
+     pio_dat = txout_div << PRT_PHY_AMD_PIO_OUT_TX_RATE_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, pio_dat, pio_msk);
 
      // Configure TXPLL
-     prt_phy_amd_pll_cfg (phy, rate, PRT_PHY_DRP_PORT_TXPLL, phy->pio_txpll_rst);
+     prt_phy_amd_pll_cfg (phy, rate, PRT_PHY_DRP_PORT_TXPLL, PRT_PHY_AMD_PIO_OUT_TXPLL_RST);
 
      // Reset PHY
      prt_phy_amd_txrst (phy);
@@ -298,7 +272,7 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	prt_u8 pll_fbdiv;
 	prt_u8 pll_fbdiv_45;
 	prt_u8 pll_refclk_div;
-	prt_u8 txout_div;
+	prt_u8 rxout_div;
 	prt_u16 drp_dat;
      prt_u32 pio_msk;
      prt_u32 pio_dat;
@@ -314,7 +288,7 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			pll_fbdiv = prt_phy_amd_encode_pll_fbdiv (4); 
 			pll_fbdiv_45 = prt_phy_amd_encode_pll_fbdiv_45 (5);
 			pll_refclk_div = prt_phy_amd_encode_pll_refclk_div (1);
-			txout_div = 0x2;
+			rxout_div = 0x2;
 			break;
 
 		// 5.4 Gbps
@@ -325,7 +299,7 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			pll_fbdiv = prt_phy_amd_encode_pll_fbdiv (4);
 			pll_fbdiv_45 = prt_phy_amd_encode_pll_fbdiv_45 (5);
 			pll_refclk_div = prt_phy_amd_encode_pll_refclk_div (1);
-			txout_div = 0x1;
+			rxout_div = 0x1;
 			break;
 
 		// 1.62 Gbps
@@ -336,7 +310,7 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			pll_fbdiv = prt_phy_amd_encode_pll_fbdiv (3);
 			pll_fbdiv_45 = prt_phy_amd_encode_pll_fbdiv_45 (4);
 			pll_refclk_div = prt_phy_amd_encode_pll_refclk_div (1);
-			txout_div = 0x2;
+			rxout_div = 0x2;
 			break;
 	}
 
@@ -359,12 +333,12 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
      // The RXRATE is controlled by the PIO.
      // For more info see Serial Clock Divider on page 109 of UG482
 
-     pio_msk = (0x7 << phy->pio_rx_rate_shift);
-     pio_dat = txout_div << phy->pio_rx_rate_shift;
-     prt_pio_dat_msk (phy->pio, pio_dat, pio_msk);
+     pio_msk = 0x7 << PRT_PHY_AMD_PIO_OUT_RX_RATE_SHIFT;
+     pio_dat = rxout_div << PRT_PHY_AMD_PIO_OUT_RX_RATE_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, pio_dat, pio_msk);
 
      // Configure RXPLL
-     prt_phy_amd_pll_cfg (phy, rate, PRT_PHY_DRP_PORT_RXPLL, phy->pio_rxpll_rst);
+     prt_phy_amd_pll_cfg (phy, rate, PRT_PHY_DRP_PORT_RXPLL, PRT_PHY_AMD_PIO_OUT_RXPLL_RST);
 
      // Reset PHY
      prt_phy_amd_rxrst (phy);
@@ -481,9 +455,9 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
           default : dat = 0x3; break;  // 400 mV
      }
 
-     msk = (0xf << phy->pio_tx_volt_shift);
-     dat <<= phy->pio_tx_volt_shift;
-     prt_pio_dat_msk (phy->pio, dat, msk);
+     msk = 0xf << PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT;
+     dat <<= PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, dat, msk);
 
      switch (pre)
      {
@@ -493,9 +467,9 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
           default : dat = 0; break;     // 0 dB
      }
 
-     msk = (0x1f << phy->pio_tx_pre_shift);
-     dat <<= phy->pio_tx_pre_shift;
-     prt_pio_dat_msk (phy->pio, dat, msk);
+     msk = 0x1f << PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT;
+     dat <<= PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT;
+     prt_phy_amd_pio_dat_msk (phy, dat, msk);
 }
 
 // PLL config
@@ -515,7 +489,7 @@ void prt_phy_amd_pll_cfg (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 drp_po
      prt_u16 dat;
 
      // Assert reset
-     prt_pio_dat_set (phy->pio, RST);
+     prt_phy_amd_pio_dat_set (phy, RST);
 
      switch (rate)
      {        
@@ -554,5 +528,30 @@ void prt_phy_amd_pll_cfg (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 drp_po
      }
 
      // De-assert reset
-     prt_pio_dat_clr (phy->pio, RST);
+     prt_phy_amd_pio_dat_clr (phy, RST);
+}
+
+//  PIO Data set
+void prt_phy_amd_pio_dat_set (prt_phy_amd_ds_struct *phy, prt_u32 dat)
+{
+     phy->dev->pio_dout_set = dat;
+}
+
+// PIO Data clear
+void prt_phy_amd_pio_dat_clr (prt_phy_amd_ds_struct *phy, prt_u32 dat)
+{
+	phy->dev->pio_dout_clr = dat;
+}
+
+// PIO Data mask
+void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 msk)
+{
+	phy->dev->pio_msk = msk;
+	phy->dev->pio_dout = dat;
+}
+
+// PIO Get data
+prt_u32 prt_phy_amd_pio_dat_get (prt_phy_amd_ds_struct *phy)
+{
+  return phy->dev->pio_din;
 }

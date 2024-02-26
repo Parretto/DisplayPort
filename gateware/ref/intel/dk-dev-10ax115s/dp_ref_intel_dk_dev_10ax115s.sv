@@ -69,29 +69,34 @@ module dp_ref_intel_dk_dev_10ax115s
 );
 
 // Parameters
-localparam P_VENDOR         = "intel";
-localparam P_SYS_FREQ       = 50_000_000;      // System frequency - 50 MHz
-localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
-localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
-localparam P_REF_VER_MINOR  = 0;     // Reference design minor
-localparam P_PIO_IN_WIDTH   = 7;
-localparam P_PIO_OUT_WIDTH  = 8;
+localparam P_VENDOR             = "intel";
+localparam P_SYS_FREQ           = 50_000_000;      // System frequency - 50 MHz
+localparam P_BEAT               = P_SYS_FREQ / 1_000_000;   // Beat value. 
+localparam P_REF_VER_MAJOR      = 1;     // Reference design version major
+localparam P_REF_VER_MINOR      = 0;     // Reference design minor
+localparam P_PIO_IN_WIDTH       = 4;
+localparam P_PIO_OUT_WIDTH      = 3;
 
-localparam P_LANES          = 4;
-localparam P_DATA_MODE      = "dual";                               // Data path mode; dual - 2 pixels per clock / 2 symbols per lane / quad - 4 pixels per clock / 4 symbols per lane
-localparam P_SPL            = (P_DATA_MODE == "dual") ? 2 : 4;      // Symbols per lane. Valid options - 2, 4. 
-localparam P_PPC            = (P_DATA_MODE == "dual") ? 2 : 4;      // Pixels per clock. Valid options - 2, 4.
-localparam P_BPC            = 10;                                   // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
-localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
-localparam P_PHY_TX_MST_CLK = 0;    // PHY TX master clock
-localparam P_PHY_RX_MST_CLK = 0;    // PHY RX master clock
-localparam P_APP_ROM_INIT   = "dp_app_int_a10gx_rom.mif";
-localparam P_APP_RAM_INIT   = "dp_app_int_a10gx_ram.mif";
-localparam P_RCFG_PORTS     = 5;
+localparam P_LANES              = 4;
+localparam P_SPL                = 2;      // Symbols per lane. Valid options - 2, 4. 
+localparam P_PPC                = 2;      // Pixels per clock. Valid options - 2, 4.
+localparam P_BPC                = 10;     // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH          = (P_PPC == 2) ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
+localparam P_PHY_DAT_WIDTH      = P_LANES * P_SPL * 8;
+localparam P_PHY_TX_MST_CLK     = 0;    // PHY TX master clock
+localparam P_PHY_RX_MST_CLK     = 0;    // PHY RX master clock
 
-localparam P_MST            = 0;                        // MST support
-localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
+localparam P_APP_ROM_SIZE       = 64;
+localparam P_APP_RAM_SIZE       = 64;
+localparam P_APP_ROM_INIT       = "dp_app_int_a10gx_rom.hex";
+localparam P_APP_RAM_INIT       = "dp_app_int_a10gx_ram.hex";
+
+localparam P_PHY_CTL_RCFG_PORTS = 5;
+localparam P_PHY_CTL_PIO_IN     = 5;
+localparam P_PHY_CTL_PIO_OUT    = 5;
+
+localparam P_MST                = 0;                        // MST support
+localparam P_VTB_OVL            = (P_MST) ? 1 : 0;          // VTB Overlay
 
 // Interfaces
 
@@ -135,93 +140,94 @@ misc_if();
 
 // Signals
 // Clocks
-wire                            clk_from_sys_pll;
-wire                            lock_from_sys_pll;
-wire                            clk_from_vid_bufg;
+wire                                        clk_from_sys_pll;
+wire                                        lock_from_sys_pll;
 
 // Reset
-(* preserve *) logic [7:0]      clk_por_line = 0;
-(* preserve *) wire             clk_por;
-(* preserve *) logic [9:0]      clk_rst_cnt;
-(* preserve *) logic            clk_rst;
+(* preserve *) logic [7:0]                  clk_por_line = 0;
+(* preserve *) wire                         clk_por;
+(* preserve *) logic [9:0]                  clk_rst_cnt;
+(* preserve *) logic                        clk_rst;
 
 // PIO
-wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
-wire [P_PIO_OUT_WIDTH-1:0]      pio_dat_from_app;
+wire [P_PIO_IN_WIDTH-1:0]                   pio_dat_to_app;
+wire [P_PIO_OUT_WIDTH-1:0]                  pio_dat_from_app;
 
-wire                            dptx_rst_from_app;
-wire                            dprx_rst_from_app;
+wire                                        dptx_rst_from_app;
+wire                                        dprx_rst_from_app;
 
 // PHY PLL
-wire                            pwrdwn_to_phy_pll;
-wire                            tx_clk_from_phy_pll;
-wire                            locked_from_phy_pll;
-wire                            cal_busy_from_phy_pll;
-wire [31:0]                     rcfg_dat_from_phy_pll;
-wire                            rcfg_wait_from_phy_pll;
+wire                                        pwrdwn_to_phy_pll;
+wire                                        tx_clk_from_phy_pll;
+wire                                        locked_from_phy_pll;
+wire                                        cal_busy_from_phy_pll;
+wire [31:0]                                 rcfg_dat_from_phy_pll;
+wire                                        rcfg_wait_from_phy_pll;
 
 // PHY
-wire                            tx_arst_to_phy;
-wire                            tx_drst_to_phy;
-wire                            rx_arst_to_phy;
-wire                            rx_drst_to_phy;
-wire [3:0]                      tx_clk_from_phy;
-wire [3:0]                      rx_clk_from_phy;
-wire [63:0]                     tx_dat_to_phy;
-wire [7:0]                      tx_datk_to_phy;
-wire [7:0]                      tx_disp_ctl_to_phy;
-wire [7:0]                      tx_disp_val_to_phy;
-wire [3:0]                      tx_cal_busy_from_phy;
-wire [3:0]                      rx_cal_busy_from_phy;
-wire [3:0]                      rx_cdr_lock_from_phy;
+wire                                        tx_arst_to_phy;
+wire                                        tx_drst_to_phy;
+wire                                        rx_arst_to_phy;
+wire                                        rx_drst_to_phy;
+wire [3:0]                                  tx_clk_from_phy;
+wire [3:0]                                  rx_clk_from_phy;
+wire [63:0]                                 tx_dat_to_phy;
+wire [7:0]                                  tx_datk_to_phy;
+wire [7:0]                                  tx_disp_ctl_to_phy;
+wire [7:0]                                  tx_disp_val_to_phy;
+wire [3:0]                                  tx_cal_busy_from_phy;
+wire [3:0]                                  rx_cal_busy_from_phy;
+wire [3:0]                                  rx_cdr_lock_from_phy;
 
-wire [63:0]                     rx_dat_from_phy;
-wire [7:0]                      rx_datk_from_phy;
+wire [63:0]                                 rx_dat_from_phy;
+wire [7:0]                                  rx_datk_from_phy;
 
-wire [(4 * 32)-1:0]             rcfg_dat_from_phy;
-wire [3:0] 	                    rcfg_wait_from_phy;
+wire [(4 * 32)-1:0]                         rcfg_dat_from_phy;
+wire [3:0] 	                                rcfg_wait_from_phy;
 
 // DPTX
-wire [(P_LANES*P_SPL*11)-1:0]   lnk_dat_from_dptx;
-wire                            irq_from_dptx;
-wire                            hb_from_dptx;
+wire [(P_LANES*P_SPL*11)-1:0]               lnk_dat_from_dptx;
+wire                                        irq_from_dptx;
+wire                                        hb_from_dptx;
 
 // DPRX
-wire [(P_LANES*P_SPL*9)-1:0]    lnk_dat_to_dprx;
-wire                            irq_from_dprx;
-wire                            hb_from_dprx;
-wire                            lnk_sync_from_dprx;
-wire                            vid_sof_from_dprx;   // Start of frame
-wire                            vid_eol_from_dprx;   // End of line
-wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
-wire                            vid_vld_from_dprx;   // Valid
+wire [(P_LANES*P_SPL*9)-1:0]                lnk_dat_to_dprx;
+wire                                        irq_from_dprx;
+wire                                        hb_from_dprx;
+wire                                        lnk_sync_from_dprx;
+wire                                        vid_sof_from_dprx;   // Start of frame
+wire                                        vid_eol_from_dprx;   // End of line
+wire [P_AXI_WIDTH-1:0]                      vid_dat_from_dprx;   // Data
+wire                                        vid_vld_from_dprx;   // Valid
 
 // VTB
-wire [1:0]                      lock_from_vtb;
-wire [1:0]                      vs_from_vtb;
-wire [1:0]                      hs_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        r_from_vtb[0:1];
-wire [(P_PPC*P_BPC)-1:0]        g_from_vtb[0:1];
-wire [(P_PPC*P_BPC)-1:0]        b_from_vtb[0:1];
-wire [1:0]                      de_from_vtb;
+wire [1:0]                                  lock_from_vtb;
+wire [1:0]                                  vs_from_vtb;
+wire [1:0]                                  hs_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]                    r_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]                    g_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]                    b_from_vtb[0:1];
+wire [1:0]                                  de_from_vtb;
 
 // DIA
-wire                            dia_rdy_from_app;
-wire [31:0]                     dia_dat_from_vtb;
-wire                            dia_vld_from_vtb;
+wire                                        dia_rdy_from_app;
+wire [31:0]                                 dia_dat_from_vtb;
+wire                                        dia_vld_from_vtb;
 
-// Reconfig
-wire [(P_RCFG_PORTS * 10)-1:0]	adr_from_rcfg;
-wire [P_RCFG_PORTS-1:0]		    wr_from_rcfg;
-wire [P_RCFG_PORTS-1:0]		    rd_from_rcfg;
-wire [(P_RCFG_PORTS * 32)-1:0]  dat_from_rcfg;
-wire [(P_RCFG_PORTS * 32)-1:0]  dat_to_rcfg;
-wire [P_RCFG_PORTS-1:0] 	    wait_to_rcfg;
+// PHY Controller
+wire [(P_PHY_CTL_RCFG_PORTS * 10)-1:0]	    rcfg_adr_from_phy_ctl;
+wire [P_PHY_CTL_RCFG_PORTS-1:0]		        rcfg_wr_from_phy_ctl;
+wire [P_PHY_CTL_RCFG_PORTS-1:0]		        rcfg_rd_from_phy_ctl;
+wire [(P_PHY_CTL_RCFG_PORTS * 32)-1:0]      rcfg_dat_from_phy_ctl;
+wire [(P_PHY_CTL_RCFG_PORTS * 32)-1:0]      rcfg_dat_to_phy_ctl;
+wire [P_PHY_CTL_RCFG_PORTS-1:0] 	        rcfg_wait_to_phy_ctl;
+wire [P_PHY_CTL_PIO_IN-1:0]                 pio_dat_to_phy_ctl;
+wire [P_PHY_CTL_PIO_OUT-1:0]                pio_dat_from_phy_ctl;
 
 // Heartbeat
-wire                            led_from_sys_hb;
-wire                            led_from_vid_hb;
-wire                            led_from_gt_hb;
+wire                                        led_from_sys_hb;
+wire                                        led_from_vid_hb;
+wire                                        led_from_gt_hb;
 
 genvar i;
 
@@ -276,6 +282,8 @@ genvar i;
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_SIZE         (P_APP_ROM_SIZE),       // ROM size (in Kbytes)
+        .P_RAM_SIZE         (P_APP_RAM_SIZE),       // RAM size (in Kbytes)
         .P_ROM_INIT         (P_APP_ROM_INIT),
         .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
@@ -332,23 +340,16 @@ genvar i;
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]            = TENTIVA_GT_CLK_LOCK_IN; 
-    assign pio_dat_to_app[1]            = TENTIVA_VID_CLK_LOCK_IN;
-    assign pio_dat_to_app[2]            = cal_busy_from_phy_pll;
-    assign pio_dat_to_app[3]            = locked_from_phy_pll;
-    assign pio_dat_to_app[4]            = |tx_cal_busy_from_phy;
-    assign pio_dat_to_app[5]            = |rx_cal_busy_from_phy;
-    assign pio_dat_to_app[6]            = &rx_cdr_lock_from_phy;
+
+    assign pio_dat_to_app[0]            = (P_PPC == 4) ? 1 : 0;             // Pixels per clock
+    assign pio_dat_to_app[1]            = (P_BPC == 10) ? 1 : 0;            // Bits per component
+    assign pio_dat_to_app[2]            = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[3]            = TENTIVA_VID_CLK_LOCK_IN;
 
     // PIO out mapping
     assign TENTIVA_CLK_SEL_OUT          = pio_dat_from_app[0];
     assign dptx_rst_from_app            = pio_dat_from_app[1];
     assign dprx_rst_from_app            = pio_dat_from_app[2];
-    assign pwrdwn_to_phy_pll            = pio_dat_from_app[3];
-    assign tx_arst_to_phy               = pio_dat_from_app[4];
-    assign tx_drst_to_phy               = pio_dat_from_app[5];
-    assign rx_arst_to_phy               = pio_dat_from_app[6];
-    assign rx_drst_to_phy               = pio_dat_from_app[7];
 
 // Displayport TX
     prt_dptx_top
@@ -620,14 +621,16 @@ generate
     end 
 endgenerate
 
-// Reconfig Bridge
-    prt_int_rcfg
+// PHY Controller
+    prt_phy_ctl_int
     #(
-        .P_RCFG_PORTS       (P_RCFG_PORTS),
+        .P_RCFG_PORTS       (P_PHY_CTL_RCFG_PORTS),
         .P_RCFG_ADR         (10),
-        .P_RCFG_DAT         (32)
+        .P_RCFG_DAT         (32),
+        .P_PIO_IN           (P_PHY_CTL_PIO_IN),
+        .P_PIO_OUT          (P_PHY_CTL_PIO_OUT)
     )
-    RCFG_INST
+    PHY_CTL_INST
     (
         // Reset and clock
         .RST_IN             (clk_rst),		        // Reset
@@ -637,16 +640,35 @@ endgenerate
        	.LB_IF              (phy_if),
 
         // Reconfig
-        .RCFG_ADR_OUT       (adr_from_rcfg),	// Address
-        .RCFG_WR_OUT        (wr_from_rcfg),		// Write
-        .RCFG_RD_OUT        (rd_from_rcfg),		// Read
-        .RCFG_DAT_OUT       (dat_from_rcfg),	// Write data
-        .RCFG_DAT_IN        (dat_to_rcfg),	    // Read data
-        .RCFG_WAIT_IN	    (wait_to_rcfg)	    // Wait request
+        .RCFG_ADR_OUT       (rcfg_adr_from_phy_ctl),	// Address
+        .RCFG_WR_OUT        (rcfg_wr_from_phy_ctl),		// Write
+        .RCFG_RD_OUT        (rcfg_rd_from_phy_ctl),		// Read
+        .RCFG_DAT_OUT       (rcfg_dat_from_phy_ctl),	// Write data
+        .RCFG_DAT_IN        (rcfg_dat_to_phy_ctl),	    // Read data
+        .RCFG_WAIT_IN	    (rcfg_wait_to_phy_ctl),     // Wait request
+
+        // PIO
+        .PIO_DAT_IN         (pio_dat_to_phy_ctl),
+        .PIO_DAT_OUT        (pio_dat_from_phy_ctl)
     );
 
-    assign dat_to_rcfg = {rcfg_dat_from_phy, rcfg_dat_from_phy_pll};
-    assign wait_to_rcfg = {rcfg_wait_from_phy, rcfg_wait_from_phy_pll};
+    assign rcfg_dat_to_phy_ctl = {rcfg_dat_from_phy, rcfg_dat_from_phy_pll};
+    assign rcfg_wait_to_phy_ctl = {rcfg_wait_from_phy, rcfg_wait_from_phy_pll};
+
+    // PIO in mapping
+    assign pio_dat_to_phy_ctl[0]    = cal_busy_from_phy_pll;
+    assign pio_dat_to_phy_ctl[1]    = locked_from_phy_pll;
+    assign pio_dat_to_phy_ctl[2]    = |tx_cal_busy_from_phy;
+    assign pio_dat_to_phy_ctl[3]    = |rx_cal_busy_from_phy;
+    assign pio_dat_to_phy_ctl[4]    = &rx_cdr_lock_from_phy;
+
+    // PIO out mapping
+    assign pwrdwn_to_phy_pll        = pio_dat_from_phy_ctl[0];
+    assign tx_arst_to_phy           = pio_dat_from_phy_ctl[1];
+    assign tx_drst_to_phy           = pio_dat_from_phy_ctl[2];
+    assign rx_arst_to_phy           = pio_dat_from_phy_ctl[3];
+    assign rx_drst_to_phy           = pio_dat_from_phy_ctl[4];
+
 
 /*
     PHY TX data
@@ -668,10 +690,10 @@ endgenerate
         // Reconfig
 		.reconfig_reset0            (clk_rst),             
 		.reconfig_clk0              (clk_from_sys_pll),    
-		.reconfig_write0            (wr_from_rcfg[0]),      
-		.reconfig_read0             (rd_from_rcfg[0]),       
-		.reconfig_address0          (adr_from_rcfg[0 +: 10]), 
-		.reconfig_writedata0        (dat_from_rcfg[0 +: 32]), 
+		.reconfig_write0            (rcfg_wr_from_phy_ctl[0]),      
+		.reconfig_read0             (rcfg_rd_from_phy_ctl[0]),       
+		.reconfig_address0          (rcfg_adr_from_phy_ctl[0 +: 10]), 
+		.reconfig_writedata0        (rcfg_dat_from_phy_ctl[0 +: 32]), 
 		.reconfig_readdata0         (rcfg_dat_from_phy_pll),  
 		.reconfig_waitrequest0      (rcfg_wait_from_phy_pll)  
     );
@@ -714,10 +736,10 @@ endgenerate
         // Reconfig
 		.reconfig_reset             ({4{clk_rst}}),    
 		.reconfig_clk               ({4{clk_from_sys_pll}}), 
-		.reconfig_write             (wr_from_rcfg[4:1]),     
-		.reconfig_read              (rd_from_rcfg[4:1]),     
-		.reconfig_address           (adr_from_rcfg[1*10 +: 4*10]),  
-		.reconfig_writedata         (dat_from_rcfg[1*32 +: 4*32]),  
+		.reconfig_write             (rcfg_wr_from_phy_ctl[4:1]),     
+		.reconfig_read              (rcfg_rd_from_phy_ctl[4:1]),     
+		.reconfig_address           (rcfg_adr_from_phy_ctl[1*10 +: 4*10]),  
+		.reconfig_writedata         (rcfg_dat_from_phy_ctl[1*32 +: 4*32]),  
 		.reconfig_readdata          (rcfg_dat_from_phy),      
 		.reconfig_waitrequest       (rcfg_wait_from_phy)      
     );

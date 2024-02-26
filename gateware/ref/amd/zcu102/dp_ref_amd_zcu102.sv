@@ -4,14 +4,16 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP reference design running on AMD ZCU102
+    Module: DP reference design running on Xilinx ZCU102
     (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-    v1.1 - Separated TX and RX reference clocks
-    v1.2 - Added 10-bits video 
+    v1.1 - Added MST feature
+    v1.2 - Separated TX and RX reference clocks
+    v1.3 - Added 10-bits video 
+    v1.4 - Updated DRP peripheral with PIO
 
     License
     =======
@@ -80,20 +82,27 @@ localparam P_SYS_FREQ       = 50_000_000;      // System frequency - 50 MHz
 localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
 localparam P_REF_VER_MINOR  = 0;     // Reference design minor
-localparam P_PIO_IN_WIDTH   = 15;
-localparam P_PIO_OUT_WIDTH  = 30;
+localparam P_PIO_IN_WIDTH   = 4;
+localparam P_PIO_OUT_WIDTH  = 3;
 
 localparam P_LANES          = 4;
-localparam P_DATA_MODE      = "dual";                               // Data path mode; dual - 2 pixels per clock / 2 symbols per lane / quad - 4 pixels per clock / 4 symbols per lane
-localparam P_SPL            = (P_DATA_MODE == "dual") ? 2 : 4;      // Symbols per lane. Valid options - 2, 4. 
-localparam P_PPC            = (P_DATA_MODE == "dual") ? 2 : 4;      // Pixels per clock. Valid options - 2, 4.
-localparam P_BPC            = 10;                                   // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH      = (P_DATA_MODE == "dual") ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
+localparam P_SPL            = 2;    // Symbols per lane. Valid options - 2, 4. 
+localparam P_PPC            = 4;    // Pixels per clock. Valid options - 2, 4.
+localparam P_BPC            = 10;   // Bits per component. Valid options - 8, 10
+localparam P_AXI_WIDTH      = (P_PPC == 2) ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
 localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
+
+localparam P_APP_ROM_SIZE   = 64;
+localparam P_APP_RAM_SIZE   = 64;
 localparam P_APP_ROM_INIT   = "dp_app_amd_zcu102_rom.mem";
 localparam P_APP_RAM_INIT   = "dp_app_amd_zcu102_ram.mem";
-localparam P_SCALER         = (P_PPC == 4) ? 1 : 0; // The scaler only suport 4 pixels per clock
-localparam P_MST            = 0;
+
+localparam P_MST            = 0;                        // MST support
+localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
+
+localparam P_PHY_CTL_DRP_PORTS  = 5;
+localparam P_PHY_CTL_PIO_IN     = 7;
+localparam P_PHY_CTL_PIO_OUT    = 20;
 
 // Interfaces
 
@@ -136,14 +145,14 @@ misc_if();
 
 // Signals
 // Clocks
-wire                            clk_from_sys_ibuf;
-wire                            sys_clk_from_pll;
-wire                            drp_clk_from_pll;
-wire                            clk_from_vid_ibuf;
-wire                            clk_from_vid_bufg;
-wire [1:0]                      clk_from_gt_ibuf;
-wire [1:0]                      odiv2_from_gt_ibuf;
-wire [1:0]                      clk_from_gt_bufg;
+wire                                    clk_from_sys_ibuf;
+wire                                    sys_clk_from_pll;
+wire                                    drp_clk_from_pll;
+wire                                    clk_from_vid_ibuf;
+wire                                    clk_from_vid_bufg;
+wire [1:0]                              clk_from_gt_ibuf;
+wire [1:0]                              odiv2_from_gt_ibuf;
+wire [1:0]                              clk_from_gt_bufg;
 
 // Reset
 (* dont_touch = "yes" *) logic [7:0]    clk_por_line = 0;
@@ -152,111 +161,92 @@ wire [1:0]                      clk_from_gt_bufg;
 (* dont_touch = "yes" *) logic          clk_rst;
 
 // PIO
-wire [P_PIO_IN_WIDTH-1:0]       pio_dat_to_app;
-wire [P_PIO_OUT_WIDTH-1:0]      pio_dat_from_app;
+wire [P_PIO_IN_WIDTH-1:0]               pio_dat_to_app;
+wire [P_PIO_OUT_WIDTH-1:0]              pio_dat_from_app;
 
-wire                            dptx_rst_from_app;
-wire                            dprx_rst_from_app;
-wire                            phy_cpll_rst_from_app;
-wire                            phy_qpll_rst_from_app;
-wire                            phytx_rst_from_app;
-wire                            phytx_divrst_from_app;
-wire                            phytx_usrrdy_from_app;
-wire                            phyrx_rst_from_app;
-wire                            phyrx_divrst_from_app;
-wire                            phyrx_usrrdy_from_app;
-wire [1:0]                      phytx_linerate_from_app;
-wire [4:0]                      phytx_diffctrl_from_app;
-wire [4:0]                      phytx_postcursor_from_app;
-wire                            phy_prbsen_from_app;
-wire                            phyrx_prbsclr_from_app;
-wire                            phytx_prbserr_from_app;
-wire                            phyrx_equ_sel_from_app;
-wire [3:0]                      phyrx_prbslock_to_app;
+wire                                    dptx_rst_from_app;
+wire                                    dprx_rst_from_app;
 
 // PHY
-wire [3:0]                      pwrgd_from_phy;
-wire [3:0]                      tx_pmarst_done_from_phy;
-wire [3:0]                      tx_rst_done_from_phy;
-wire [3:0]                      rx_pmarst_done_from_phy;
-wire [3:0]                      rx_rst_done_from_phy;
-wire                            txclk_from_gt;
-wire                            rxclk_from_gt;
-wire [3:0]                      cplllock_from_phy;
-wire                            qplllock_from_phy;
-wire [P_PHY_DAT_WIDTH-1:0]      gtwiz_userdata_tx_to_gt;
-wire [63:0]                     txctrl0_to_gt;
-wire [63:0]                     txctrl1_to_gt;
-wire [31:0]                     txctrl2_to_gt;
+wire [3:0]                              pwrgd_from_phy;
+wire [3:0]                              tx_pmarst_done_from_phy;
+wire [3:0]                              tx_rst_done_from_phy;
+wire [3:0]                              rx_pmarst_done_from_phy;
+wire [3:0]                              rx_rst_done_from_phy;
+wire                                    txclk_from_gt;
+wire                                    rxclk_from_gt;
+wire [3:0]                              cplllock_from_phy;
+wire                                    qplllock_from_phy;
+wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_tx_to_gt;
+wire [63:0]                             txctrl0_to_gt;
+wire [63:0]                             txctrl1_to_gt;
+wire [31:0]                             txctrl2_to_gt;
 
-wire [P_PHY_DAT_WIDTH-1:0]      gtwiz_userdata_rx_from_gt;
-wire [63:0]                     rxctrl0_from_gt;
+wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_rx_from_gt;
+wire [63:0]                             rxctrl0_from_gt;
 
-logic [1:0]                     dclk_gt_linerate_cap;
-logic [1:0]                     dclk_gt_linerate;
-logic [17:0]                    cpll_cal_txoutclk_period_to_gt;
-logic [17:0]                    cpll_cal_cnt_tol_to_gt;
+logic [1:0]                             dclk_gt_linerate_cap;
+logic [1:0]                             dclk_gt_linerate;
+logic [17:0]                            cpll_cal_txoutclk_period_to_gt;
+logic [17:0]                            cpll_cal_cnt_tol_to_gt;
 
-wire                            txprbsen_to_gt;
-logic [3:0]                     txprbssel_to_gt;
-wire                            txprbserr_to_gt;
-wire                            txprbserr_re_to_gt;
-
-wire                            rxprbsen_to_gt;
-logic [3:0]                     rxprbssel_to_gt;
-wire                            rxprbsclr_to_gt;
-wire [3:0]                      rxprbslock_from_gt;
+wire [(P_PHY_CTL_DRP_PORTS * 16)-1:0]   drp_dat_from_phy;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_rdy_from_phy;
 
 // DPTX
-wire [(P_LANES*P_SPL*11)-1:0]   lnk_dat_from_dptx;
-wire                            irq_from_dptx;
-wire                            hb_from_dptx;
+wire [(P_LANES*P_SPL*11)-1:0]           lnk_dat_from_dptx;
+wire                                    irq_from_dptx;
+wire                                    hb_from_dptx;
 
 // DPRX
-wire [(P_LANES*P_SPL*9)-1:0]    lnk_dat_to_dprx;
-wire                            irq_from_dprx;
-wire                            hb_from_dprx;
-wire                            lnk_sync_from_dprx;
-wire                            vid_sof_from_dprx;   // Start of frame
-wire                            vid_eol_from_dprx;   // End of line
-wire [P_AXI_WIDTH-1:0]          vid_dat_from_dprx;   // Data
-wire                            vid_vld_from_dprx;   // Valid
+wire [(P_LANES*P_SPL*9)-1:0]            lnk_dat_to_dprx;
+wire                                    irq_from_dprx;
+wire                                    hb_from_dprx;
+wire                                    lnk_sync_from_dprx;
+wire                                    vid_sof_from_dprx;   // Start of frame
+wire                                    vid_eol_from_dprx;   // End of line
+wire [P_AXI_WIDTH-1:0]                  vid_dat_from_dprx;   // Data
+wire                                    vid_vld_from_dprx;   // Valid
 
 // VTB
-wire [1:0]                      lock_from_vtb;
-wire [1:0]                      vs_from_vtb;
-wire [1:0]                      hs_from_vtb;
-wire [(P_PPC*P_BPC)-1:0]        r_from_vtb[0:1];
-wire [(P_PPC*P_BPC)-1:0]        g_from_vtb[0:1];
-wire [(P_PPC*P_BPC)-1:0]        b_from_vtb[0:1];
-wire [1:0]                      de_from_vtb;
-
-// Scaler
-wire                            cke_from_scaler;
-wire                            vs_from_scaler;
-wire                            hs_from_scaler;
-wire [(P_PPC*P_BPC)-1:0]        r_from_scaler;
-wire [(P_PPC*P_BPC)-1:0]        g_from_scaler;
-wire [(P_PPC*P_BPC)-1:0]        b_from_scaler;
-wire                            de_from_scaler;
+wire [1:0]                              lock_from_vtb;
+wire [1:0]                              vs_from_vtb;
+wire [1:0]                              hs_from_vtb;
+wire [(P_PPC*P_BPC)-1:0]                r_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]                g_from_vtb[0:1];
+wire [(P_PPC*P_BPC)-1:0]                b_from_vtb[0:1];
+wire [1:0]                              de_from_vtb;
 
 // DIA
-wire                            dia_rdy_from_app;
-wire [31:0]                     dia_dat_from_vtb;
-wire                            dia_vld_from_vtb;
+wire                                    dia_rdy_from_app;
+wire [31:0]                             dia_dat_from_vtb;
+wire                                    dia_vld_from_vtb;
 
-// DRP
-wire [(5 * 10)-1:0]             adr_from_drp;
-wire [(5 * 16)-1:0]             dat_from_drp;
-wire [4:0]                      en_from_drp;
-wire [4:0]                      wr_from_drp;
-wire [(5 * 16)-1:0]             dat_to_drp;
-wire [4:0]                      rdy_to_drp;
+// PHY controller
+wire [(P_PHY_CTL_DRP_PORTS * 10)-1:0]   drp_adr_from_phy_ctl;
+wire [(P_PHY_CTL_DRP_PORTS * 16)-1:0]   drp_dat_from_phy_ctl;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_en_from_phy_ctl;
+wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_wr_from_phy_ctl;
+
+wire [P_PHY_CTL_PIO_IN-1:0]             pio_dat_to_phy_ctl;
+wire [P_PHY_CTL_PIO_OUT-1:0]            pio_dat_from_phy_ctl;
+
+wire                                    cpll_rst_from_phy_ctl;
+wire                                    qpll_rst_from_phy_ctl;
+wire                                    tx_rst_from_phy_ctl;
+wire                                    tx_divrst_from_phy_ctl;
+wire                                    tx_usrrdy_from_phy_ctl;
+wire                                    rx_rst_from_phy_ctl;
+wire                                    rx_divrst_from_phy_ctl;
+wire                                    rx_usrrdy_from_phy_ctl;
+wire [1:0]                              tx_linerate_from_phy_ctl;
+wire [4:0]                              tx_diffctrl_from_phy_ctl;
+wire [4:0]                              tx_postcursor_from_phy_ctl;
 
 // Heartbeat
-wire                            led_from_sys_hb;
-wire                            led_from_vid_hb;
-wire                            led_from_gt_hb;
+wire                                    led_from_sys_hb;
+wire                                    led_from_vid_hb;
+wire                                    led_from_gt_hb;
 
 genvar i;
 
@@ -373,6 +363,8 @@ endgenerate
         .P_HW_VER_MINOR     (P_REF_VER_MINOR),   // Reference design minor
         .P_PIO_IN_WIDTH     (P_PIO_IN_WIDTH),
         .P_PIO_OUT_WIDTH    (P_PIO_OUT_WIDTH),
+        .P_ROM_SIZE         (P_APP_ROM_SIZE),       // ROM size (in Kbytes)
+        .P_RAM_SIZE         (P_APP_RAM_SIZE),       // RAM size (in Kbytes)
         .P_ROM_INIT         (P_APP_ROM_INIT),
         .P_RAM_INIT         (P_APP_RAM_INIT),
         .P_AQUA             (0)
@@ -430,36 +422,15 @@ endgenerate
 
 
     // PIO in mapping
-    assign pio_dat_to_app[0]            = TENTIVA_GT_CLK_LOCK_IN; 
-    assign pio_dat_to_app[1]            = TENTIVA_VID_CLK_LOCK_IN;
-    assign pio_dat_to_app[2]            = &pwrgd_from_phy;
-    assign pio_dat_to_app[3]            = &cplllock_from_phy;
-    assign pio_dat_to_app[4]            = qplllock_from_phy;
-    assign pio_dat_to_app[5]            = &tx_pmarst_done_from_phy;
-    assign pio_dat_to_app[6]            = &tx_rst_done_from_phy;
-    assign pio_dat_to_app[7]            = &rx_pmarst_done_from_phy;
-    assign pio_dat_to_app[8]            = &rx_rst_done_from_phy;
-    assign pio_dat_to_app[9+:4]         = phyrx_prbslock_to_app;
+    assign pio_dat_to_app[0]            = (P_PPC == 4) ? 1 : 0;             // Pixels per clock
+    assign pio_dat_to_app[1]            = (P_BPC == 10) ? 1 : 0;            // Bits per component
+    assign pio_dat_to_app[2]            = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[3]            = TENTIVA_VID_CLK_LOCK_IN;
 
     // PIO out mapping
     assign TENTIVA_CLK_SEL_OUT          = pio_dat_from_app[0];
     assign dptx_rst_from_app            = pio_dat_from_app[1];
     assign dprx_rst_from_app            = pio_dat_from_app[2];
-    assign phy_cpll_rst_from_app        = pio_dat_from_app[3];
-    assign phy_qpll_rst_from_app        = pio_dat_from_app[4];
-    assign phytx_rst_from_app           = pio_dat_from_app[5];
-    assign phytx_divrst_from_app        = pio_dat_from_app[6];
-    assign phytx_usrrdy_from_app        = pio_dat_from_app[7];
-    assign phyrx_rst_from_app           = pio_dat_from_app[8];
-    assign phyrx_divrst_from_app        = pio_dat_from_app[9];
-    assign phyrx_usrrdy_from_app        = pio_dat_from_app[10];
-    assign phytx_linerate_from_app      = pio_dat_from_app[11+:2];
-    assign phytx_diffctrl_from_app      = pio_dat_from_app[13+:5];
-    assign phytx_postcursor_from_app    = pio_dat_from_app[18+:5];
-    assign phy_prbsen_from_app          = pio_dat_from_app[23];
-    assign phyrx_prbsclr_from_app       = pio_dat_from_app[24];
-    assign phytx_prbserr_from_app       = pio_dat_from_app[25];
-    assign phyrx_equ_sel_from_app       = pio_dat_from_app[26];
     
 // Displayport TX
     prt_dptx_top
@@ -499,12 +470,12 @@ endgenerate
         // Video stream 0
         .VID0_CLK_IN         (clk_from_vid_bufg),
         .VID0_CKE_IN         (1'b1),
-        .VID0_VS_IN          (vs_from_scaler),           // Vsync
-        .VID0_HS_IN          (hs_from_scaler),           // Hsync
-        .VID0_R_IN           (r_from_scaler),            // Red
-        .VID0_G_IN           (g_from_scaler),            // Green
-        .VID0_B_IN           (b_from_scaler),            // Blue
-        .VID0_DE_IN          (de_from_scaler),           // Data enable
+        .VID0_VS_IN          (vs_from_vtb[0]),           // Vsync
+        .VID0_HS_IN          (hs_from_vtb[0]),           // Hsync
+        .VID0_R_IN           (r_from_vtb[0]),            // Red
+        .VID0_G_IN           (g_from_vtb[0]),            // Green
+        .VID0_B_IN           (b_from_vtb[0]),            // Blue
+        .VID0_DE_IN          (de_from_vtb[0]),           // Data enable
 
         // Video stream 1
         .VID1_CLK_IN         (clk_from_vid_bufg),
@@ -633,11 +604,12 @@ endgenerate
 // Video toolbox (stream 0)
     prt_vtb_top
     #(
-        .P_VENDOR               (P_VENDOR),   // Vendor
+        .P_VENDOR               (P_VENDOR),     // Vendor
         .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
         .P_PPC                  (P_PPC),        // Pixels per clock
         .P_BPC                  (P_BPC),        // Bits per component
-        .P_AXIS_DAT             (P_AXI_WIDTH)
+        .P_AXIS_DAT             (P_AXI_WIDTH),  // AXIS data width
+        .P_OVL                  (P_VTB_OVL)     // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
     )
     VTB_INST
     (
@@ -666,7 +638,7 @@ endgenerate
 
         // Native video
         .VID_CLK_IN             (clk_from_vid_bufg),
-        .VID_CKE_IN             (cke_from_scaler),
+        .VID_CKE_IN             (1'b1),
         .VID_LOCK_OUT           (lock_from_vtb[0]),
         .VID_VS_OUT             (vs_from_vtb[0]),
         .VID_HS_OUT             (hs_from_vtb[0]),
@@ -682,11 +654,12 @@ generate
     begin : gen_vtb1
         prt_vtb_top
         #(
-            .P_VENDOR               (P_VENDOR),
+            .P_VENDOR               (P_VENDOR),     // Vendor
             .P_SYS_FREQ             (P_SYS_FREQ),   // System frequency
             .P_PPC                  (P_PPC),        // Pixels per clock
             .P_BPC                  (P_BPC),        // Bits per component
-            .P_AXIS_DAT             (P_AXI_WIDTH)
+            .P_AXIS_DAT             (P_AXI_WIDTH),  // AXIS data width
+            .P_OVL                  (2)             // Overlay (0 - disable / 1 - Image 1 / 2 - Image 2)
         )
         VTB1_INST
         (
@@ -738,70 +711,16 @@ generate
     end
 endgenerate
 
-// Scaler
-generate
-    if (P_SCALER)
-    begin : gen_scaler_4ppc
-        prt_scaler_top
-        #(
-            .P_VENDOR               (P_VENDOR),   // Vendor
-            .P_PPC                  (4),          // Pixels per clock
-            .P_BPC                  (8)           // Bits per component
-        )
-        SCALER_INST
-        (
-             // System
-            .SYS_RST_IN             (dptx_rst_from_app),
-            .SYS_CLK_IN             (sys_clk_from_pll),
-
-            // Local bus interface
-            .LB_IF                  (scaler_if),
-
-            // Video
-            .VID_CLK_IN             (clk_from_vid_bufg),
-
-             // Video in
-            .VID_CKE_IN             (cke_from_scaler),      // Clock enable
-            .VID_LOCK_IN            (lock_from_vtb[0]),     // Lock
-            .VID_VS_IN              (vs_from_vtb[0]),       // Vertical sync
-            .VID_HS_IN              (hs_from_vtb[0]),       // Horizontal sync    
-            .VID_R_IN               (r_from_vtb[0]),        // Red
-            .VID_G_IN               (g_from_vtb[0]),        // Green
-            .VID_B_IN               (b_from_vtb[0]),        // Blue
-            .VID_DE_IN              (de_from_vtb[0]),       // Data enable
-
-             // Video out
-            .VID_CKE_OUT            (cke_from_scaler),      // Clock enable
-            .VID_VS_OUT             (vs_from_scaler),       // Vertical sync    
-            .VID_HS_OUT             (hs_from_scaler),       // Horizontal sync    
-            .VID_R_OUT              (r_from_scaler),        // Red
-            .VID_G_OUT              (g_from_scaler),        // Green
-            .VID_B_OUT              (b_from_scaler),        // Blue
-            .VID_DE_OUT             (de_from_scaler)        // Data enable
-        );
-    end
-
-    // In 2 pixels per clock mode the scaler is by-passed
-    else
-    begin : gen_scaler_2ppc
-        assign cke_from_scaler = 1;
-        assign vs_from_scaler = vs_from_vtb[0];
-        assign hs_from_scaler = hs_from_vtb[0];
-        assign r_from_scaler = r_from_vtb[0];
-        assign g_from_scaler = g_from_vtb[0];
-        assign b_from_scaler = b_from_vtb[0];
-        assign de_from_scaler = de_from_vtb[0];
-    end
-endgenerate
-
-// DRP bridge
-    prt_xil_drp
+// PHY controller
+    prt_phy_ctl_amd
     #(
-        .P_DRP_PORTS        (5),
+        .P_DRP_PORTS        (P_PHY_CTL_DRP_PORTS),
         .P_DRP_ADR          (10),
-        .P_DRP_DAT          (16)
+        .P_DRP_DAT          (16),
+        .P_PIO_IN           (P_PHY_CTL_PIO_IN),
+        .P_PIO_OUT          (P_PHY_CTL_PIO_OUT)
     )
-    DRP_INST
+    PHY_CTL_INST
     (
         // Reset and clock
         .SYS_RST_IN         (clk_rst),              // Reset
@@ -812,13 +731,39 @@ endgenerate
 
         // DRP
         .DRP_CLK_IN         (drp_clk_from_pll),
-        .DRP_ADR_OUT        (adr_from_drp),
-        .DRP_DAT_OUT        (dat_from_drp),
-        .DRP_EN_OUT         (en_from_drp),
-        .DRP_WR_OUT         (wr_from_drp),
-        .DRP_DAT_IN         (dat_to_drp),
-        .DRP_RDY_IN         (rdy_to_drp)
+        .DRP_ADR_OUT        (drp_adr_from_phy_ctl),
+        .DRP_DAT_OUT        (drp_dat_from_phy_ctl),
+        .DRP_EN_OUT         (drp_en_from_phy_ctl),
+        .DRP_WR_OUT         (drp_wr_from_phy_ctl),
+        .DRP_DAT_IN         (drp_dat_from_phy),
+        .DRP_RDY_IN         (drp_rdy_from_phy),
+
+        // PIO
+        .PIO_DAT_IN         (pio_dat_to_phy_ctl),
+        .PIO_DAT_OUT        (pio_dat_from_phy_ctl)
     );
+
+    // PIO in mapping
+    assign pio_dat_to_phy_ctl[0]            = &pwrgd_from_phy;
+    assign pio_dat_to_phy_ctl[1]            = &cplllock_from_phy;
+    assign pio_dat_to_phy_ctl[2]            = qplllock_from_phy;
+    assign pio_dat_to_phy_ctl[3]            = &tx_pmarst_done_from_phy;
+    assign pio_dat_to_phy_ctl[4]            = &tx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[5]            = &rx_pmarst_done_from_phy;
+    assign pio_dat_to_phy_ctl[6]            = &rx_rst_done_from_phy;
+
+    // PIO out mapping
+    assign cpll_rst_from_phy_ctl            = pio_dat_from_phy_ctl[0];
+    assign qpll_rst_from_phy_ctl            = pio_dat_from_phy_ctl[1];
+    assign tx_rst_from_phy_ctl              = pio_dat_from_phy_ctl[2];
+    assign tx_divrst_from_phy_ctl           = pio_dat_from_phy_ctl[3];
+    assign tx_usrrdy_from_phy_ctl           = pio_dat_from_phy_ctl[4];
+    assign rx_rst_from_phy_ctl              = pio_dat_from_phy_ctl[5];
+    assign rx_divrst_from_phy_ctl           = pio_dat_from_phy_ctl[6];
+    assign rx_usrrdy_from_phy_ctl           = pio_dat_from_phy_ctl[7];
+    assign tx_linerate_from_phy_ctl         = pio_dat_from_phy_ctl[8+:2];
+    assign tx_diffctrl_from_phy_ctl         = pio_dat_from_phy_ctl[10+:5];
+    assign tx_postcursor_from_phy_ctl       = pio_dat_from_phy_ctl[15+:5];
 
 // PHY
 generate
@@ -843,15 +788,15 @@ generate
             // Resets
             .gtpowergood_out                            (pwrgd_from_phy),
             
-            .gttxreset_in                               ({4{phytx_rst_from_app}}),
-            .txuserrdy_in                               ({4{phytx_usrrdy_from_app}}),
-            .txprogdivreset_in                          ({4{phytx_divrst_from_app}}),
+            .gttxreset_in                               ({4{tx_rst_from_phy_ctl}}),
+            .txuserrdy_in                               ({4{tx_usrrdy_from_phy_ctl}}),
+            .txprogdivreset_in                          ({4{tx_divrst_from_phy_ctl}}),
             .txpmaresetdone_out                         (tx_pmarst_done_from_phy),
             .txresetdone_out                            (tx_rst_done_from_phy),
 
-            .gtrxreset_in                               ({4{phyrx_rst_from_app}}),
-            .rxuserrdy_in                               ({4{phyrx_usrrdy_from_app}}),
-            .rxprogdivreset_in                          ({4{phyrx_divrst_from_app}}),
+            .gtrxreset_in                               ({4{rx_rst_from_phy_ctl}}),
+            .rxuserrdy_in                               ({4{rx_usrrdy_from_phy_ctl}}),
+            .rxprogdivreset_in                          ({4{rx_divrst_from_phy_ctl}}),
             .rxpmaresetdone_out                         (rx_pmarst_done_from_phy),
             .rxresetdone_out                            (rx_rst_done_from_phy),
 
@@ -864,8 +809,8 @@ generate
             .gtwiz_userclk_rx_active_out                (),
 
             // CPLL
-            .cpllpd_in                                  ({4{phy_cpll_rst_from_app}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),         // GT reference clock 0
+            .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
+            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),     // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
@@ -876,8 +821,8 @@ generate
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
 
             // QPLL
-            .qpll0reset_in                              (phy_qpll_rst_from_app),
-            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),              // GT reference clock 1
+            .qpll0reset_in                              (qpll_rst_from_phy_ctl),
+            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),          // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -891,9 +836,8 @@ generate
             .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_gt),
 
             // TX control
-            //.txelecidle_in                              (4'b0000),
-            .txdiffctrl_in                              ({4{phytx_diffctrl_from_app}}),
-            .txpostcursor_in                            ({4{phytx_postcursor_from_app}}),
+            .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
+            .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
 
             // TX datapath
             .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_gt), // 64 bits
@@ -903,13 +847,8 @@ generate
             .tx8b10ben_in                               (4'b1111),
             .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted),  
 
-            // TX PRBS
-            //.txprbssel_in                               ({4{txprbssel_to_gt}}),
-            //.txprbsforceerr_in                          ({4{txprbserr_re_to_gt}}),
-            
             // RX control
             .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
-            .rxlpmen_in                                 ({4{phyrx_equ_sel_from_app}}),
 
             // RX datapath
             .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_gt), // 64 bits
@@ -922,27 +861,22 @@ generate
             .rxmcommaalignen_in                         (4'b1111),
             .rxpcommaalignen_in                         (4'b1111),
 
-            // RX PRBS
-            //.rxprbssel_in                               ({4{rxprbssel_to_gt}}),
-            //.rxprbscntreset_in                          ({4{rxprbsclr_to_gt}}),
-            //.rxprbslocked_out                           (rxprbslock_from_gt),
-
             // DRP
             .drpclk_in                                  ({4{drp_clk_from_pll}}),
-            .drpaddr_in                                 (adr_from_drp[0+:(4*10)]),
-            .drpdi_in                                   (dat_from_drp[0+:(4*16)]),
-            .drpen_in                                   (en_from_drp[3:0]),
-            .drpwe_in                                   (wr_from_drp[3:0]),
-            .drpdo_out                                  (dat_to_drp[0+:(4*16)]),
-            .drprdy_out                                 (rdy_to_drp[3:0]),
+            .drpaddr_in                                 (drp_adr_from_phy_ctl[0+:(4*10)]),
+            .drpdi_in                                   (drp_dat_from_phy_ctl[0+:(4*16)]),
+            .drpen_in                                   (drp_en_from_phy_ctl[3:0]),
+            .drpwe_in                                   (drp_wr_from_phy_ctl[3:0]),
+            .drpdo_out                                  (drp_dat_from_phy[0+:(4*16)]),
+            .drprdy_out                                 (drp_rdy_from_phy[3:0]),
 
             .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          (adr_from_drp[(4*10)+:10]),
-            .drpdi_common_in                            (dat_from_drp[(4*16)+:16]),
-            .drpen_common_in                            (en_from_drp[4]),
-            .drpwe_common_in                            (wr_from_drp[4]),
-            .drpdo_common_out                           (dat_to_drp[(4*16)+:16]),
-            .drprdy_common_out                          (rdy_to_drp[4])
+            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
+            .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
+            .drpen_common_in                            (drp_en_from_phy_ctl[4]),
+            .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
+            .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
+            .drprdy_common_out                          (drp_rdy_from_phy[4])
         );
     end
 
@@ -967,15 +901,15 @@ generate
             // Resets
             .gtpowergood_out                            (pwrgd_from_phy),
             
-            .gttxreset_in                               ({4{phytx_rst_from_app}}),
-            .txuserrdy_in                               ({4{phytx_usrrdy_from_app}}),
-            .txprogdivreset_in                          ({4{phytx_divrst_from_app}}),
+            .gttxreset_in                               ({4{tx_rst_from_phy_ctl}}),
+            .txuserrdy_in                               ({4{tx_usrrdy_from_phy_ctl}}),
+            .txprogdivreset_in                          ({4{tx_divrst_from_phy_ctl}}),
             .txpmaresetdone_out                         (tx_pmarst_done_from_phy),
             .txresetdone_out                            (tx_rst_done_from_phy),
 
-            .gtrxreset_in                               ({4{phyrx_rst_from_app}}),
-            .rxuserrdy_in                               ({4{phyrx_usrrdy_from_app}}),
-            .rxprogdivreset_in                          ({4{phyrx_divrst_from_app}}),
+            .gtrxreset_in                               ({4{rx_rst_from_phy_ctl}}),
+            .rxuserrdy_in                               ({4{rx_usrrdy_from_phy_ctl}}),
+            .rxprogdivreset_in                          ({4{rx_divrst_from_phy_ctl}}),
             .rxpmaresetdone_out                         (rx_pmarst_done_from_phy),
             .rxresetdone_out                            (rx_rst_done_from_phy),
 
@@ -988,8 +922,8 @@ generate
             .gtwiz_userclk_rx_active_out                (),
 
             // CPLL
-            .cpllpd_in                                  ({4{phy_cpll_rst_from_app}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),         // GT reference clock 0
+            .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
+            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),     // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
@@ -1000,8 +934,8 @@ generate
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
 
             // QPLL
-            .qpll0reset_in                              (phy_qpll_rst_from_app),
-            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),              // GT reference clock 1
+            .qpll0reset_in                              (qpll_rst_from_phy_ctl),
+            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),          // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -1015,9 +949,8 @@ generate
             .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_gt),
 
             // TX control
-            //.txelecidle_in                              (4'b0000),
-            .txdiffctrl_in                              ({4{phytx_diffctrl_from_app}}),
-            .txpostcursor_in                            ({4{phytx_postcursor_from_app}}),
+            .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
+            .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
 
             // TX datapath
             .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_gt), // 64 bits
@@ -1026,11 +959,7 @@ generate
             .txctrl2_in                                 (txctrl2_to_gt),
             .tx8b10ben_in                               (4'b1111),
             .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted, 
-
-            // TX PRBS
-            .txprbssel_in                               ({4{txprbssel_to_gt}}),
-            .txprbsforceerr_in                          ({4{txprbserr_re_to_gt}}),
-            
+          
             // RX control
             .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
 
@@ -1048,114 +977,22 @@ generate
             .rxbyterealign_out                          (),
             .rxcommadet_out                             (),
 
-            // RX PRBS
-            .rxprbssel_in                               ({4{rxprbssel_to_gt}}),
-            .rxprbscntreset_in                          ({4{rxprbsclr_to_gt}}),
-            .rxprbslocked_out                           (rxprbslock_from_gt),
-
             // DRP
             .drpclk_in                                  ({4{drp_clk_from_pll}}),
-            .drpaddr_in                                 (adr_from_drp[0+:(4*10)]),
-            .drpdi_in                                   (dat_from_drp[0+:(4*16)]),
-            .drpen_in                                   (en_from_drp[3:0]),
-            .drpwe_in                                   (wr_from_drp[3:0]),
-            .drpdo_out                                  (dat_to_drp[0+:(4*16)]),
-            .drprdy_out                                 (rdy_to_drp[3:0]),
+            .drpaddr_in                                 (drp_adr_from_phy_ctl[0+:(4*10)]),
+            .drpdi_in                                   (drp_dat_from_phy_ctl[0+:(4*16)]),
+            .drpen_in                                   (drp_en_from_phy_ctl[3:0]),
+            .drpwe_in                                   (drp_wr_from_phy_ctl[3:0]),
+            .drpdo_out                                  (drp_dat_from_phy[0+:(4*16)]),
+            .drprdy_out                                 (drp_rdy_from_phy[3:0]),
 
             .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          (adr_from_drp[(4*10)+:10]),
-            .drpdi_common_in                            (dat_from_drp[(4*16)+:16]),
-            .drpen_common_in                            (en_from_drp[4]),
-            .drpwe_common_in                            (wr_from_drp[4]),
-            .drpdo_common_out                           (dat_to_drp[(4*16)+:16]),
-            .drprdy_common_out                          (rdy_to_drp[4])
-        );
-    end
-endgenerate
-
-/*
-    PRBS 
-*/
-
-    // TX PRBS enable clock domain crossing
-    prt_dp_lib_cdc_bit
-    TX_PRBS_EN_CDC_INST
-    (
-        .SRC_CLK_IN     (sys_clk_from_pll),  // Clock
-        .SRC_DAT_IN     (phy_prbsen_from_app),   // Data
-        .DST_CLK_IN     (txclk_from_gt),      // Clock
-        .DST_DAT_OUT    (txprbsen_to_gt)      // Data
-    );
-
-    // TX PRBS select
-    always_ff @ (posedge txclk_from_gt)
-    begin
-        if (txprbsen_to_gt)
-           txprbssel_to_gt <= 4'b0001;   // PRBS-7
-        else
-           txprbssel_to_gt <= 4'b0000;
-    end
-
-    // TX PRBS force error clock domain crossing
-    prt_dp_lib_cdc_bit
-    TX_PRBS_ERR_CDC_INST
-    (
-        .SRC_CLK_IN     (sys_clk_from_pll),   // Clock
-        .SRC_DAT_IN     (phytx_prbserr_from_app),   // Data
-        .DST_CLK_IN     (txclk_from_gt),       // Clock
-        .DST_DAT_OUT    (txprbserr_to_gt)      // Data
-    );
-
-    prt_dp_lib_edge
-    TX_PRBS_ERR_EDGE_INST
-    (
-        .CLK_IN    (txclk_from_gt),         // Clock
-        .CKE_IN    (1'b1),                  // Clock enable
-        .A_IN      (txprbserr_to_gt),       // Input
-        .RE_OUT    (txprbserr_re_to_gt),    // Rising edge
-        .FE_OUT    ()                       // Falling edge
-    );
-
-    // RX PRBS enable clock domain crossing
-    prt_dp_lib_cdc_bit
-    RX_PRBS_EN_CDC_INST
-    (
-        .SRC_CLK_IN     (sys_clk_from_pll),  // Clock
-        .SRC_DAT_IN     (phy_prbsen_from_app),   // Data
-        .DST_CLK_IN     (rxclk_from_gt),      // Clock
-        .DST_DAT_OUT    (rxprbsen_to_gt)      // Data
-    );
-
-    // RX PRBS select
-    always_ff @ (posedge rxclk_from_gt)
-    begin
-        if (rxprbsen_to_gt)
-           rxprbssel_to_gt <= 4'b0001;   // PRBS-7
-        else
-           rxprbssel_to_gt <= 4'b0000;
-    end
-
-    // RX PRBS clear clock domain crossing
-    prt_dp_lib_cdc_bit
-    RX_PRBS_CLR_CDC_INST
-    (
-        .SRC_CLK_IN     (sys_clk_from_pll),  // Clock
-        .SRC_DAT_IN     (phyrx_prbsclr_from_app),  // Data
-        .DST_CLK_IN     (rxclk_from_gt),      // Clock
-        .DST_DAT_OUT    (rxprbsclr_to_gt)     // Data
-    );
-
-generate
-    for (i = 0; i < 4; i++)
-    begin : gen_rx_prbs_lock
-        // RX PRBS lock clock domain crossing
-        prt_dp_lib_cdc_bit
-        RX_PRBS_LOCK_CDC_INST
-        (
-            .SRC_CLK_IN     (rxclk_from_gt),           // Clock
-            .SRC_DAT_IN     (rxprbslock_from_gt[i]),   // Data
-            .DST_CLK_IN     (sys_clk_from_pll),       // Clock
-            .DST_DAT_OUT    (phyrx_prbslock_to_app[i])      // Data
+            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
+            .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
+            .drpen_common_in                            (drp_en_from_phy_ctl[4]),
+            .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
+            .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
+            .drprdy_common_out                          (drp_rdy_from_phy[4])
         );
     end
 endgenerate
@@ -1164,10 +1001,11 @@ endgenerate
     CPLL calibration block
     See Xilinx PG182 
     Enabling CPLL calibration block for UltraScale+ Devices
+    Refere to AMD answer record AR# 70485 for information how to enable the CPLL calibration signals
 */
     always_ff @ (posedge drp_clk_from_pll)
     begin
-        dclk_gt_linerate_cap    <= phytx_linerate_from_app;
+        dclk_gt_linerate_cap    <= tx_linerate_from_phy_ctl;
         dclk_gt_linerate        <= dclk_gt_linerate_cap;
         
         case (dclk_gt_linerate)
@@ -1286,7 +1124,7 @@ endgenerate
         .LED_OUT    (led_from_vid_hb)
     );
 
-// GTTX clock heartbeat
+// GT clock heartbeat
     prt_hb
     #(
         .P_BEAT ('d67_500_000)

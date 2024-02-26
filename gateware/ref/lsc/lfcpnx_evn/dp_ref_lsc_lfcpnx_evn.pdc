@@ -11,6 +11,8 @@
 set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks vid_clk]
 set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks tx_lnk_clk]
 set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks rx_lnk_clk]
+set_false_path -from [get_clocks clk_from_sys_pll*] -to [get_clocks sys_clk]
+set_false_path -from [get_clocks sys_clk] -to [get_clocks clk_from_sys_pll*]
 
 # Video clock
 set_false_path -from [get_clocks vid_clk] -to [get_clocks clk_from_sys_pll*]
@@ -24,6 +26,12 @@ set_false_path -from [get_clocks tx_lnk_clk] -to [get_clocks vid_clk]
 # RX link clock
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks clk_from_sys_pll*]
 set_false_path -from [get_clocks rx_lnk_clk] -to [get_clocks vid_clk]
+
+# Set asynchronous clock groups
+#set_clock_groups -asynchronous -group sys_clk
+#set_clock_groups -asynchronous -group tx_lnk_clk
+#set_clock_groups -asynchronous -group rx_lnk_clk
+#set_clock_groups -asynchronous -group vid_clk
 
 ###
 # Pins

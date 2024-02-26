@@ -58,6 +58,10 @@ module prt_dprx_vid_vmap
 
 // Parameters
 localparam P_LAT = 2;           // Read latency
+localparam P_SEL_INIT_8BPC = (P_PPC == 4) ? 4 : 8;
+localparam P_SEL_INIT_10BPC = (P_PPC == 4) ? 16 : 32;
+localparam P_LVL_THRESHOLD_8BPC = 3;
+localparam P_LVL_THRESHOLD_10BPC = 15;
 
 // Structures
 typedef struct {
@@ -512,7 +516,7 @@ function fn_vmap_gen_out_struct vmap_gen_2ppc_10bpc (fn_vmap_gen_in_struct vmap_
                 // Red
                 vmap_out.rd[i][3][1] = 1;   // R12-9:8
                 vmap_out.rd[i][3][2] = 1;   // R12-7:6
-                vmap_out.rd[i][0][3] = 1;   // R12-5:4
+                vmap_out.rd[i][3][3] = 1;   // R12-5:4
                 vmap_out.rd[i][0][0] = 1;   // R12-3:2
                 vmap_out.rd[i][0][1] = 1;   // R12-1:0
 
@@ -539,7 +543,7 @@ function fn_vmap_gen_out_struct vmap_gen_2ppc_10bpc (fn_vmap_gen_in_struct vmap_
                 // Red
                 vmap_out.rd[i][3][1] = 1;   // R12-9:8
                 vmap_out.rd[i][3][2] = 1;   // R12-7:6
-                vmap_out.rd[i][0][3] = 1;   // R12-5:4
+                vmap_out.rd[i][3][3] = 1;   // R12-5:4
                 vmap_out.rd[i][0][0] = 1;   // R12-3:2
                 vmap_out.rd[i][0][1] = 1;   // R12-1:0
 
@@ -1215,6 +1219,579 @@ function fn_vmap_gen_out_struct vmap_gen_2ppc_10bpc (fn_vmap_gen_in_struct vmap_
     return vmap_out;
 endfunction
 
+// VMAP Generator 4PPC 8BPC
+// This function generates the fifo reads in 4 pixel-per-clock 8-bits video mode
+function fn_vmap_gen_out_struct vmap_gen_4ppc_8bpc (fn_vmap_gen_in_struct vmap_in);
+
+    fn_vmap_gen_out_struct vmap_out;
+   
+    // Default
+    for (int i = 0; i < P_LANES; i++)
+    begin
+        for (int j = 0; j < P_SEGMENTS; j++)
+            vmap_out.rd[i][j] = 0;
+    end
+
+    case (vmap_in.sel)
+        
+        'd4 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][0][0] = 1;   // R0-7:6
+                vmap_out.rd[i][0][1] = 1;   // R0-5:4
+                vmap_out.rd[i][0][2] = 1;   // R0-3:2
+                vmap_out.rd[i][0][3] = 1;   // R0-1:0
+
+                // Green
+                vmap_out.rd[i][1][0] = 1;   // G0-7:6
+                vmap_out.rd[i][1][1] = 1;   // G0-5:4
+                vmap_out.rd[i][1][2] = 1;   // G0-3:2
+                vmap_out.rd[i][1][3] = 1;   // G0-1:0
+
+                // Blue
+                vmap_out.rd[i][2][0] = 1;   // B0-7:6
+                vmap_out.rd[i][2][1] = 1;   // B0-5:4
+                vmap_out.rd[i][2][2] = 1;   // B0-3:2
+                vmap_out.rd[i][2][3] = 1;   // B0-1:0
+            end
+        end
+
+        'd3 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][3][0] = 1;   // R4-7:6
+                vmap_out.rd[i][3][1] = 1;   // R4-5:4
+                vmap_out.rd[i][3][2] = 1;   // R4-3:2
+                vmap_out.rd[i][3][3] = 1;   // R4-1:0
+
+                // Green
+                vmap_out.rd[i][0][0] = 1;   // G4-7:6
+                vmap_out.rd[i][0][1] = 1;   // G4-5:4
+                vmap_out.rd[i][0][2] = 1;   // G4-3:2
+                vmap_out.rd[i][0][3] = 1;   // G4-1:0
+
+                // Blue
+                vmap_out.rd[i][1][0] = 1;   // B4-7:6
+                vmap_out.rd[i][1][1] = 1;   // B4-5:4
+                vmap_out.rd[i][1][2] = 1;   // B4-3:2
+                vmap_out.rd[i][1][3] = 1;   // B4-1:0
+            end
+        end
+
+        'd2 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][2][0] = 1;   // R8-7:6
+                vmap_out.rd[i][2][1] = 1;   // R8-5:4
+                vmap_out.rd[i][2][2] = 1;   // R8-3:2
+                vmap_out.rd[i][2][3] = 1;   // R8-1:0
+
+                // Green
+                vmap_out.rd[i][3][0] = 1;   // G8-7:6
+                vmap_out.rd[i][3][1] = 1;   // G8-5:4
+                vmap_out.rd[i][3][2] = 1;   // G8-3:2
+                vmap_out.rd[i][3][3] = 1;   // G8-1:0
+
+                // Blue
+                vmap_out.rd[i][0][0] = 1;   // B8-7:6
+                vmap_out.rd[i][0][1] = 1;   // B8-5:4
+                vmap_out.rd[i][0][2] = 1;   // B8-3:2
+                vmap_out.rd[i][0][3] = 1;   // B8-1:0
+            end
+        end
+
+        'd1 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][1][0] = 1;   // R12-7:6
+                vmap_out.rd[i][1][1] = 1;   // R12-5:4
+                vmap_out.rd[i][1][2] = 1;   // R12-3:2
+                vmap_out.rd[i][1][3] = 1;   // R12-1:0
+
+                // Green
+                vmap_out.rd[i][2][0] = 1;   // G12-7:6
+                vmap_out.rd[i][2][1] = 1;   // G12-5:4
+                vmap_out.rd[i][2][2] = 1;   // G12-3:2
+                vmap_out.rd[i][2][3] = 1;   // G12-1:0
+
+                // Blue
+                vmap_out.rd[i][3][0] = 1;   // B12-7:6
+                vmap_out.rd[i][3][1] = 1;   // B12-5:4
+                vmap_out.rd[i][3][2] = 1;   // B12-3:2
+                vmap_out.rd[i][3][3] = 1;   // B12-1:0
+            end
+        end
+
+        default : ;
+    endcase
+    
+    return vmap_out;
+endfunction
+
+// VMAP Generator 4PPC 10BPC
+// This function generates the fifo reads in 4 pixel-per-clock 10-bits video mode
+function fn_vmap_gen_out_struct vmap_gen_4ppc_10bpc (fn_vmap_gen_in_struct vmap_in);
+
+    fn_vmap_gen_out_struct vmap_out;
+   
+    // Default
+    for (int i = 0; i < P_LANES; i++)
+    begin
+        for (int j = 0; j < P_SEGMENTS; j++)
+            vmap_out.rd[i][j] = 0;
+    end
+
+    case (vmap_in.sel)
+        
+        // Sequence 0
+        'd16 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][0][0] = 1;   // R0-9:8
+                vmap_out.rd[i][0][1] = 1;   // R0-7:6
+                vmap_out.rd[i][0][2] = 1;   // R0-5:4
+                vmap_out.rd[i][0][3] = 1;   // R0-3:2
+                vmap_out.rd[i][1][0] = 1;   // R0-1:0
+
+                // Green
+                vmap_out.rd[i][1][1] = 1;   // G0-9:8
+                vmap_out.rd[i][1][2] = 1;   // G0-7:6
+                vmap_out.rd[i][1][3] = 1;   // G0-5:4
+                vmap_out.rd[i][2][0] = 1;   // G0-3:2
+                vmap_out.rd[i][2][1] = 1;   // G0-1:0
+
+                // Blue
+                vmap_out.rd[i][2][2] = 1;   // B0-9:8
+                vmap_out.rd[i][2][3] = 1;   // B0-7:6
+                vmap_out.rd[i][3][0] = 1;   // B0-5:4
+                vmap_out.rd[i][3][1] = 1;   // B0-3:2
+                vmap_out.rd[i][3][2] = 1;   // B0-1:0
+            end
+        end
+
+        'd15 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][3][3] = 1;   // R4-9:8
+                vmap_out.rd[i][0][0] = 1;   // R4-7:6
+                vmap_out.rd[i][0][1] = 1;   // R4-5:4
+                vmap_out.rd[i][0][2] = 1;   // R4-3:2
+                vmap_out.rd[i][0][3] = 1;   // R4-1:0
+
+                // Green
+                vmap_out.rd[i][1][0] = 1;   // G4-9:8
+                vmap_out.rd[i][1][1] = 1;   // G4-7:6
+                vmap_out.rd[i][1][2] = 1;   // G4-5:4
+                vmap_out.rd[i][1][3] = 1;   // G4-3:2
+                vmap_out.rd[i][2][0] = 1;   // G4-1:0
+
+                // Blue
+                vmap_out.rd[i][2][1] = 1;   // B4-9:8
+                vmap_out.rd[i][2][2] = 1;   // B4-7:6
+                vmap_out.rd[i][2][3] = 1;   // B4-5:4
+                vmap_out.rd[i][3][0] = 1;   // B4-3:2
+                vmap_out.rd[i][3][1] = 1;   // B4-1:0
+            end
+        end
+
+        'd14 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][3][2] = 1;   // R8-9:8
+                vmap_out.rd[i][3][3] = 1;   // R8-7:6
+                vmap_out.rd[i][0][0] = 1;   // R8-5:4
+                vmap_out.rd[i][0][1] = 1;   // R8-3:2
+                vmap_out.rd[i][0][2] = 1;   // R8-1:0
+
+                // Green
+                vmap_out.rd[i][0][3] = 1;   // G8-9:8
+                vmap_out.rd[i][1][0] = 1;   // G8-7:6
+                vmap_out.rd[i][1][1] = 1;   // G8-5:4
+                vmap_out.rd[i][1][2] = 1;   // G8-3:2
+                vmap_out.rd[i][1][3] = 1;   // G8-1:0
+
+                // Blue
+                vmap_out.rd[i][2][0] = 1;   // B8-9:8
+                vmap_out.rd[i][2][1] = 1;   // B8-7:6
+                vmap_out.rd[i][2][2] = 1;   // B8-5:4
+                vmap_out.rd[i][2][3] = 1;   // B8-3:2
+                vmap_out.rd[i][3][0] = 1;   // B8-1:0
+            end
+        end
+
+        'd13 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][3][1] = 1;   // R12-9:8
+                vmap_out.rd[i][3][2] = 1;   // R12-7:6
+                vmap_out.rd[i][3][3] = 1;   // R12-5:4
+                vmap_out.rd[i][0][0] = 1;   // R12-3:2
+                vmap_out.rd[i][0][1] = 1;   // R12-1:0
+
+                // Green
+                vmap_out.rd[i][0][2] = 1;   // G12-9:8
+                vmap_out.rd[i][0][3] = 1;   // G12-7:6
+                vmap_out.rd[i][1][0] = 1;   // G12-5:4
+                vmap_out.rd[i][1][1] = 1;   // G12-3:2
+                vmap_out.rd[i][1][2] = 1;   // G12-1:0
+
+                // Blue
+                vmap_out.rd[i][1][3] = 1;   // B12-9:8
+                vmap_out.rd[i][2][0] = 1;   // B12-7:6
+                vmap_out.rd[i][2][1] = 1;   // B12-5:4
+                vmap_out.rd[i][2][2] = 1;   // B12-3:2
+                vmap_out.rd[i][2][3] = 1;   // B12-1:0
+            end
+        end
+
+        'd12 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][3][0] = 1;   // R0-9:8
+                vmap_out.rd[i][3][1] = 1;   // R0-7:6
+                vmap_out.rd[i][3][2] = 1;   // R0-5:4
+                vmap_out.rd[i][3][3] = 1;   // R0-3:2
+                vmap_out.rd[i][0][0] = 1;   // R0-1:0
+
+                // Green
+                vmap_out.rd[i][0][1] = 1;   // G0-9:8
+                vmap_out.rd[i][0][2] = 1;   // G0-7:6
+                vmap_out.rd[i][0][3] = 1;   // G0-5:4
+                vmap_out.rd[i][1][0] = 1;   // G0-3:2
+                vmap_out.rd[i][1][1] = 1;   // G0-1:0
+
+                // Blue
+                vmap_out.rd[i][1][2] = 1;   // B0-9:8
+                vmap_out.rd[i][1][3] = 1;   // B0-7:6
+                vmap_out.rd[i][2][0] = 1;   // B0-5:4
+                vmap_out.rd[i][2][1] = 1;   // B0-3:2
+                vmap_out.rd[i][2][2] = 1;   // B0-1:0
+            end
+        end
+
+        // Sequence 1
+        'd11 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][2][3] = 1;   // R4-9:8
+                vmap_out.rd[i][3][0] = 1;   // R4-7:6
+                vmap_out.rd[i][3][1] = 1;   // R4-5:4
+                vmap_out.rd[i][3][2] = 1;   // R4-3:2
+                vmap_out.rd[i][3][3] = 1;   // R4-1:0
+
+                // Green
+                vmap_out.rd[i][0][0] = 1;   // G4-9:8
+                vmap_out.rd[i][0][1] = 1;   // G4-7:6
+                vmap_out.rd[i][0][2] = 1;   // G4-5:4
+                vmap_out.rd[i][0][3] = 1;   // G4-3:2
+                vmap_out.rd[i][1][0] = 1;   // G4-1:0
+
+                // Blue
+                vmap_out.rd[i][1][1] = 1;   // B4-9:8
+                vmap_out.rd[i][1][2] = 1;   // B4-7:6
+                vmap_out.rd[i][1][3] = 1;   // B4-5:4
+                vmap_out.rd[i][2][0] = 1;   // B4-3:2
+                vmap_out.rd[i][2][1] = 1;   // B4-1:0
+            end
+        end
+
+        'd10 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][2][2] = 1;   // R8-9:8
+                vmap_out.rd[i][2][3] = 1;   // R8-7:6
+                vmap_out.rd[i][3][0] = 1;   // R8-5:4
+                vmap_out.rd[i][3][1] = 1;   // R8-3:2
+                vmap_out.rd[i][3][2] = 1;   // R8-1:0
+
+                // Green
+                vmap_out.rd[i][3][3] = 1;   // G8-9:8
+                vmap_out.rd[i][0][0] = 1;   // G8-7:6
+                vmap_out.rd[i][0][1] = 1;   // G8-5:4
+                vmap_out.rd[i][0][2] = 1;   // G8-3:2
+                vmap_out.rd[i][0][3] = 1;   // G8-1:0
+
+                // Blue
+                vmap_out.rd[i][1][0] = 1;   // B8-9:8
+                vmap_out.rd[i][1][1] = 1;   // B8-7:6
+                vmap_out.rd[i][1][2] = 1;   // B8-5:4
+                vmap_out.rd[i][1][3] = 1;   // B8-3:2
+                vmap_out.rd[i][2][0] = 1;   // B8-1:0
+            end
+        end
+
+        'd9 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][2][1] = 1;   // R12-9:8
+                vmap_out.rd[i][2][2] = 1;   // R12-7:6
+                vmap_out.rd[i][2][3] = 1;   // R12-5:4
+                vmap_out.rd[i][3][0] = 1;   // R12-3:2
+                vmap_out.rd[i][3][1] = 1;   // R12-1:0
+
+                // Green
+                vmap_out.rd[i][3][2] = 1;   // G12-9:8
+                vmap_out.rd[i][3][3] = 1;   // G12-7:6
+                vmap_out.rd[i][0][0] = 1;   // G12-5:4
+                vmap_out.rd[i][0][1] = 1;   // G12-3:2
+                vmap_out.rd[i][0][2] = 1;   // G12-1:0
+
+                // Blue
+                vmap_out.rd[i][0][3] = 1;   // B12-9:8
+                vmap_out.rd[i][1][0] = 1;   // B12-7:6
+                vmap_out.rd[i][1][1] = 1;   // B12-5:4
+                vmap_out.rd[i][1][2] = 1;   // B12-3:2
+                vmap_out.rd[i][1][3] = 1;   // B12-1:0
+            end
+        end
+
+        // Sequence 2
+        'd8 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][2][0] = 1;   // R0-9:8
+                vmap_out.rd[i][2][1] = 1;   // R0-7:6
+                vmap_out.rd[i][2][2] = 1;   // R0-5:4
+                vmap_out.rd[i][2][3] = 1;   // R0-3:2
+                vmap_out.rd[i][3][0] = 1;   // R0-1:0
+
+                // Green
+                vmap_out.rd[i][3][1] = 1;   // G0-9:8
+                vmap_out.rd[i][3][2] = 1;   // G0-7:6
+                vmap_out.rd[i][3][3] = 1;   // G0-5:4
+                vmap_out.rd[i][0][0] = 1;   // G0-3:2
+                vmap_out.rd[i][0][1] = 1;   // G0-1:0
+
+                // Blue
+                vmap_out.rd[i][0][2] = 1;   // B0-9:8
+                vmap_out.rd[i][0][3] = 1;   // B0-7:6
+                vmap_out.rd[i][1][0] = 1;   // B0-5:4
+                vmap_out.rd[i][1][1] = 1;   // B0-3:2
+                vmap_out.rd[i][1][2] = 1;   // B0-1:0
+            end
+        end
+
+        'd7 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][1][3] = 1;   // R4-9:8
+                vmap_out.rd[i][2][0] = 1;   // R4-7:6
+                vmap_out.rd[i][2][1] = 1;   // R4-5:4
+                vmap_out.rd[i][2][2] = 1;   // R4-3:2
+                vmap_out.rd[i][2][3] = 1;   // R4-1:0
+
+                // Green
+                vmap_out.rd[i][3][0] = 1;   // G4-9:8
+                vmap_out.rd[i][3][1] = 1;   // G4-7:6
+                vmap_out.rd[i][3][2] = 1;   // G4-5:4
+                vmap_out.rd[i][3][3] = 1;   // G4-3:2
+                vmap_out.rd[i][0][0] = 1;   // G4-1:0
+
+                // Blue
+                vmap_out.rd[i][0][1] = 1;   // B4-9:8
+                vmap_out.rd[i][0][2] = 1;   // B4-7:6
+                vmap_out.rd[i][0][3] = 1;   // B4-5:4
+                vmap_out.rd[i][1][0] = 1;   // B4-3:2
+                vmap_out.rd[i][1][1] = 1;   // B4-1:0
+            end
+        end
+
+        'd6 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][1][2] = 1;   // R8-9:8
+                vmap_out.rd[i][1][3] = 1;   // R8-7:6
+                vmap_out.rd[i][2][0] = 1;   // R8-5:4
+                vmap_out.rd[i][2][1] = 1;   // R8-3:2
+                vmap_out.rd[i][2][2] = 1;   // R8-1:0
+
+                // Green
+                vmap_out.rd[i][2][3] = 1;   // G8-9:8
+                vmap_out.rd[i][3][0] = 1;   // G8-7:6
+                vmap_out.rd[i][3][1] = 1;   // G8-5:4
+                vmap_out.rd[i][3][2] = 1;   // G8-3:2
+                vmap_out.rd[i][3][3] = 1;   // G8-1:0
+
+                // Blue
+                vmap_out.rd[i][0][0] = 1;   // B8-9:8
+                vmap_out.rd[i][0][1] = 1;   // B8-7:6
+                vmap_out.rd[i][0][2] = 1;   // B8-5:4
+                vmap_out.rd[i][0][3] = 1;   // B8-3:2
+                vmap_out.rd[i][1][0] = 1;   // B8-1:0
+            end
+        end
+
+        'd5 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][1][1] = 1;   // R12-9:8
+                vmap_out.rd[i][1][2] = 1;   // R12-7:6
+                vmap_out.rd[i][1][3] = 1;   // R12-5:4
+                vmap_out.rd[i][2][0] = 1;   // R12-3:2
+                vmap_out.rd[i][2][1] = 1;   // R12-1:0
+
+                // Green
+                vmap_out.rd[i][2][2] = 1;   // G12-9:8
+                vmap_out.rd[i][2][3] = 1;   // G12-7:6
+                vmap_out.rd[i][3][0] = 1;   // G12-5:4
+                vmap_out.rd[i][3][1] = 1;   // G12-3:2
+                vmap_out.rd[i][3][2] = 1;   // G12-1:0
+
+                // Blue
+                vmap_out.rd[i][3][3] = 1;   // B12-9:8
+                vmap_out.rd[i][0][0] = 1;   // B12-7:6
+                vmap_out.rd[i][0][1] = 1;   // B12-5:4
+                vmap_out.rd[i][0][2] = 1;   // B12-3:2
+                vmap_out.rd[i][0][3] = 1;   // B12-1:0
+            end
+        end
+
+        'd4 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][1][0] = 1;   // R0-9:8
+                vmap_out.rd[i][1][1] = 1;   // R0-7:6
+                vmap_out.rd[i][1][2] = 1;   // R0-5:4
+                vmap_out.rd[i][1][3] = 1;   // R0-3:2
+                vmap_out.rd[i][2][0] = 1;   // R0-1:0
+
+                // Green
+                vmap_out.rd[i][2][1] = 1;   // G0-9:8
+                vmap_out.rd[i][2][2] = 1;   // G0-7:6
+                vmap_out.rd[i][2][3] = 1;   // G0-5:4
+                vmap_out.rd[i][3][0] = 1;   // G0-3:2
+                vmap_out.rd[i][3][1] = 1;   // G0-1:0
+
+                // Blue
+                vmap_out.rd[i][3][2] = 1;   // B0-9:8
+                vmap_out.rd[i][3][3] = 1;   // B0-7:6
+                vmap_out.rd[i][0][0] = 1;   // B0-5:4
+                vmap_out.rd[i][0][1] = 1;   // B0-3:2
+                vmap_out.rd[i][0][2] = 1;   // B0-1:0
+            end
+        end
+
+        'd3 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][0][3] = 1;   // R4-9:8
+                vmap_out.rd[i][1][0] = 1;   // R4-7:6
+                vmap_out.rd[i][1][1] = 1;   // R4-5:4
+                vmap_out.rd[i][1][2] = 1;   // R4-3:2
+                vmap_out.rd[i][1][3] = 1;   // R4-1:0
+
+                // Green
+                vmap_out.rd[i][2][0] = 1;   // G4-9:8
+                vmap_out.rd[i][2][1] = 1;   // G4-7:6
+                vmap_out.rd[i][2][2] = 1;   // G4-5:4
+                vmap_out.rd[i][2][3] = 1;   // G4-3:2
+                vmap_out.rd[i][3][0] = 1;   // G4-1:0
+
+                // Blue
+                vmap_out.rd[i][3][1] = 1;   // B4-9:8
+                vmap_out.rd[i][3][2] = 1;   // B4-7:6
+                vmap_out.rd[i][3][3] = 1;   // B4-5:4
+                vmap_out.rd[i][0][0] = 1;   // B4-3:2
+                vmap_out.rd[i][0][1] = 1;   // B4-1:0
+            end
+        end
+
+        'd2 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][0][2] = 1;   // R8-9:8
+                vmap_out.rd[i][0][3] = 1;   // R8-7:6
+                vmap_out.rd[i][1][0] = 1;   // R8-5:4
+                vmap_out.rd[i][1][1] = 1;   // R8-3:2
+                vmap_out.rd[i][1][2] = 1;   // R8-1:0
+
+                // Green
+                vmap_out.rd[i][1][3] = 1;   // G8-9:8
+                vmap_out.rd[i][2][0] = 1;   // G8-7:6
+                vmap_out.rd[i][2][1] = 1;   // G8-5:4
+                vmap_out.rd[i][2][2] = 1;   // G8-3:2
+                vmap_out.rd[i][2][3] = 1;   // G8-1:0
+
+                // Blue
+                vmap_out.rd[i][3][0] = 1;   // B8-9:8
+                vmap_out.rd[i][3][1] = 1;   // B8-7:6
+                vmap_out.rd[i][3][2] = 1;   // B8-5:4
+                vmap_out.rd[i][3][3] = 1;   // B8-3:2
+                vmap_out.rd[i][0][0] = 1;   // B8-1:0
+            end
+        end
+
+        'd1 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                // Red
+                vmap_out.rd[i][0][1] = 1;   // R12-9:8
+                vmap_out.rd[i][0][2] = 1;   // R12-7:6
+                vmap_out.rd[i][0][3] = 1;   // R12-5:4
+                vmap_out.rd[i][1][0] = 1;   // R12-3:2
+                vmap_out.rd[i][1][1] = 1;   // R12-1:0
+
+                // Green
+                vmap_out.rd[i][1][2] = 1;   // G12-9:8
+                vmap_out.rd[i][1][3] = 1;   // G12-7:6
+                vmap_out.rd[i][2][0] = 1;   // G12-5:4
+                vmap_out.rd[i][2][1] = 1;   // G12-3:2
+                vmap_out.rd[i][2][2] = 1;   // G12-1:0
+
+                // Blue
+                vmap_out.rd[i][2][3] = 1;   // B12-9:8
+                vmap_out.rd[i][3][0] = 1;   // B12-7:6
+                vmap_out.rd[i][3][1] = 1;   // B12-5:4
+                vmap_out.rd[i][3][2] = 1;   // B12-3:2
+                vmap_out.rd[i][3][3] = 1;   // B12-1:0
+            end
+        end
+
+        default : ;
+    endcase
+    
+    return vmap_out;
+endfunction
+
 // VMAP Assembler 2PPC 8BPC
 // This function assembles the data in 2 pixel-per-clock 8-bits video mode
 function fn_vmap_asm_out_struct vmap_asm_2ppc_8bpc (fn_vmap_asm_in_struct vmap_in);
@@ -1329,7 +1906,6 @@ function fn_vmap_asm_out_struct vmap_asm_2ppc_8bpc (fn_vmap_asm_in_struct vmap_i
     endcase
 
     return vmap_out;
-
 endfunction 
 
 // VMAP Assembler 2PPC 10BPC
@@ -1339,6 +1915,9 @@ function fn_vmap_asm_out_struct vmap_asm_2ppc_10bpc (fn_vmap_asm_in_struct vmap_
     fn_vmap_asm_out_struct vmap_out;
 
     // Default
+    for (int i = 0; i < P_PPC*3; i++)
+        vmap_out.dat[i] = 0;
+
     vmap_out.vld = 0;
 
     case (vmap_in.sel)
@@ -1727,12 +2306,290 @@ function fn_vmap_asm_out_struct vmap_asm_2ppc_10bpc (fn_vmap_asm_in_struct vmap_
             vmap_out.vld = 1;
         end
 
+        default : ;
+    endcase
+
+    return vmap_out;
+endfunction 
+
+// VMAP Assembler 4PPC 8BPC
+// This function assembles the data in 4 pixel-per-clock 8-bits video mode
+function fn_vmap_asm_out_struct vmap_asm_4ppc_8bpc (fn_vmap_asm_in_struct vmap_in);
+
+    fn_vmap_asm_out_struct vmap_out;
+   
+    // Default
+    for (int i = 0; i < P_PPC*3; i++)
+        vmap_out.dat[i] = 0;
+
+    vmap_out.vld = 0;
+
+    case (vmap_in.sel)
+        
+        'd4 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1][(P_BPC-1)-:8] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis R0 
+                vmap_out.dat[(i*3)+0][(P_BPC-1)-:8] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis G0 
+                vmap_out.dat[(i*3)+2][(P_BPC-1)-:8] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd3 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1][(P_BPC-1)-:8] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis R4 
+                vmap_out.dat[(i*3)+0][(P_BPC-1)-:8] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis G4 
+                vmap_out.dat[(i*3)+2][(P_BPC-1)-:8] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis B4 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd2 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1][(P_BPC-1)-:8] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis R8 
+                vmap_out.dat[(i*3)+0][(P_BPC-1)-:8] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis G8 
+                vmap_out.dat[(i*3)+2][(P_BPC-1)-:8] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis B8 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd1 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1][(P_BPC-1)-:8] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis R12 
+                vmap_out.dat[(i*3)+0][(P_BPC-1)-:8] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis G12 
+                vmap_out.dat[(i*3)+2][(P_BPC-1)-:8] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis B12 
+            end
+
+            vmap_out.vld = 1;
+        end
 
         default : ;
     endcase
 
     return vmap_out;
+endfunction 
 
+// VMAP Assembler 4PPC 10BPC
+// This function assembles the data in 4 pixel-per-clock 10-bits video mode
+function fn_vmap_asm_out_struct vmap_asm_4ppc_10bpc (fn_vmap_asm_in_struct vmap_in);
+
+    fn_vmap_asm_out_struct vmap_out;
+
+    // Default
+    for (int i = 0; i < P_PPC*3; i++)
+        vmap_out.dat[i] = 0;
+
+    vmap_out.vld = 0;
+
+    case (vmap_in.sel)
+        
+        'd16 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2]}; // Axis B0 
+            end
+            
+            vmap_out.vld = 1;
+        end
+
+        'd15 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd14 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd13 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd12 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd11 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd10 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd9 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd8 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd7 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd6 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd5 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd4 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1], vmap_in.dat[i][0][2]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd3 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2], vmap_in.dat[i][1][3]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3], vmap_in.dat[i][3][0]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0], vmap_in.dat[i][0][1]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd2 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1], vmap_in.dat[i][1][2]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2], vmap_in.dat[i][2][3]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3], vmap_in.dat[i][0][0]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        'd1 : 
+        begin
+            for (int i = 0; i < 4; i++)
+            begin
+                vmap_out.dat[(i*3)+1] = {vmap_in.dat[i][0][1], vmap_in.dat[i][0][2], vmap_in.dat[i][0][3], vmap_in.dat[i][1][0], vmap_in.dat[i][1][1]}; // Axis R0 
+                vmap_out.dat[(i*3)+0] = {vmap_in.dat[i][1][2], vmap_in.dat[i][1][3], vmap_in.dat[i][2][0], vmap_in.dat[i][2][1], vmap_in.dat[i][2][2]}; // Axis G0 
+                vmap_out.dat[(i*3)+2] = {vmap_in.dat[i][2][3], vmap_in.dat[i][3][0], vmap_in.dat[i][3][1], vmap_in.dat[i][3][2], vmap_in.dat[i][3][3]}; // Axis B0 
+            end
+
+            vmap_out.vld = 1;
+        end
+
+        default : ;
+    endcase
+
+    return vmap_out;
 endfunction 
 
 // Logic
@@ -1761,15 +2618,33 @@ generate
         // Assign function inputs
         assign fn_vmap_gen_in.sel = clk_map.gen_sel;
 
-        always_comb
-        begin
-            // 10-bits video
-            if (clk_ctl.bpc)
-                fn_vmap_gen_out = vmap_gen_2ppc_10bpc (fn_vmap_gen_in);
-            
-            // 8-bits video
-            else
-                fn_vmap_gen_out = vmap_gen_2ppc_8bpc (fn_vmap_gen_in);
+        // 4 pixels per clock
+        if (P_PPC == 4)
+        begin : gen_vmap_gen_4ppc
+            always_comb
+            begin
+                // 10-bits video
+                if (clk_ctl.bpc)
+                    fn_vmap_gen_out = vmap_gen_4ppc_10bpc (fn_vmap_gen_in);
+                
+                // 8-bits video
+                else
+                    fn_vmap_gen_out = vmap_gen_4ppc_8bpc (fn_vmap_gen_in);
+            end
+        end
+
+        else 
+        begin : gen_vmap_gen_2ppc
+            always_comb
+            begin
+                // 10-bits video
+                if (clk_ctl.bpc)
+                    fn_vmap_gen_out = vmap_gen_2ppc_10bpc (fn_vmap_gen_in);
+                
+                // 8-bits video
+                else
+                    fn_vmap_gen_out = vmap_gen_2ppc_8bpc (fn_vmap_gen_in);
+            end
         end
 
         // Assign function outputs
@@ -1782,8 +2657,17 @@ generate
         // Assign function inputs
         assign fn_vmap_gen_in.sel = clk_map.gen_sel;
 
-        // Assign function vmap inputs
-        assign fn_vmap_gen_out = vmap_gen_2ppc_8bpc (fn_vmap_gen_in);
+        // 4 pixels per clock
+        if (P_PPC == 4)
+        begin : gen_vmap_asm_4ppc
+            assign fn_vmap_gen_out = vmap_gen_4ppc_8bpc (fn_vmap_gen_in);
+        end
+
+        // 2 pixels per clock
+        else
+        begin : gen_vmap_asm_4ppc
+            assign fn_vmap_gen_out = vmap_gen_2ppc_8bpc (fn_vmap_gen_in);
+        end
 
         // Assign function outputs
         assign clk_map.rd = fn_vmap_gen_out.rd;
@@ -1799,22 +2683,41 @@ generate
         assign fn_vmap_asm_in.sel = clk_map.asm_sel[P_LAT-1];
         assign fn_vmap_asm_in.dat = clk_map.dat;
 
-        always_comb
-        begin
-            // 10-bits video
-            if (clk_ctl.bpc)
-                fn_vmap_asm_out = vmap_asm_2ppc_10bpc (fn_vmap_asm_in);
-            
-            // 8-bits video
-            else
-                fn_vmap_asm_out = vmap_asm_2ppc_8bpc (fn_vmap_asm_in);
+        // 4 pixels per clock
+        if (P_PPC == 4)
+        begin : gen_vmap_asm_4ppc
+            always_comb
+            begin
+                // 10-bits video
+                if (clk_ctl.bpc)
+                    fn_vmap_asm_out = vmap_asm_4ppc_10bpc (fn_vmap_asm_in);
+                
+                // 8-bits video
+                else
+                    fn_vmap_asm_out = vmap_asm_4ppc_8bpc (fn_vmap_asm_in);
+            end
+        end
+
+        // 2 pixels per clock
+        else
+        begin : gen_vmap_asm_2ppc
+            always_comb
+            begin
+                // 10-bits video
+                if (clk_ctl.bpc)
+                    fn_vmap_asm_out = vmap_asm_2ppc_10bpc (fn_vmap_asm_in);
+                
+                // 8-bits video
+                else
+                    fn_vmap_asm_out = vmap_asm_2ppc_8bpc (fn_vmap_asm_in);
+            end
         end
 
         // Video data
         for (i = 0; i < (P_PPC * 3); i++)
             assign clk_vid.dat[(i*P_BPC)+:P_BPC] = fn_vmap_asm_out.dat[i];
     
-        assign clk_vid.dat[(P_PPC * P_BPC * 3)+:4] = 0;
+        assign clk_vid.dat[$high(clk_vid.dat):(P_PPC * P_BPC * 3)] = 0;
         assign clk_vid.vld = fn_vmap_asm_out.vld;
     end
 
@@ -1826,7 +2729,17 @@ generate
         assign fn_vmap_asm_in.sel = clk_map.asm_sel[P_LAT-1];
         assign fn_vmap_asm_in.dat = clk_map.dat;
 
-        assign fn_vmap_asm_out = vmap_asm_2ppc_8bpc (fn_vmap_asm_in);
+        // 4 pixels per clock
+        if (P_PPC == 4)
+        begin : gen_vmap_asm_4ppc
+            assign fn_vmap_asm_out = vmap_asm_4ppc_8bpc (fn_vmap_asm_in);
+        end
+
+        // 2 pixels per clock
+        else
+        begin : gen_vmap_asm_4ppc
+            assign fn_vmap_asm_out = vmap_asm_2ppc_8bpc (fn_vmap_asm_in);
+        end
 
         // Video data
         for (i = 0; i < (P_PPC * 3); i++)
@@ -1837,48 +2750,27 @@ generate
 endgenerate
 
 // Select init value
-generate
-    // 4 pixels per clock
-    if (P_PPC == 4)
-    begin : gen_sel_init_4ppc
-        always_comb
-        begin
-            // 10-bits video
-            if (clk_ctl.bpc)
-                clk_map.gen_sel_init = 'd3;
-            
-            // 8-bits video
-            else
-                clk_map.gen_sel_init = 'd3;
-        end
+    always_comb
+    begin
+        // 10-bits video
+        if (clk_ctl.bpc)
+            clk_map.gen_sel_init = P_SEL_INIT_10BPC;
+        
+        // 8-bits video
+        else
+            clk_map.gen_sel_init = P_SEL_INIT_8BPC;
     end
-
-    // 2 pixels per clock
-    else
-    begin : gen_sel_init_2ppc
-        always_comb
-        begin
-            // 10-bits video
-            if (clk_ctl.bpc)
-                clk_map.gen_sel_init = 'd32;
-            
-            // 8-bits video
-            else
-                clk_map.gen_sel_init = 'd8;
-        end
-    end
-endgenerate
 
 // Level threshold
     always_comb
     begin
         // 10-bits video
         if (clk_ctl.bpc)
-            clk_map.lvl_thres = 'd15;
+            clk_map.lvl_thres = P_LVL_THRESHOLD_10BPC; 
         
         // 8-bits video
         else
-            clk_map.lvl_thres = 'd3;
+            clk_map.lvl_thres = P_LVL_THRESHOLD_8BPC; 
     end
 
 // Generator Select

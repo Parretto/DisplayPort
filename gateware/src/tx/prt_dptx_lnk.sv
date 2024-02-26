@@ -395,6 +395,7 @@ endgenerate
     #(
         // System
         .P_VENDOR           (P_VENDOR),             // Vendor
+        .P_SIM              (P_SIM),                // Simulation
         .P_STREAM           (0),                    // Stream
 
         // Link
@@ -445,6 +446,7 @@ generate
         #(
             // System
             .P_VENDOR           (P_VENDOR),             // Vendor
+            .P_SIM              (P_SIM),                // Simulation
             .P_STREAM           (1),                    // Stream
 
             // Link
@@ -501,6 +503,9 @@ endgenerate
         .P_LANES            (P_LANES),              // Lanes
         .P_SPL              (P_SPL),                // Symbols per lane
 
+        // Video 
+        .P_PPC              (P_PPC),                // Pixels per clock
+
         // Message
         .P_MSG_IDX          (P_MSG_IDX),            // Index width
         .P_MSG_DAT          (P_MSG_DAT),            // Data width
@@ -547,6 +552,9 @@ generate
             // Link
             .P_LANES            (P_LANES),              // Lanes
             .P_SPL              (P_SPL),                // Symbols per lane
+
+            // Video 
+            .P_PPC              (P_PPC),                // Pixels per clock
 
             // Message
             .P_MSG_IDX          (P_MSG_IDX),            // Index width

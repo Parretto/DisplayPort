@@ -5,11 +5,12 @@
 
 
     Module: Video Toolbox driver
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added video resolution 7680x4320P30
 
     License
     =======
@@ -17,7 +18,7 @@
     Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
     The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
     If you download and/or make any use of the IP-core you agree to be bound by this License. 
-    The License is available for download and print at www.parretto.com/license.html
+    The License is available for download and print at www.parretto.com/license
     Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
     solely for internal business purposes for the term and conditions of the License. 
     You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
@@ -142,15 +143,15 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vsw     = VTB_3840X2160P60_VSW;
 		break;
 
-		case VTB_PRESET_2880X1620P50 :
-			vtb->tp.htotal  = VTB_2880X1620P50_HTOTAL;
-			vtb->tp.hwidth  = VTB_2880X1620P50_HWIDTH;
-			vtb->tp.hstart  = VTB_2880X1620P50_HSTART;
-			vtb->tp.hsw     = VTB_2880X1620P50_HSW;
-			vtb->tp.vtotal  = VTB_2880X1620P50_VTOTAL;
-			vtb->tp.vheight = VTB_2880X1620P50_VHEIGHT;
-			vtb->tp.vstart  = VTB_2880X1620P50_VSTART;
-			vtb->tp.vsw     = VTB_2880X1620P50_VSW;
+		case VTB_PRESET_7680X4320P30 :
+			vtb->tp.htotal  = VTB_7680X4320P30_HTOTAL;
+			vtb->tp.hwidth  = VTB_7680X4320P30_HWIDTH;
+			vtb->tp.hstart  = VTB_7680X4320P30_HSTART;
+			vtb->tp.hsw     = VTB_7680X4320P30_HSW;
+			vtb->tp.vtotal  = VTB_7680X4320P30_VTOTAL;
+			vtb->tp.vheight = VTB_7680X4320P30_VHEIGHT;
+			vtb->tp.vstart  = VTB_7680X4320P30_VSTART;
+			vtb->tp.vsw     = VTB_7680X4320P30_VSW;
 		break;
 
 		default :
@@ -576,6 +577,9 @@ prt_u8 prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal)
 
 	else if ( (htotal == VTB_3840X2160P60_HTOTAL) && (vtotal == VTB_3840X2160P60_VTOTAL))
 		preset = VTB_PRESET_3840X2160P60;
+
+	else if ( (htotal == VTB_7680X4320P30_HTOTAL) && (vtotal == VTB_7680X4320P30_VTOTAL))
+		preset = VTB_PRESET_7680X4320P30;
 
 	return preset;
 }

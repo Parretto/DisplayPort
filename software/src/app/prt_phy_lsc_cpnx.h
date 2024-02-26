@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
 	  v1.1 - Removed DP application and driver header dependency
+    v1.2 - Added PIO
 
     License
     =======
@@ -30,19 +31,20 @@
 
 // Device structure
 typedef struct {
-  prt_u32 ctl; 	 // Control
-  prt_u32 sta;	 // Status
-  prt_u32 lmmi;  // LMMI interface
+  prt_u32 ctl; 	          // Control
+  prt_u32 sta;	          // Status
+  prt_u32 lmmi;           // LMMI interface
+  prt_u32 pio_din;        // PIO Data in
+  prt_u32 pio_dout_set;   // PIO Data out set
+  prt_u32 pio_dout_clr;   // PIO Data out clear
+  prt_u32 pio_dout;       // PIO Data out
+  prt_u32 pio_msk;        // PIO Mask
 } prt_phy_lsc_dev_struct;
 
 // Data structure
 typedef struct {
   volatile prt_phy_lsc_dev_struct *dev;
-  prt_pio_ds_struct *pio;                // PIO
   prt_tmr_ds_struct *tmr;                // Timer
-  prt_u32 pio_phytx_rst;
-  prt_u32 pio_phyrx_rst;
-  prt_u32 pio_phy_rdy;
 } prt_phy_lsc_ds_struct;
 
 // Defines
@@ -85,9 +87,16 @@ typedef struct {
 #define PRT_PHY_LSC_LINERATE_5400           4
 #define PRT_PHY_LSC_LINERATE_8100           5
 
+// PIO out
+#define PRT_PHY_LSC_PIO_IN_PHY_RDY          (1 << 0)
+
+// PIO out
+#define PRT_PHY_LSC_PIO_OUT_ALL_RST         (1 << 0)
+#define PRT_PHY_LSC_PIO_OUT_TX_RST          (1 << 1)
+#define PRT_PHY_LSC_PIO_OUT_RX_RST          (1 << 2)
+
 // Prototype
-void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_pio_ds_struct *pio, prt_tmr_ds_struct *tmr, prt_u32 base, 
-  prt_u32 pio_phytx_rst, prt_u32 pio_phyrx_rst, prt_u32 pio_phy_rdy);
+void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
 prt_u8 prt_phy_lsc_rd (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr);
 void prt_phy_lsc_wr (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u8 dat);
 prt_bool prt_phy_lsc_get_txpll_lock (prt_phy_lsc_ds_struct *phy);
@@ -111,3 +120,7 @@ void prt_phy_lsc_prbs_clr (prt_phy_lsc_ds_struct *phy);
 prt_bool prt_phy_lsc_prbs_lock (prt_phy_lsc_ds_struct *phy, prt_u8 lane);
 prt_u8 prt_phy_lsc_prbs_cnt (prt_phy_lsc_ds_struct *phy, prt_u8 lane);
 void prt_phy_lsc_unbond (prt_phy_lsc_ds_struct *phy);
+void prt_phy_lsc_pio_dat_set (prt_phy_lsc_ds_struct *phy, prt_u32 dat);
+void prt_phy_lsc_pio_dat_clr (prt_phy_lsc_ds_struct *phy, prt_u32 dat);
+void prt_phy_lsc_pio_dat_msk (prt_phy_lsc_ds_struct *phy, prt_u32 dat, prt_u32 msk);
+prt_u32 prt_phy_lsc_pio_dat_get (prt_phy_lsc_ds_struct *phy);

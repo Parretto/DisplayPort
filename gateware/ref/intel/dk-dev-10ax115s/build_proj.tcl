@@ -51,7 +51,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE $src_path/pm/prt_dp_pm_hart.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/pm/prt_dp_pm_exch.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/pm/prt_dp_pm_aux.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_uart.sv
-set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_int_rcfg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_phy_ctl_int.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_lb_mux.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_i2c.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/misc/prt_hb.sv
@@ -83,6 +83,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_msa.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_lnk.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_ctl.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_vid_vmap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_vid_fifo.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_vid.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_trn.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/tx/prt_dptx_top.sv
