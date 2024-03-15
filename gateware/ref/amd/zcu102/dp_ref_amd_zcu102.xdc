@@ -5,8 +5,8 @@
 # System clock 125 MHz
 create_clock -period 8.000 -name sys_clk_in -waveform {0.000 4.000} [get_ports CLK_IN_P]
 
-# GT reference clock
-create_clock -period 7.407 -name gt_ref_clk -waveform {0.000 3.703} [get_ports {GT_REFCLK_IN_P[0]}]
+# GT reference clock - 270 MHz
+create_clock -period 3.703 -name gt_ref_clk -waveform {0.000 1.851} [get_ports {GT_REFCLK_IN_P[0]}]
 
 # Link clock 8.1 Gbps @ 2 sublanes = 405 MHz
 create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
