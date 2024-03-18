@@ -62,11 +62,11 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
 	},
 
   	// Configuration 8.1 Gbps
-  	{
-		0x00110fc1, /* DRP address=0x11, data=0xfc1 */
-		0x00140076, /* DRP address=0x14, data=0x76 */
-		0x00180020, /* DRP address=0x18, data=0x020 */
-		0x0019037f  /* DRP address=0x19, data=0x37f */
+	{
+		0x00110fc0, /* DRP address=0x11, data=0xfc0 */
+		0x0014003a, /* DRP address=0x14, data=0x3a */
+		0x00180820, /* DRP address=0x18, data=0x820 */
+		0x0019031d  /* DRP address=0x19, data=0x31d */
 	}
 };
 
@@ -390,13 +390,13 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	switch (rate)
 	{
 		// 2.7 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 MHz * 80 * 1 = 10.8 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 MHz * 40 * 1 = 10.8 GHz
 		// PLL clock out = VCO / 2 = 5.4 GHz
 		// Linerate = PLL out * 2 / 4 = 2.7 Gbps
 		case PRT_PHY_AMD_LINERATE_2700 :
 			/*
-			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (80); 
+			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (40); 
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
@@ -405,13 +405,13 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			break;
 
 		// 5.4 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 MHz * 80 * 1 = 10.8 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 MHz * 40 * 1 = 10.8 GHz
 		// PLL clock out = VCO / 2 = 5.4 GHz
 		// Linerate = PLL out * 2 / 2 = 5.4 Gbps
 		case PRT_PHY_AMD_LINERATE_5400 :
 			/*
-			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (80); 
+			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (40); 
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
@@ -420,13 +420,13 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			break;
 
 		// 8.1 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 MHz * 120 * 1 = 16.2 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 MHz * 60 * 1 = 16.2 GHz
 		// PLL clock out = VCO / 2 = 8.1 GHz
 		// Linerate = PLL out * 2 / 2 = 8.1 Gbps
 		case PRT_PHY_AMD_LINERATE_8100 :
 			/*
-			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (120);
+			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (60);
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
@@ -435,13 +435,13 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 			break;
 
 		// 1.62 Gbps
-		// Reference clock is 135 MHz.
-		// VCO frequency = 135 MHz * 96 * 1 = 12.960 GHz
+		// Reference clock is 270 MHz.
+		// VCO frequency = 270 MHz * 48 * 1 = 12.960 GHz
 		// PLL clock out = VCO / 2 = 6.48 GHz
 		// Linerate = PLL out * 2 / 8 = 1.62 Gbps
 		default :
 			/*
-			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (96); 
+			qpll_fbdiv = prt_phy_amd_encode_qpll_fbdiv (48); 
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 

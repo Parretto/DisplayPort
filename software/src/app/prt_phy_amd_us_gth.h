@@ -91,8 +91,8 @@ typedef struct {
 
 // Prototype
 void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
-prt_u16 prt_phy_amd_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr);
-void prt_phy_amd_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
+prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr);
+void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
 prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 prt_u8 prt_phy_amd_encode_cpll_fbdiv (prt_u8 fbdiv);
