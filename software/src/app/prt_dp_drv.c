@@ -12,6 +12,7 @@
     v1.0 - Initial release
 	v1.1 - Added MST support
 	v1.2 - Added 10-bits video support
+	v1.3 - Increased EDID size to 1024 bytes
 
     License
     =======
@@ -1299,13 +1300,13 @@ uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp)
 	return sta;
 }
 
-// Write edid
-uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp)
+// Write edid to policy maker
+uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len)
 {
 	// Variables
 	uint8_t sta;
 	uint8_t done;
-	uint8_t adr;
+	uint16_t adr;
 
 	// Reset base address
 	dp->edid.adr = 0;
@@ -1315,7 +1316,8 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp)
 	{
 		dp->mail_out.len = 0;
 		dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_EDID_DAT;	// Token
-		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr;	// Base address
+		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr >> 8;		// Base address high
+		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr & 0xff;		// Base address low
 
 		for (uint8_t i = 0; i < 16; i++)
 			dp->mail_out.dat[dp->mail_out.len++] = dp->edid.dat[dp->edid.adr++];	// Data
@@ -1328,7 +1330,7 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp)
 		if (sta)
 		{
 			// Last block
-			if (dp->edid.adr == 0)
+			if (dp->edid.adr >= len)
 			{
 				sta = PRT_TRUE;
 				done = PRT_TRUE;
@@ -1471,9 +1473,9 @@ uint8_t prt_dp_get_edid_dat (prt_dp_ds_struct *dp, uint8_t index)
 }
 
 // Set EDID data
-void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint8_t index, uint8_t dat)
+void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat)
 {
-	dp->edid.dat[index] = dat;
+	dp->edid.dat[adr] = dat;
 }
 
 // Get PHY rate

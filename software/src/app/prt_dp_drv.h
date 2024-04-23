@@ -164,8 +164,8 @@ typedef struct {
 
 // EDID structure
 typedef struct {
-	uint8_t dat[256]; 	// Data
-	uint8_t adr;			// Address
+	uint8_t dat[1024]; 	// Data
+	uint16_t adr;		// Address
 } prt_dp_edid_struct;
 
 // Timing parameters
@@ -277,7 +277,7 @@ uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp);
 
 // DPRX
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
-uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp);
+uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
 
 // Internal
 void prt_dp_irq_handler (prt_dp_ds_struct *dp);
@@ -305,7 +305,7 @@ uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd);
 prt_dp_sta_struct prt_dp_get_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_id (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_edid_dat (prt_dp_ds_struct *dp, uint8_t index);
-void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint8_t index, uint8_t dat);
+void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat);
 void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat);
 uint8_t prt_dp_debug_get (prt_dp_ds_struct *dp);
 

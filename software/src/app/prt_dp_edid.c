@@ -5,7 +5,7 @@
 
 
     Module: EDID
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======

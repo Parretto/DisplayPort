@@ -5,11 +5,12 @@
 
 
     Module: EDID header
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Increased EDID size to 1024 bytes
 
     License
     =======
@@ -26,7 +27,7 @@
 */
 #pragma once
 
-extern prt_u8 edid_dat[256];
+extern prt_u8 edid_dat[1024];
 
 // Defines
 #define PRT_EDID_ALL            0
