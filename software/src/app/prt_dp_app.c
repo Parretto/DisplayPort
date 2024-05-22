@@ -13,6 +13,7 @@
     v1.1 - Added 10-bits video support
     v1.2 - Added video resolution 7680x4320P30
     v1.3 - Increased EDID size to 1024 bytes
+    v1.4 - Added training clock recovery callback and DPRX spread spectrum option
 
     License
     =======
@@ -301,8 +302,14 @@ int main (void)
      // Set Video clock config 1
      prt_tentiva_set_clk_cfg (&tentiva, PRT_TENTIVA_VID_DEV, 1, &tentiva_vid_clk_cfg1_reg[0], TENTIVA_VID_CLK_CONFIG_NUM_REGS);
 
+     // Set Video clock config 2
+     prt_tentiva_set_clk_cfg (&tentiva, PRT_TENTIVA_VID_DEV, 2, &tentiva_vid_clk_cfg2_reg[0], TENTIVA_VID_CLK_CONFIG_NUM_REGS);
+
      // Scan Tentiva
      prt_tentiva_scan (&tentiva);
+
+     // Force Tentiva slot ID
+     //prt_tentiva_force_id (&tentiva, 0, PRT_TENTIVA_DP14RX_MCDP6000_ID);
 
      // Config
      prt_printf ("Tentiva config... ");
@@ -319,7 +326,7 @@ int main (void)
 // Intel Cyclone 10GX
 // After the PHY reference clock is running and before starting the DP,
 // the transceiver needs to be setup for all supported line rates. 
-#if (BOARD == BOARD_INT_C10GX || BOARD == BOARD_INT_A10GX)
+#if (BOARD == BOARD_INT_C10GX)
      prt_phy_int_setup (&phy, PRT_PHY_INT_LINERATE_1620);
      prt_phy_int_setup (&phy, PRT_PHY_INT_LINERATE_2700);
      prt_phy_int_setup (&phy, PRT_PHY_INT_LINERATE_5400);
@@ -636,6 +643,33 @@ int main (void)
                          prt_dp_sta (&dptx);
                          break;
 
+                    // Force training
+                    case 'r' :
+                         prt_printf ("DPTX: Training\n");
+                         prt_printf ("Select maximum line rate:\n");
+                         prt_printf (" 1 - 1.62 Gbps\n");
+                         prt_printf (" 2 - 2.7 Gbps\n");
+                         prt_printf (" 3 - 5.4 Gbps\n");
+                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
+                              prt_printf (" 4 - 8.1 Gbps\n");
+                         #endif
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
+                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
+                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
+                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
+                         }
+
+                         // Set max rate
+                         prt_dp_set_lnk_max_rate (&dptx, dat);
+
+                         // Force training
+                         prt_dptx_trn (&dptx);
+                         break;
+
                     // MST enable / disable
                     case 't' :
 
@@ -826,6 +860,44 @@ int main (void)
                          break;
 #endif
 
+#if (BOARD == BOARD_AMD_ZCU102)
+                    case 'p' :
+                         prt_printf ("\n=====\n");
+                         prt_printf ("DRP CDR dump\n");
+                         prt_printf ("=====\n");
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x0e);
+                         prt_printf ("0x0e = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x0f);
+                         prt_printf ("0x0f = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x10);
+                         prt_printf ("0x10 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x11);
+                         prt_printf ("0x11 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x12);
+                         prt_printf ("0x12 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x13);
+                         prt_printf ("0x13 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0xa4);
+                         prt_printf ("0xa4 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0xa8);
+                         prt_printf ("0xa8 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x2d);
+                         prt_printf ("0x2d = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x72);
+                         prt_printf ("0x72 = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0xdb);
+                         prt_printf ("0xdb = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0xdf);
+                         prt_printf ("0xdf = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x11b);
+                         prt_printf ("0x11b = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0x11c);
+                         prt_printf ("0x11c = %x\n", dat);
+                         dat = prt_phy_amd_drp_rd (&phy, 0, 0xa4);
+                         prt_printf ("0xa4 = %x\n", dat);
+
+                         break;
+#endif
                     default :
                          prt_printf ("Unknown command\n");
                          show_menu ();
@@ -933,11 +1005,13 @@ int main (void)
      {
           // Variables
           uint8_t linerate;
-          
+          uint8_t ssc;
+
           linerate = prt_dp_get_phy_rate (dp);
+          ssc = prt_dp_get_phy_ssc (dp);
           
           // Set linerate
-          phy_set_rx_linerate (linerate);
+          phy_set_rx_linerate (linerate, ssc);
 
           // Send link request ok
           prt_dp_lnk_req_ok (dp);
@@ -963,16 +1037,26 @@ int main (void)
      // Training event
      void dp_trn_cb (prt_dp_ds_struct *dp)
      {
-          // Print prefix
-          if (dp->id == PRT_DPTX_ID)
-               prt_log_sprintf (&log, "DPTX: ");
+          // First check if the clock recovery has started (only for RX)
+          if ((dp->id == PRT_DPRX_ID) && (prt_dp_is_trn_cr (dp)))
+          {
+               // Reset DP path
+               prt_tentiva_mcdp6xx0_rst_dp (&tentiva);
+          }
+          
           else
-               prt_log_sprintf (&log, "DPRX: ");
+          {
+               // Print prefix
+               if (dp->id == PRT_DPTX_ID)
+                    prt_log_sprintf (&log, "DPTX: ");
+               else
+                    prt_log_sprintf (&log, "DPRX: ");
 
-          if (prt_dp_is_trn_pass (dp))
-               prt_log_sprintf (&log, "Training pass\n");
-          else
-               prt_log_sprintf (&log, "Training failed\n");
+               if (prt_dp_is_trn_pass (dp))
+                    prt_log_sprintf (&log, "Training pass\n");
+               else
+                    prt_log_sprintf (&log, "Training failed\n");
+          }
      }
 
      // Link event
@@ -1361,7 +1445,7 @@ void phy_set_tx_vap (uint8_t volt, uint8_t pre)
 }
 
 // PHY RX linerate
-void phy_set_rx_linerate (uint8_t linerate)
+void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 {
 // AMD ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -1388,7 +1472,7 @@ void phy_set_rx_linerate (uint8_t linerate)
      prt_tentiva_set_phy_freq (&tentiva, 1, PRT_TENTIVA_PHY_FREQ_270_MHZ);
 
      // Set PHY RX line rate 
-     prt_phy_amd_rx_rate (&phy, phy_linerate);
+     prt_phy_amd_rx_rate (&phy, phy_linerate, ssc);
 
 // Lattice CertusPro-NX
 #elif (BOARD == BOARD_LSC_LFCPNX)
@@ -1686,7 +1770,9 @@ prt_sta_type vtb_colorbar (prt_bool force)
                prt_printf (" 8 - 3840 x 2160p60\n");
                
                if (dp_app.ppc == 4)
+               {
                     prt_printf (" 9 - 7680 x 4320p30\n");
+               }
 
                cmd = prt_uart_get_char ();
 
@@ -1789,7 +1875,7 @@ prt_sta_type vtb_colorbar (prt_bool force)
                          vtb_preset = VTB_PRESET_7680X4320P30;
 
                          // Only in four pixels per clock
-                         tentiva_clk = PRT_TENTIVA_VID_FREQ_254974_MHZ;
+                         tentiva_clk = PRT_TENTIVA_VID_FREQ_254_974_MHZ;
 
                          break;
 
@@ -1857,7 +1943,8 @@ prt_sta_type vtb_colorbar (prt_bool force)
                case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
                case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
                case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_254974_MHZ    : prt_printf ("254.974 MHz\n"); break;
+               case PRT_TENTIVA_VID_FREQ_254_974_MHZ   : prt_printf ("254.974 MHz\n"); break;
+               case PRT_TENTIVA_VID_FREQ_231_036_MHZ   : prt_printf ("231.036 MHz\n"); break;
                default : break;
           }
 
@@ -2056,7 +2143,7 @@ prt_sta_type vtb_pass (void)
      {
           // Only support in four pixels per clock
           if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_254974_MHZ;
+               tentiva_clk = PRT_TENTIVA_VID_FREQ_254_974_MHZ;
 
           // Two pixels per clock
           else
@@ -2081,7 +2168,8 @@ prt_sta_type vtb_pass (void)
           case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
           case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
           case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_254974_MHZ    : prt_printf ("254.974 MHz\n"); break;
+          case PRT_TENTIVA_VID_FREQ_254_974_MHZ   : prt_printf ("254.974 MHz\n"); break;
+          case PRT_TENTIVA_VID_FREQ_231_036_MHZ   : prt_printf ("231.036 MHz\n"); break;
           default : break;
      }
 

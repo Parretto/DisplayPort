@@ -48,6 +48,7 @@
   #define PRT_DP_MAIL_TRN_STR          0x30    // Training start / TX only
   #define PRT_DP_MAIL_TRN_PASS         0x31    // Training pass
   #define PRT_DP_MAIL_TRN_ERR          0x32    // Training error
+  #define PRT_DP_MAIL_TRN_CR           0x33    // Training clock recovery / RX Only 
 
   #define PRT_DP_MAIL_LNK_RATE_REQ     0x40    // Link rate request
   #define PRT_DP_MAIL_LNK_VAP_REQ      0x41    // Link voltage and pre-amble request

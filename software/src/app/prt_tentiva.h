@@ -29,9 +29,15 @@
 
 // Data structure
 typedef struct {
+    // Hardware identification
+    prt_u8 fmc_id;                                  // FMC board ID
+    prt_u8 slot_id[2];                              // PHY slot ID
+
+    // Devices
 	prt_pio_ds_struct *pio;		                    // PIO
 	prt_i2c_ds_struct *i2c;		                    // I2C
 	prt_tmr_ds_struct *tmr;                         // Timer
+    
 	prt_u8 phy_freq;			                    // PHY frequency
     prt_rc22504a_reg_struct *phy_clk_cfg_prt[2];    // PHY clock configuration pointer
     prt_u16 phy_clk_cfg_len;                        // PHY clock configuration length
@@ -58,22 +64,31 @@ typedef struct {
 #define PRT_TENTIVA_VID_FREQ_7425_MHZ			2
 #define PRT_TENTIVA_VID_FREQ_1485_MHZ			3
 #define PRT_TENTIVA_VID_FREQ_297_MHZ			4
-#define PRT_TENTIVA_VID_FREQ_254974_MHZ         5
+#define PRT_TENTIVA_VID_FREQ_254_974_MHZ        5
+#define PRT_TENTIVA_VID_FREQ_231_036_MHZ        6
 
 #define PRT_TENTIVA_I2C_RC22504A_ADR			0x09
 #define PRT_TENTIVA_I2C_BASE_EEPROM_ADR			0x50
-#define PRT_TENTIVA_I2C_MC6150_SLOT0_ADR		0x15
-#define PRT_TENTIVA_I2C_MC6150_SLOT1_ADR		0x14
+#define PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR		0x15
+#define PRT_TENTIVA_I2C_MCDP6150_SLOT1_ADR		0x14
+#define PRT_TENTIVA_I2C_MCDP6000_SLOT0_ADR		0x14
+#define PRT_TENTIVA_I2C_MCDP6000_SLOT1_ADR		0x14
 #define PRT_TENTIVA_I2C_TDP142_SLOT0_ADR		0x44
 #define PRT_TENTIVA_I2C_TDP142_SLOT1_ADR		0x47
 #define PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR		0x53
 #define PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR		0x57
+#define PRT_TENTIVA_I2C_TDP2004_SLOT0_ADR		0x1a
+#define PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR		0x18
 
-#define PRT_TENTIVA_BASE_ID					    0x22
-#define PRT_TENTIVA_DPTX_ID					    0x78
-#define PRT_TENTIVA_DPRX_ID					    0x45
+#define PRT_TENTIVA_FMC_REVC_ID				    0x22
+#define PRT_TENTIVA_FMC_REVD_ID				    0x23
+#define PRT_TENTIVA_DP14TX_ID				    0x78
+#define PRT_TENTIVA_DP14RX_ID				    0x45
 #define PRT_TENTIVA_EDPTX_ID					0x94
 #define PRT_TENTIVA_HDMITX_ID					0x34
+#define PRT_TENTIVA_DP21TX_ID				    0x79
+#define PRT_TENTIVA_DP21RX_ID				    0x46
+#define PRT_TENTIVA_DP14RX_MCDP6000_ID		    0x99
 
 #define PRT_TENTIVA_LOCK_TIMEOUT				10000 	// 10 ms
 
@@ -82,6 +97,7 @@ void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, p
     prt_u32 pio_phy_refclk_lock, prt_u32 pio_vid_refclk_lock, prt_u32 pio_clk_sel);
 void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u8 cfg, prt_rc22504a_reg_struct *prt, prt_u16 len);
 void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva);
+void prt_tentiva_force_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot, prt_u8 id);
 prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ingore_err);
 prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, prt_u32 pio_phy_lock);
 void prt_tentiva_sel_dev (prt_tentiva_ds_struct *tentiva, prt_u8 dev);
@@ -100,3 +116,4 @@ void prt_tentiva_tdp142_snoop_dis (prt_tentiva_ds_struct *tentiva);
 void prt_tentiva_tdp142_dump (prt_tentiva_ds_struct *tentiva);
 
 // MCDP6150
+void prt_tentiva_mcdp6xx0_rst_dp (prt_tentiva_ds_struct *tentiva);

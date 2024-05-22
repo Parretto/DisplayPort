@@ -48,7 +48,9 @@ set (EXE_SRC
     ../src/app/prt_i2c.c
     ../src/app/prt_rc22504a.c
     ../src/app/prt_mcdp6150.c
+    ../src/app/prt_mcdp6000.c
     ../src/app/prt_tdp142.c
+    ../src/app/prt_tdp2004.c
     ../src/app/prt_tentiva.c
     ../src/vtb/prt_vtb.c
     ../src/app/prt_dp_edid.c

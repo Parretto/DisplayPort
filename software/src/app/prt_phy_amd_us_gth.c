@@ -13,6 +13,8 @@
     v1.1 - Removed DP application and DP driver header dependency
 	v1.2 - Change QPLL dynamic update 
 	v1.3 - Added PIO
+    v1.4 - Updated PHY reset controller
+	v1.5 - Added RX CDR configuration
 
     License
     =======
@@ -67,6 +69,68 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
 		0x0014003a, /* DRP address=0x14, data=0x3a */
 		0x00180820, /* DRP address=0x18, data=0x820 */
 		0x0019031d  /* DRP address=0x19, data=0x31d */
+	}
+};
+
+// PHY RX CDR configuration data (No spread spectrum clocking)
+prt_u32 rx_cdr_cfg_drp_array_no_ssc[4][2] = {
+  	// Configuration 1.62 Gbps
+  	{
+		0x00100239,	/* DRP address=0x10, data=0x0239 */
+		0x00a40239	/* DRP address=0xa4, data=0x0239 */
+	},
+
+  	// Configuration 2.7 Gbps
+  	{
+		0x00100249,	/* DRP address=0x10, data=0x0249 */
+		0x00a40249	/* DRP address=0xa4, data=0x0249 */
+	},
+
+  	// Configuration 5.4 Gbps
+  	{
+		0x00100259,	/* DRP address=0x10, data=0x0259 */
+		0x00a40259	/* DRP address=0xa4, data=0x0259 */
+	},
+
+  	// Configuration 8.1 Gbps
+	{
+		0x00100259,	/* DRP address=0x10, data=0x0259 */
+		0x00a40259	/* DRP address=0x10, data=0x0259 */
+	}
+};
+
+// PHY RX CDR configuration data (spread spectrum clocking)
+prt_u32 rx_cdr_cfg_drp_array_ssc[4][2] = {
+  	// Configuration 1.62 Gbps
+  	{
+	//	0x001001a3,	/* DRP address=0x10, data=0x01a3 */
+	//	0x00a401a3	/* DRP address=0xa4, data=0x01a3 */
+		0x00100193,	/* DRP address=0x10, data=0x0193 */
+		0x00a40193	/* DRP address=0xa4, data=0x0193 */
+	},
+
+  	// Configuration 2.7 Gbps
+  	{
+	//	0x001001b4,	/* DRP address=0x10, data=0x01b4 */
+	//	0x00a401b4	/* DRP address=0xa4, data=0x01b4 */
+		0x001001a3,	/* DRP address=0x10, data=0x01a3 */
+		0x00a401a3	/* DRP address=0xa4, data=0x01a3 */
+	},
+
+  	// Configuration 5.4 Gbps
+  	{
+	//	0x001001c4,	/* DRP address=0x10, data=0x01c4 */
+	//	0x00a401c4	/* DRP address=0xa4, data=0x01c4 */
+		0x001001b4,	/* DRP address=0x10, data=0x01b4 */
+		0x00a401b4	/* DRP address=0xa4, data=0x01b4 */
+	},
+
+  	// Configuration 8.1 Gbps
+	{
+	//	0x001001c4,	/* DRP address=0x10, data=0x01c4 */
+	//	0x00a401c4	/* DRP address=0xa4, data=0x01c4 */
+		0x00100259,	/* DRP address=0x10, data=0x0259 */
+		0x00a40259	/* DRP address=0xa4, data=0x0259 */
 	}
 };
 
@@ -268,6 +332,9 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	// Release reset
 	sta = prt_phy_amd_txrst_clr (phy);
 
+	// Reset PHY TX PLL and datapath
+	//sta = prt_phy_amd_tx_pll_and_dp_rst (phy);
+
 	return sta;              
 }
 
@@ -371,7 +438,7 @@ prt_u8 prt_phy_amd_encode_txout_div (prt_u8 txout_div)
 // When switching line rates, besides changing the QPLL FBDIV and QPLL REFCLK DIV parameters,
 // also the transceivers wizard sets other QPLL configuration registers.
 // So for the QPLL,  instead of looking up the divider values, we just write the QPLL DRP registers that are updated by the wizard.
-prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
+prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc)
 {
 	// Variables
 	prt_u8 rxout_div;
@@ -464,14 +531,33 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	prt_phy_amd_drp_wr (phy, 4, 0x18, dat);
 	*/
 
+if (1)
+{
 	// Update QPLL DRP registers
-	for (prt_u8 i = 0; i < 4; i++)
+	for (prt_u8 i = 0; i < sizeof (qpll_cfg_drp_array[0])/4; i++)
 	{
 		cfg_val = qpll_cfg_drp_array[cfg_idx][i];
 		drp_adr = cfg_val >> 16;
 		drp_dat = cfg_val & 0xffff;
 		prt_phy_amd_drp_wr (phy, 4, drp_adr, drp_dat);
 	}
+
+	// Update RX CDR DRP registers
+	for (prt_u8 i = 0; i < sizeof (rx_cdr_cfg_drp_array_no_ssc[0])/4; i++)
+	{
+		// Spread spectrum clocking
+		if (ssc)
+			cfg_val = rx_cdr_cfg_drp_array_ssc[cfg_idx][i];
+		else
+			cfg_val = rx_cdr_cfg_drp_array_no_ssc[cfg_idx][i];
+		drp_adr = cfg_val >> 16;
+		drp_dat = cfg_val & 0xffff;
+		
+		// Four channels
+		for (prt_u8 ch = 0; ch < 4; ch++)
+			prt_phy_amd_drp_wr (phy, ch, drp_adr, drp_dat);
+	}
+}
 
 	// RXOUT_DIV
 	for (prt_u8 i = 0; i < 4; i++)
@@ -485,6 +571,9 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 
 	// Release reset
 	sta = prt_phy_amd_rxrst_clr (phy);
+
+	// Reset PHY RX PLL and datapath
+	//sta = prt_phy_amd_rx_pll_and_dp_rst (phy);
 
 	return sta;
 }
@@ -573,12 +662,27 @@ prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div)
 	return phy;
 }
 
+// PHY TX PLL and datapath reset
+/*
+prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
+{
+	return prt_phy_amd_rst (phy, 
+		PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
+}
+
+// PHY TX datapath reset
+prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy)
+{
+	return prt_phy_amd_rst (phy, 
+		PRT_PHY_AMD_PIO_OUT_TX_DP_RST, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
+}
+*/
+
 // PHY TX assert reset
 prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy)
 {
 	return prt_phy_amd_rst_set (phy, 
 		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY);
-	//phy->pio_cpll_rst, phy->pio_tx_rst, phy->pio_tx_div_rst, phy->pio_tx_usr_rdy);
 }
 
 // PHY TX release reset
@@ -588,6 +692,22 @@ prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy)
 		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_IN_CPLL_LOCK, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST,
 		PRT_PHY_AMD_PIO_IN_TX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
+
+// PHY RX PLL and datapath reset
+/*
+prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
+{
+	return prt_phy_amd_rst (phy, 
+		PRT_PHY_AMD_PIO_OUT_RX_PLL_AND_DP_RST, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
+}
+
+// PHY RX datapath reset
+prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy)
+{
+	return prt_phy_amd_rst (phy, 
+		PRT_PHY_AMD_PIO_OUT_RX_DP_RST, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
+}
+*/
 
 // PHY RX assert reset
 prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy)
@@ -603,6 +723,74 @@ prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy)
 		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_IN_QPLL_LOCK, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, 
 		PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
 }
+
+/*
+// PHY reset 
+prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, 
+	prt_u32 PHY_RST, prt_u32 PHY_RST_DONE)
+{
+	// Variables
+	prt_u32 dat;
+    prt_bool exit_loop;
+
+	// Powergood
+	// Read PIO
+	dat = prt_phy_amd_pio_dat_get (phy);
+
+	// Check if powergood signal is asserted
+	if (dat & PRT_PHY_AMD_PIO_IN_PWRGD)
+	{
+		// Assert PHY reset
+	    prt_phy_amd_pio_dat_set (phy, PHY_RST);
+
+		// Sleep alarm 0
+		prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
+
+		// Release PHY reset
+		prt_phy_amd_pio_dat_clr (phy, PHY_RST);
+
+		// Wait for reset done
+
+		// Set alarm 0
+		prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+		
+		exit_loop = PRT_FALSE;
+		do
+		{
+			// Read PIO
+			dat = prt_phy_amd_pio_dat_get (phy);
+
+			if (dat & PHY_RST_DONE)
+			{
+				exit_loop = PRT_TRUE;
+			}
+
+			else if (prt_tmr_is_alrm (phy->tmr, 0))
+			{
+				if ((PHY_RST == PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST) || (PHY_RST == PRT_PHY_AMD_PIO_OUT_TX_DP_RST))
+					prt_printf ("PHYTX: ");
+				else
+					prt_printf ("PHYRX: ");
+				
+				prt_printf ("Reset done timeout\n");
+				return PRT_STA_FAIL;
+			}
+		} while (exit_loop == PRT_FALSE);
+
+		return PRT_STA_OK;
+	}
+
+	else
+	{
+		if ((PHY_RST == PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST) || (PHY_RST == PRT_PHY_AMD_PIO_OUT_TX_DP_RST))
+			prt_printf ("PHYTX: ");
+		else
+			prt_printf ("PHYRX: ");
+		prt_printf ("power good is not asserted\n");
+		return PRT_STA_FAIL;
+	}
+}
+*/
 
 // PHY assert reset 
 prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, 

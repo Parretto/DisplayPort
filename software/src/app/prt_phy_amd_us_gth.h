@@ -6,13 +6,7 @@
 
     Module: PHY AMD UltraScale GTH Header
     (c) 2021 - 2024 by Parretto B.V.
-
-    History
-    =======
-    v1.0 - Initial release
-    v1.1 - Removed DP application header dependency
-    v1.2 - Added PIO
-
+   
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -89,12 +83,24 @@ typedef struct {
 #define PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT           10
 #define PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT            15
 
+//#define PRT_PHY_AMD_PIO_IN_TX_RST_DONE              (1 << 3)
+//#define PRT_PHY_AMD_PIO_IN_RX_RST_DONE  		        (1 << 4)
+
+//#define PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST       (1 << 0)
+//#define PRT_PHY_AMD_PIO_OUT_TX_DP_RST               (1 << 1)
+//#define PRT_PHY_AMD_PIO_OUT_RX_PLL_AND_DP_RST       (1 << 2)
+//#define PRT_PHY_AMD_PIO_OUT_RX_DP_RST               (1 << 3)
+
+//#define PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT       4
+//#define PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT           6
+//#define PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT            11
+
 // Prototype
 void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
 prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr);
 void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
 prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
-prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
+prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc);
 prt_u8 prt_phy_amd_encode_cpll_fbdiv (prt_u8 fbdiv);
 prt_u8 prt_phy_amd_encode_cpll_fbdiv_45 (prt_u8 fbdiv_45);
 prt_u8 prt_phy_amd_encode_cpll_refclk_div (prt_u8 cpll_refclk_div);
@@ -102,12 +108,21 @@ prt_u8 prt_phy_amd_encode_txout_div (prt_u8 txout_div);
 prt_u8 prt_phy_amd_encode_qpll_fbdiv (prt_u8 fbdiv);
 prt_u8 prt_phy_amd_encode_qpll_refclk_div (prt_u8 qpll_refclk_div);
 prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div);
+
+//prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy);
 prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy);
 prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy);
+
+//prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy);
 prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy);
 prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy);
+
+//prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, prt_u32 PHY_RST, prt_u32 PHY_RST_DONE);
 prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PHY_USR_RDY);
 prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PLL_LOCK, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PMA_RST_DONE, prt_u32 PHY_USR_RDY, prt_u32 PHY_RST_DONE);
+
 void prt_phy_amd_cpll_cal (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre);
 prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy);

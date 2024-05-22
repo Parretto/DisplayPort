@@ -5,7 +5,7 @@
 
 
     Module: Kinetic MCDP6150 Driver 
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -37,21 +37,26 @@ prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	// Variables
 	prt_sta_type sta;
 
+	// DisplayPort disable (Clear registers)
+	sta = prt_mcdp6150_dp_en (i2c, slave, PRT_FALSE);
+
 	// DisplayPort enable
-	sta = prt_mcdp6150_dp_en (i2c, slave);
-	
+	sta = prt_mcdp6150_dp_en (i2c, slave, PRT_TRUE);
+
+	// Reset
+	sta = prt_mcdp6150_rst (i2c, slave);
+
 	// DPRX init
 	sta = prt_mcdp6150_dprx_init (i2c, slave);
 
-	// Pseudo transparent mode	
-	sta = prt_mcdp6150_trans_en (i2c, slave, PRT_FALSE);
+	// Pseudo transparent mode
+	sta = prt_mcdp6150_trans_mode (i2c, slave, PRT_TRUE);
 	
 	// Adjust request levels
-	sta = prt_mcdp6150_adj_req (i2c, slave);
+	//sta = prt_mcdp6150_adj_req (i2c, slave);
 
 	// Force TX parameters
-//	sta = prt_mcdp6150_tx_force (i2c, slave, 1, 1);
-	sta = prt_mcdp6150_tx_force (i2c, slave, 2, 2);	// Xilinx
+	//sta = prt_mcdp6150_tx_force (i2c, slave, 1, 1);
 
 	// Disable PHY repeater mode
 	sta = prt_mcdp6150_lttpr_mode (i2c, slave, PRT_FALSE);
@@ -60,7 +65,7 @@ prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Enable DP retimer
-prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en)
 {
 	// Variables
 	prt_sta_type sta;
@@ -70,14 +75,45 @@ prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
 
 	// Set DIS_N override to TWI 
-	dat |= (1 << 3);
+	dat |= PRT_MCDP6150_OPMODE_CONF_DIS_N_OVR_EN;
 
-	// Enable DP 1.4 retimer
-	dat |= (1 << 6);
+	// Enable
+	if (en)
+		dat |= PRT_MCDP6150_OPMODE_CONF_DIS_N;
+
+	// Disable
+	else
+		dat &= ~PRT_MCDP6150_OPMODE_CONF_DIS_N;
 
 	// Write register
 	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_OPMODE_CONF, dat);
 	
+	// Return status
+	return sta;
+}
+
+// Reset
+prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, prt_u8 slave)
+{
+	// Variables
+	prt_sta_type sta;
+	prt_u32 dat;
+
+	// Read register
+	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
+
+	// Set reset DP data path bit 
+	dat |= PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST;
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_OPMODE_CONF, dat);
+
+	// Clear reset DP data path bit 
+	dat &= ~PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST;
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_OPMODE_CONF, dat);
+
 	// Return status
 	return sta;
 }
@@ -102,8 +138,62 @@ prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	return sta;
 }
 
-// Full transparent
-prt_sta_type prt_mcdp6150_trans_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en)
+// Reset DP path 
+prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, prt_u8 slave)
+{
+	// Variables
+	prt_sta_type sta;
+	prt_u32 dat;
+
+	// Read register
+	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
+
+	// Set reset bit
+	dat |= PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST;
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_OPMODE_CONF, dat);
+
+	// Clear reset bit
+	dat &= ~(PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST);
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_OPMODE_CONF, dat);
+
+	// Return status
+	return sta;
+}
+
+// Reset CR path 
+prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave)
+{
+	// Variables
+	prt_sta_type sta;
+	prt_u32 dat;
+
+	// Read register
+	sta = prt_mcdp6150_rd (i2c, slave, 0x150, &dat);
+
+	// Set reset bit
+	dat |= (1 << 15);
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, 0x150, dat);
+
+	// Clear reset bit
+	dat &= ~(1 << 15);
+
+	// Write register
+	sta = prt_mcdp6150_wr (i2c, slave, 0x150, dat);
+
+	// Return status
+	return sta;
+}
+
+// Set transparent mode
+// 0 - Pass-through mode
+// 1 - pseudo mode
+prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 pseudo)
 {
 	// Variables
 	prt_sta_type sta;
@@ -112,13 +202,16 @@ prt_sta_type prt_mcdp6150_trans_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_LT_CONFIG_2, &dat);
 
-	// Set FULL_TRANSPARENT_EN bit
-	if (en)
-		dat |= PRT_MCDP6150_LT_CONFIG_2_FULL_TRANSPARENT_EN;
-
+	// Pseudo transparent mode (DPCD 206h/207h snoop)
+	// The registers DPCD 206h/207h are updated by the MCDP6150
 	// Clear FULL_TRANSPARENT_EN bit
-	else
+	if (pseudo)
 		dat &= ~PRT_MCDP6150_LT_CONFIG_2_FULL_TRANSPARENT_EN;
+
+	// Pass-through mode (DPCD 206h / 207h pass-through mode)
+	// Set FULL_TRANSPARENT_EN bit
+	else
+		dat |= PRT_MCDP6150_LT_CONFIG_2_FULL_TRANSPARENT_EN;
 
 	// Write register
 	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_LT_CONFIG_2, dat);
@@ -589,3 +682,15 @@ prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 	return sta;
 }
 
+// Dump register
+void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset)
+{
+	// Variables
+	prt_sta_type sta;
+	prt_u32 dat;
+
+	// Read register
+	sta = prt_mcdp6150_rd (i2c, slave, offset, &dat);
+
+	prt_printf ("MCDP6150: offset: %x - data: %x\n", offset, dat);
+}

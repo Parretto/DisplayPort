@@ -144,6 +144,8 @@ typedef struct {
 // Training
 typedef struct {
 	uint8_t pass;
+	uint8_t fail;
+	uint8_t cr;
 } prt_dp_trn_struct;
 
 // Mail structure
@@ -191,6 +193,7 @@ typedef struct {
 	uint8_t act_lanes;		// Active lanes
 	uint8_t act_rate;		// Active rate
 	uint8_t phy_rate;		// PHY rate
+	uint8_t phy_ssc;		// PHY spread spectrum clocking
 	uint8_t phy_volt;		// PHY voltage
 	uint8_t phy_pre;		// PHY pre-amble
 	uint8_t reason;			// Link down reason
@@ -265,6 +268,7 @@ void prt_dp_lnk_req_ok (prt_dp_ds_struct *dp);
 uint8_t prt_dp_vid_str (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_vid_stp (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_phy_rate (prt_dp_ds_struct *dp);
+uint8_t prt_dp_get_phy_ssc (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_phy_volt (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_phy_pre (prt_dp_ds_struct *dp);
 
@@ -274,6 +278,7 @@ uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t dat);
 uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t *dat);
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp);
+uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
 
 // DPRX
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
@@ -298,6 +303,7 @@ void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap);
 uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
+uint8_t prt_dp_is_trn_cr (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
 uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);

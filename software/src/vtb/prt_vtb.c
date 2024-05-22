@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
     v1.1 - Added video resolution 7680x4320P30
+    v1.2 - Added video resolution 5120X2160P60
 
     License
     =======
@@ -141,6 +142,17 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_3840X2160P60_VHEIGHT;
 			vtb->tp.vstart  = VTB_3840X2160P60_VSTART;
 			vtb->tp.vsw     = VTB_3840X2160P60_VSW;
+		break;
+
+		case VTB_PRESET_5120X2160P60 :
+			vtb->tp.htotal  = VTB_5120X2160P60_HTOTAL;
+			vtb->tp.hwidth  = VTB_5120X2160P60_HWIDTH;
+			vtb->tp.hstart  = VTB_5120X2160P60_HSTART;
+			vtb->tp.hsw     = VTB_5120X2160P60_HSW;
+			vtb->tp.vtotal  = VTB_5120X2160P60_VTOTAL;
+			vtb->tp.vheight = VTB_5120X2160P60_VHEIGHT;
+			vtb->tp.vstart  = VTB_5120X2160P60_VSTART;
+			vtb->tp.vsw     = VTB_5120X2160P60_VSW;
 		break;
 
 		case VTB_PRESET_7680X4320P30 :
@@ -549,7 +561,7 @@ prt_u32 prt_vtb_get_vid_clk_freq (prt_vtb_ds_struct *vtb)
 // Find preset
 prt_u8 prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal)
 {
-	prt_u8 preset = VTB_PRESET_1920X1080P50;
+	prt_u8 preset = 0;
 
 	if ( (htotal == VTB_1280X720P50_HTOTAL) && (vtotal == VTB_1280X720P50_VTOTAL))
 		preset = VTB_PRESET_1280X720P50;
@@ -577,6 +589,9 @@ prt_u8 prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal)
 
 	else if ( (htotal == VTB_3840X2160P60_HTOTAL) && (vtotal == VTB_3840X2160P60_VTOTAL))
 		preset = VTB_PRESET_3840X2160P60;
+
+	else if ( (htotal == VTB_5120X2160P60_HTOTAL) && (vtotal == VTB_5120X2160P60_VTOTAL))
+		preset = VTB_PRESET_5120X2160P60;
 
 	else if ( (htotal == VTB_7680X4320P30_HTOTAL) && (vtotal == VTB_7680X4320P30_VTOTAL))
 		preset = VTB_PRESET_7680X4320P30;

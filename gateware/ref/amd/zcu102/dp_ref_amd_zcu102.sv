@@ -814,8 +814,9 @@ generate
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
-            // See Xilinx PG182
-            // Enabling CPLL calibration block for UltraScale+ Devices
+            // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
+            // To enable the CPLL calibration ports type the following command in the TCL console
+            // set_property -dict [list CONFIG.INCLUDE_CPLL_CAL {1} ] [get_ips zcu102_gth_4spl]
             .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_gt}}),
             .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_gt}}),
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
@@ -927,8 +928,9 @@ generate
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
-            // See Xilinx PG182
-            // Enabling CPLL calibration block for UltraScale+ Devices
+            // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
+            // To enable the CPLL calibration ports type the following command in the TCL console
+            // set_property -dict [list CONFIG.INCLUDE_CPLL_CAL {1} ] [get_ips zcu102_gth_2spl]
             .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_gt}}),
             .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_gt}}),
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),

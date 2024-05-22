@@ -14,6 +14,7 @@
 	v1.2 - Added TDP142 snoop disable function
 	v1.3 - Removed DP Application header dependency
 	v1.4 - Added multiple clock configurations support
+	v1.5 - Added DP21TX card (TDP2004)
 
     License
     =======
@@ -36,7 +37,9 @@
 #include "prt_tmr.h"
 #include "prt_rc22504a.h"
 #include "prt_mcdp6150.h"
+#include "prt_mcdp6000.h"
 #include "prt_tdp142.h"
+#include "prt_tdp2004.h"
 #include "prt_dp_drv.h"
 #include "prt_printf.h"
 #include "prt_tentiva.h"
@@ -45,6 +48,11 @@
 void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, prt_i2c_ds_struct *i2c, prt_tmr_ds_struct *tmr,
 	prt_u32 pio_phy_refclk_lock, prt_u32 pio_vid_refclk_lock, prt_u32 pio_clk_sel)
 {
+	// Set board IDs to empty
+	tentiva->fmc_id = 0;
+	tentiva->slot_id[0] = 0;
+	tentiva->slot_id[1] = 0;
+
 	// Devices
 	tentiva->pio = pio;
 	tentiva->i2c = i2c;
@@ -110,27 +118,62 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 		return sta;
 	}	
 
+
 	/*
 		TDP142 initialize
 	*/
-	sta = prt_tdp142_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP142_SLOT1_ADR, 1);
-
-	if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+	if (tentiva->slot_id[1] == PRT_TENTIVA_DP14TX_ID)
 	{
-		prt_printf ("-- TDP142 config error -- ");
-		return sta;
-	}	
+		sta = prt_tdp142_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP142_SLOT1_ADR, 1);
+
+		if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+		{
+			prt_printf ("-- TDP142 config error -- ");
+			return sta;
+		}	
+	}
+
+	/*
+		TDP2004 initialize
+	*/
+	else if (tentiva->slot_id[1] == PRT_TENTIVA_DP21TX_ID)
+	{
+		sta = prt_tdp2004_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR);
+	}
 
 	/*
 		MCDP6150 initialize
 	*/
-	sta = prt_mcdp6150_init (tentiva->i2c, PRT_TENTIVA_I2C_MC6150_SLOT0_ADR);
-
-	if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+	if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_ID)
 	{
-		prt_printf ("-- MCDP6150 config error -- ");
-		return sta;
-	}	
+		sta = prt_mcdp6150_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR);
+
+		if (sta != PRT_STA_OK)
+		{
+			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+			{
+				prt_printf ("-- MCDP6150 config error -- ");
+				return sta;
+			}
+		}	
+	}
+
+	/*
+		MCDP6000 initialize
+	*/
+	else if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_MCDP6000_ID)
+	{
+		sta = prt_mcdp6000_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6000_SLOT0_ADR);
+
+		if (sta != PRT_STA_OK)
+		{
+			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+			{
+				prt_printf ("-- MCDP6000 config error -- ");
+				return sta;
+			}
+		}	
+	}
 
 	// Return status
 	return sta;
@@ -276,8 +319,23 @@ prt_sta_type prt_tentiva_set_vid_freq (prt_tentiva_ds_struct *tentiva, prt_u8 fr
 	prt_sta_type sta;
 	prt_u16 div;
 
+	// Clock 231.035 MHz
+	if (freq == PRT_TENTIVA_VID_FREQ_231_036_MHZ)
+	{	
+		// This frequency uses configuration 2. 
+		// If this configuration isn't active, the clock generator needs to be configured.
+		if (tentiva->vid_clk_cfg != 2)
+		{
+			// VID clock
+			sta = prt_tentiva_clk_cfg (tentiva, PRT_TENTIVA_VID_DEV, tentiva->vid_clk_cfg_len, tentiva->vid_clk_cfg_prt[2], tentiva->pio_vid_refclk_lock);
+			
+			// Store current configuration
+			tentiva->vid_clk_cfg = 2;
+		}
+	}
+
 	// Clock 254.974 MHz
-	if (freq == PRT_TENTIVA_VID_FREQ_254974_MHZ)
+	else if (freq == PRT_TENTIVA_VID_FREQ_254_974_MHZ)
 	{	
 		// This frequency uses configuration 1. 
 		// If this configuration isn't active, the clock generator needs to be configured.
@@ -360,6 +418,32 @@ prt_sta_type prt_tentiva_get_lock (prt_tentiva_ds_struct *tentiva, prt_u32 lock)
 	return PRT_STA_OK;
 }
 
+// MCDP6150 / MCDP6000 datapath reset
+// This function resets the datapath path of the MCDP6150 / MCDP6000
+void prt_tentiva_mcdp6xx0_rst_dp (prt_tentiva_ds_struct *tentiva)
+{
+	// Variables
+	prt_sta_type sta;
+
+	// MCDP6150
+	if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_ID)
+	{
+		sta = prt_mcdp6150_rst_dp (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR);
+
+		if (sta != PRT_STA_OK)
+			prt_printf ("Tentiva: MCDP6150 reset error\n\r");
+	}
+
+	// MCDP6000
+	else if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_MCDP6000_ID)
+	{
+		sta = prt_mcdp6000_rst_cr (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6000_SLOT0_ADR);
+		
+		if (sta != PRT_STA_OK)
+			prt_printf ("Tentiva: MCDP6000 reset error\n\r");
+	}
+}
+
 // TDP142 snoop 
 // This function disables the TDP142 snoop mode.
 // By default the TDP142 adjusts its TX output levels based on the DPCD values.
@@ -404,13 +488,22 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
  	prt_u8 id;
 
  	// Base board
-	prt_printf ("Tentiva base board: ");
+	prt_printf ("Tentiva FMC board: ");
 	sta = prt_tentiva_eeprom_rd (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR);
 
 	if (sta == PRT_STA_OK)
 	{
-		if (tentiva->i2c->dat[2] == PRT_TENTIVA_BASE_ID) 
-		prt_printf ("found\n");
+		// Copy FMC ID
+		tentiva->fmc_id = tentiva->i2c->dat[2];
+
+		if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVC_ID) 
+			prt_printf ("Rev. C\n");
+
+		else if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID) 
+			prt_printf ("Rev. D\n");
+
+		else 
+			prt_printf ("Unknown\n");
 	}
 	else
 		prt_printf ("not found!\n");
@@ -429,10 +522,15 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 
 		if (sta == PRT_STA_OK)
 		{
-			switch (tentiva->i2c->dat[2])
+			// Copy slot ID
+			tentiva->slot_id[i] = tentiva->i2c->dat[2];
+
+			switch (tentiva->slot_id[i])
 			{
-				case PRT_TENTIVA_DPTX_ID : prt_printf ("DPTX\n"); break;
-				case PRT_TENTIVA_DPRX_ID : prt_printf ("DPRX\n"); break;
+				case PRT_TENTIVA_DP14TX_ID : prt_printf ("DP14TX\n"); break;
+				case PRT_TENTIVA_DP21TX_ID : prt_printf ("DP21TX\n"); break;
+				case PRT_TENTIVA_DP14RX_ID : prt_printf ("DP14RX\n"); break;
+				case PRT_TENTIVA_DP21RX_ID : prt_printf ("DP21RX\n"); break;
 				case PRT_TENTIVA_HDMITX_ID : prt_printf ("HDMITX\n"); break;
 				case PRT_TENTIVA_EDPTX_ID : prt_printf ("EDPTX\n"); break;
 				default : prt_printf ("unknown\n"); break;
@@ -442,7 +540,14 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 			prt_printf ("empty\n");
 	}
 }
-	
+
+// Force ID
+// This function forces a slot identifier
+void prt_tentiva_force_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot, prt_u8 id)
+{
+	tentiva->slot_id[slot] = id;
+}
+
 // Identification write
 void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, prt_u8 id)
 {
@@ -453,16 +558,28 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, prt_u8 id)
 
 	switch (id)
 	{
-		// DPRX
-		case PRT_TENTIVA_DPRX_ID :
-			prt_printf ("DPRX...");
-			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_DPRX_ID);
+		// DP14RX
+		case PRT_TENTIVA_DP14RX_ID :
+			prt_printf ("DP14RX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_DP14RX_ID);
 			break;
 
-		// DPTX
-		case PRT_TENTIVA_DPTX_ID : 
-			prt_printf ("DPTX...");
-			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_DPTX_ID);
+		// DP21RX
+		case PRT_TENTIVA_DP21RX_ID :
+			prt_printf ("DP21RX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_DP21RX_ID);
+			break;
+
+		// DP14TX
+		case PRT_TENTIVA_DP14TX_ID : 
+			prt_printf ("DP14TX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_DP14TX_ID);
+			break;
+
+		// DP21TX
+		case PRT_TENTIVA_DP21TX_ID : 
+			prt_printf ("DP21TX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_DP21TX_ID);
 			break;
 
 		// EPTX
@@ -477,11 +594,23 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, prt_u8 id)
 			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_HDMITX_ID);
 			break;
 
-		// Base board
-		default : 
-			prt_printf ("base board...");
-			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR, PRT_TENTIVA_BASE_ID);
+		// FMC board Rev. C
+		case PRT_TENTIVA_FMC_REVC_ID : 
+			prt_printf ("FMC Rev. C board...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR, PRT_TENTIVA_FMC_REVC_ID);
 			break;
+
+		// FMC board Rev. D
+		case PRT_TENTIVA_FMC_REVD_ID : 
+			prt_printf ("FMC Rev. D board...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR, PRT_TENTIVA_FMC_REVD_ID);
+			break;
+
+		// Unknown
+		default : 
+			prt_printf ("Unknown option");
+			break;
+
 	}
 
 	if (sta == PRT_STA_OK)

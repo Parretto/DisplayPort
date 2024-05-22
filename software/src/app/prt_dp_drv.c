@@ -13,6 +13,7 @@
 	v1.1 - Added MST support
 	v1.2 - Added 10-bits video support
 	v1.3 - Increased EDID size to 1024 bytes
+	v1.4 - Added training clock recovery signaling
 
     License
     =======
@@ -83,7 +84,11 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->mail_in.ok = PRT_FALSE;
 	dp->mail_in.proc = PRT_FALSE;
 	dp->trn.pass = PRT_FALSE;
+	dp->trn.fail = PRT_FALSE;
+	dp->trn.cr = PRT_FALSE;
 	dp->hpd = PRT_DP_HPD_UNPLUG;
+	dp->lnk.phy_rate = 0;
+	dp->lnk.phy_ssc = 0;
 	dp->lnk.up = PRT_FALSE;
 	dp->lnk.mst_cap = PRT_FALSE;
 	dp->vid[0].up = PRT_FALSE;
@@ -263,6 +268,22 @@ uint8_t prt_dp_run (prt_dp_ds_struct *dp)
 	// Wait for response
 	sta = prt_dp_mail_resp (dp);
 
+	return sta;
+}
+
+// Training force
+uint8_t prt_dptx_trn (prt_dp_ds_struct *dp)
+{
+	// Variables
+	uint8_t sta;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_TRN_STR;	// Token
+	dp->mail_out.dat[dp->mail_out.len++] = dp->lnk.max_rate;	// Maximum link rate
+	prt_dp_mail_send (dp);
+
+	// Wait for response
+	sta = prt_dp_mail_resp (dp);
 	return sta;
 }
 
@@ -564,6 +585,16 @@ uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream)
 uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
 {
 	if (dp->trn.pass)
+		return PRT_TRUE;
+	else
+		return PRT_FALSE;
+}
+
+// Training clock recovery
+// This function returns PRT_TRUE when the training starts the clock recovery (RX Only)
+uint8_t prt_dp_is_trn_cr (prt_dp_ds_struct *dp)
+{
+	if (dp->trn.cr)
 		return PRT_TRUE;
 	else
 		return PRT_FALSE;
@@ -932,13 +963,39 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			// Set training pass flag
 			dp->trn.pass = PRT_TRUE;
 
+			// Clear training fail flag
+			dp->trn.fail = PRT_FALSE;
+
+			// Clear training cr flag
+			dp->trn.cr = PRT_FALSE;
+
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;
 			break;
 
 		case PRT_DP_MAIL_TRN_ERR:
+			// Set training fail flag
+			dp->trn.fail = PRT_TRUE;
+
 			// Clear training pass flag
 			dp->trn.pass = PRT_FALSE;
+
+			// Clear training cr flag
+			dp->trn.cr = PRT_FALSE;
+
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_TRN;
+			break;
+
+		case PRT_DP_MAIL_TRN_CR:		
+			// Clear training pass flag
+			dp->trn.pass = PRT_FALSE;
+
+			// Clear training fail flag
+			dp->trn.fail = PRT_FALSE;
+
+			// Set training clock recovery flag
+			dp->trn.cr = PRT_TRUE;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;
@@ -947,6 +1004,12 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		case PRT_DP_MAIL_LNK_RATE_REQ:
 			// Set link rate request
 			dp->lnk.phy_rate = dp->mail_in.dat[1];
+
+			if (dp->id == PRT_DPRX_ID)
+			{
+				// Set spread spectrum clocking
+				dp->lnk.phy_ssc = dp->mail_in.dat[2];
+			}
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_PHY_RATE;
@@ -1482,6 +1545,12 @@ void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat)
 uint8_t prt_dp_get_phy_rate (prt_dp_ds_struct *dp)
 {
 	return dp->lnk.phy_rate;
+}
+
+// Get PHY spread spectrum clocking
+uint8_t prt_dp_get_phy_ssc (prt_dp_ds_struct *dp)
+{
+	return dp->lnk.phy_ssc;
 }
 
 // Get PHY voltage

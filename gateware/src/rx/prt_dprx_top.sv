@@ -88,8 +88,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none";
-localparam P_RAM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none";
+localparam P_ROM_INIT = "none"; //(P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none";
+localparam P_RAM_INIT = "none"; //(P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -334,12 +334,9 @@ assign VID_VLD_OUT = vid_if.vld;
 generate 
     if (P_DEBUG == 1)
     begin : gen_debug
-//        (* mark_debug = "true" *)       logic sclk_dbg;
-  //      (* mark_debug = "true" *)       wire lclk_dbg;
+        (* mark_debug = "true" *)       logic sclk_dbg;
+        (* mark_debug = "true" *)       wire lclk_dbg;
         
-        (* preserve *) logic sclk_dbg;
-        (* preserve *) wire lclk_dbg;
-
     // Debug (system clock)
         always_ff @ (SYS_CLK_IN)
         begin

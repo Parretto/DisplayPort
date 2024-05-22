@@ -122,7 +122,7 @@ void dp_debug_cb (prt_dp_ds_struct *dp);
 // PHY
 void phy_set_tx_linerate (uint8_t linerate);
 void phy_set_tx_vap (uint8_t volt, uint8_t pre);
-void phy_set_rx_linerate (uint8_t linerate);
+void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc);
 
 // VTB
 void vtb_status (void);

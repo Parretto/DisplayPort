@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
     v1.1 - Added video resolution 7680X4320P30
+    v1.2 - Added video resolution 5120X2160P60
 
     License
     =======
@@ -94,7 +95,8 @@
 #define VTB_PRESET_2560X1440P60         6
 #define VTB_PRESET_3840X2160P50         7
 #define VTB_PRESET_3840X2160P60         8
-#define VTB_PRESET_7680X4320P30         9
+#define VTB_PRESET_5120X2160P60         9
+#define VTB_PRESET_7680X4320P30         10
 
 // 1280 x 720p @ 50Hz
 #define VTB_1280X720P50_HTOTAL 		    1980
@@ -175,6 +177,16 @@
 #define VTB_3840X2160P60_VHEIGHT 		2160
 #define VTB_3840X2160P60_VSTART 		82
 #define VTB_3840X2160P60_VSW 			10
+
+// 5120 x 2160p @ 60Hz 
+#define VTB_5120X2160P60_HTOTAL 		5500
+#define VTB_5120X2160P60_HWIDTH 		5120
+#define VTB_5120X2160P60_HSTART 		216
+#define VTB_5120X2160P60_HSW 			88
+#define VTB_5120X2160P60_VTOTAL 		2250
+#define VTB_5120X2160P60_VHEIGHT 		2160
+#define VTB_5120X2160P60_VSTART 		82
+#define VTB_5120X2160P60_VSW 			10
 
 // 7680 x 4320p @ 30Hz (RB2)
 #define VTB_7680X4320P30_HTOTAL 		7760

@@ -5,7 +5,7 @@
 
 
     Module: Kinetic MCDP6150 Header 
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -56,12 +56,16 @@
 #define PRT_MCDP6150_ADJ_PRE_EMP_REG_LN3_SHIFT         14
 #define PRT_MCDP6150_LT_CONFIG_2_FORCE_TX_PARAM        (1 << 10)
 #define PRT_MCDP6150_LT_CONFIG_2_FULL_TRANSPARENT_EN   (1 << 11)
+#define PRT_MCDP6150_OPMODE_CONF_DIS_N_OVR_EN          (1 << 3)
+#define PRT_MCDP6150_OPMODE_CONF_DIS_N                 (1 << 6)
+#define PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST           (1 << 10)
 
 // Prototypes
 prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave);
+prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en);
+prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, prt_u8 slave);
 prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_trans_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en);
+prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 pseudo);
 prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre);
 prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, prt_u8 slave);
 prt_u16 prt_mcdp6150_set_adj_val (prt_u8 volt, prt_u8 pre);
@@ -73,3 +77,6 @@ prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8
 prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre);
 prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 *dat);
 prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 dat);
+void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset);
+prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, prt_u8 slave);
+prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave);
