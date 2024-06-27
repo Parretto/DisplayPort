@@ -541,6 +541,13 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 	}
 }
 
+// Get ID
+// This function reads the slot identifier
+prt_u8 prt_tentiva_get_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot)
+{
+	return tentiva->slot_id[slot];
+}
+
 // Force ID
 // This function forces a slot identifier
 void prt_tentiva_force_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot, prt_u8 id)
@@ -698,3 +705,6 @@ prt_sta_type prt_tentiva_eeprom_rd (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	// Return
 	return sta;
 }
+
+
+

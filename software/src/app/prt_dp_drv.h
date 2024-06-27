@@ -283,6 +283,7 @@ uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
 // DPRX
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
+void prt_dprx_trn_cr_ack (prt_dp_ds_struct *dp);
 
 // Internal
 void prt_dp_irq_handler (prt_dp_ds_struct *dp);

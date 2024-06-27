@@ -38,7 +38,6 @@
 #define BOARD_INT_A10GX                 3
 #define BOARD_TB_A7_200T_IMG            4
 
-//#define ADVANCED
 #define AUTO_COLORBAR
 
 #define SYS_CLK_FREQ                    50000000
@@ -48,9 +47,6 @@
 // Interrupt handlers
 #define DPTX_IRQ_HANDLER
 #define DPRX_IRQ_HANDLER
-
-// The scaler only operates in 4 pixel per clock
-//#define SCALER
 
 // MST
 //#define MST              
@@ -78,6 +74,8 @@
 #define PIO_OUT_TENTIVA_CLK_SEL  	     (1 << 0)
 #define PIO_OUT_DPTX_RST      		(1 << 1)
 #define PIO_OUT_DPRX_RST      		(1 << 2)
+#define PIO_OUT_TX_CARD       		(1 << 3)
+#define PIO_OUT_RX_CARD       		(1 << 4)
 #define PIO_OUT_DEBUG_0                 (1 << 27)
 #define PIO_OUT_DEBUG_1                 (1 << 28)
 #define PIO_OUT_DEBUG_2                 (1 << 29)

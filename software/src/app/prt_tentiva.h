@@ -79,6 +79,8 @@ typedef struct {
 #define PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR		0x57
 #define PRT_TENTIVA_I2C_TDP2004_SLOT0_ADR		0x1a
 #define PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR		0x18
+#define PRT_TENTIVA_I2C_PS8483_SLOT0_ADR		0x10
+#define PRT_TENTIVA_I2C_PS8483_SLOT1_ADR		0x20
 
 #define PRT_TENTIVA_FMC_REVC_ID				    0x22
 #define PRT_TENTIVA_FMC_REVD_ID				    0x23
@@ -97,6 +99,7 @@ void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, p
     prt_u32 pio_phy_refclk_lock, prt_u32 pio_vid_refclk_lock, prt_u32 pio_clk_sel);
 void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u8 cfg, prt_rc22504a_reg_struct *prt, prt_u16 len);
 void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva);
+prt_u8 prt_tentiva_get_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot);
 void prt_tentiva_force_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot, prt_u8 id);
 prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ingore_err);
 prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, prt_u32 pio_phy_lock);

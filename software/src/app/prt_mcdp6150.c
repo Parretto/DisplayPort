@@ -49,6 +49,9 @@ prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	// DPRX init
 	sta = prt_mcdp6150_dprx_init (i2c, slave);
 
+	// GC gain
+	sta = prt_mcdp6150_gc_gain (i2c, slave);
+
 	// Pseudo transparent mode
 	sta = prt_mcdp6150_trans_mode (i2c, slave, PRT_TRUE);
 	
@@ -56,7 +59,7 @@ prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	//sta = prt_mcdp6150_adj_req (i2c, slave);
 
 	// Force TX parameters
-	//sta = prt_mcdp6150_tx_force (i2c, slave, 1, 1);
+	sta = prt_mcdp6150_tx_force (i2c, slave, 1, 1);
 
 	// Disable PHY repeater mode
 	sta = prt_mcdp6150_lttpr_mode (i2c, slave, PRT_FALSE);
@@ -134,6 +137,20 @@ prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	// Write register
 	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_DP_RT_CONFIG, dat);
 	
+	// Return status
+	return sta;
+}
+
+// GC gain 
+// This function sets the jitter filtering.
+// This reduces the power of the SSC down-spread
+prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, prt_u8 slave)
+{
+	// Variables
+	prt_sta_type sta;
+
+	sta = prt_mcdp6150_wr (i2c, slave, 0x024c, 0x33331A50);	// Works with AMD GPU
+
 	// Return status
 	return sta;
 }
@@ -398,28 +415,6 @@ prt_u16 prt_mcdp6150_set_adj_val (prt_u8 volt, prt_u8 pre)
 	return dat;
 }
 
-// TX GC gain
-prt_sta_type prt_mcdp6150_tx_gain (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 gain)
-{
-	// Variables
-	prt_sta_type sta;
-	prt_u32 dat;
-
-	// Read register
-	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_TX_GC_CTRL_1, &dat);
-
-	// Mask out TX gain HBR3
-	dat &= ~(0xff000000);
-
-	dat |= (gain << 28);
-
-	// Write register
-	sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_TX_GC_CTRL_1, dat);
-	
-	// Return status
-	return sta;
-}
-
 // PHY repeater mode
 prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en)
 {
@@ -430,7 +425,7 @@ prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_
 	// Set DPCD values related to LTTPR to zero
 	dat = 0;
 
-	// Write all zeros in LLPR capability register
+	// Write all zeros in LTTPR capability register
 	if (en == PRT_FALSE)
 		sta = prt_mcdp6150_wr (i2c, slave, PRT_MCDP6150_DPCD_LTTPR_CAP_ID_0, dat);
 

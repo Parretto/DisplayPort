@@ -29,12 +29,20 @@
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_tdp2004.h"
-#include "prt_printf.h"
 
 // Initialize
 prt_sta_type prt_tdp2004_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 {
-    prt_tdp2004_id (i2c, slave);
+	// Variables
+	prt_sta_type sta;
+
+    // Read ID
+	sta = prt_tdp2004_id (i2c, slave);
+	
+	// Set normal operation
+	sta = prt_tdp2004_run (i2c, slave);
+
+	return sta;
 }
 
 // Read ID
@@ -45,9 +53,31 @@ prt_sta_type prt_tdp2004_id (prt_i2c_ds_struct *i2c, prt_u8 slave)
 	prt_u8 dat;
 
 	sta = prt_tdp2004_rd (i2c, slave, 0xf0, &dat);
-    prt_printf ("TDP2004 ID0: %x\n\r", dat);
 	sta = prt_tdp2004_rd (i2c, slave, 0xf1, &dat);
-    prt_printf ("TDP2004 ID1: %x\n\r", dat);
+
+	if (dat == 0x29)
+		return PRT_STA_OK;
+	else
+		return PRT_STA_FAIL;
+}
+
+// Run (Normal operation)
+prt_sta_type prt_tdp2004_run (prt_i2c_ds_struct *i2c, prt_u8 slave)
+{
+	// Variables
+	prt_sta_type sta;
+	prt_u8 dat;
+
+	// Read TI test mode control register
+	sta = prt_tdp2004_rd (i2c, slave, 0x84, &dat);
+  
+	// Disable test mode 
+	dat |= (1<<2);
+	
+	// Write register (broadcast write channels)
+	sta = prt_tdp2004_wr (i2c, slave, 0x84, dat);
+
+	return sta;
 }
 
 // Read register

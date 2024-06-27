@@ -336,3 +336,4 @@ void prt_mcdp6000_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset)
 
 	prt_printf ("MCDP6000: offset: %x - data: %x\n", offset, dat);
 }
+

@@ -78,7 +78,7 @@ logic                  clk_lock_in;        // Input lock
 logic                  clk_lock;          // Locked
 logic [8:0]            clk_din[0:P_SPL-1];
 logic [8:0]            clk_dat[0:P_SPL-1];
-(* keep *) logic [P_SPL-1:0]      clk_sr_det;
+logic [P_SPL-1:0]      clk_sr_det;
 logic [23:0]           clk_wdg_cnt;
 logic                  clk_wdg_cnt_end;
 logic [P_SPL-1:0]      clk_lfsr_rst;
@@ -87,8 +87,8 @@ logic [15:0]           clk_lfsr[0:P_SPL-1];
 logic [15:0]           clk_lfsr_reg;
 logic [8:0]            clk_dout[0:P_SPL-1];
 
-(* keep *) logic [2:0]             clk_scrm_sidx[0:P_SPL-1];
-(* keep *) logic [7:0]             clk_scrm_idx[0:P_SPL-1];
+logic [2:0]             clk_scrm_sidx[0:P_SPL-1];
+logic [7:0]             clk_scrm_idx[0:P_SPL-1];
 
 genvar i;
 

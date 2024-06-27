@@ -313,6 +313,14 @@ void prt_dp_lnk_req_ok (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 }
 
+// Training clock recovery acknowledge
+void prt_dprx_trn_cr_ack (prt_dp_ds_struct *dp)
+{
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_TRN_CR_ACK;
+	prt_dp_mail_send (dp);
+}
+
 // HPD
 uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd)
 {
@@ -987,7 +995,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->evt |= PRT_DP_EVT_TRN;
 			break;
 
-		case PRT_DP_MAIL_TRN_CR:		
+		case PRT_DP_MAIL_TRN_CR_STR:		
 			// Clear training pass flag
 			dp->trn.pass = PRT_FALSE;
 

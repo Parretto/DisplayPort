@@ -73,64 +73,72 @@ prt_u32 qpll_cfg_drp_array[4][4] = {
 };
 
 // PHY RX CDR configuration data (No spread spectrum clocking)
-prt_u32 rx_cdr_cfg_drp_array_no_ssc[4][2] = {
+prt_u32 rx_cdr_cfg_drp_array_no_ssc[4][3] = {
   	// Configuration 1.62 Gbps
   	{
 		0x00100239,	/* DRP address=0x10, data=0x0239 */
-		0x00a40239	/* DRP address=0xa4, data=0x0239 */
+		0x00a40239,	/* DRP address=0xa4, data=0x0239 */
+		0x011b0164	/* DRP address=0x11b, data=0x0164 */
 	},
 
   	// Configuration 2.7 Gbps
   	{
 		0x00100249,	/* DRP address=0x10, data=0x0249 */
-		0x00a40249	/* DRP address=0xa4, data=0x0249 */
+		0x00a40249,	/* DRP address=0xa4, data=0x0249 */
+		0x011b0164	/* DRP address=0x11b, data=0x0164 */
 	},
 
   	// Configuration 5.4 Gbps
   	{
 		0x00100259,	/* DRP address=0x10, data=0x0259 */
-		0x00a40259	/* DRP address=0xa4, data=0x0259 */
+		0x00a40259,	/* DRP address=0xa4, data=0x0259 */
+		0x011b0164	/* DRP address=0x11b, data=0x0164 */
 	},
 
   	// Configuration 8.1 Gbps
 	{
 		0x00100259,	/* DRP address=0x10, data=0x0259 */
-		0x00a40259	/* DRP address=0x10, data=0x0259 */
+		0x00a40259,	/* DRP address=0x10, data=0x0259 */
+		0x011b0164	/* DRP address=0x11b, data=0x0164 */
 	}
 };
 
 // PHY RX CDR configuration data (spread spectrum clocking)
-prt_u32 rx_cdr_cfg_drp_array_ssc[4][2] = {
+prt_u32 rx_cdr_cfg_drp_array_ssc[4][3] = {
   	// Configuration 1.62 Gbps
   	{
-	//	0x001001a3,	/* DRP address=0x10, data=0x01a3 */
-	//	0x00a401a3	/* DRP address=0xa4, data=0x01a3 */
-		0x00100193,	/* DRP address=0x10, data=0x0193 */
-		0x00a40193	/* DRP address=0xa4, data=0x0193 */
+		0x001001a3,	/* DRP address=0x10, data=0x01a3 */
+		0x00a401a3,	/* DRP address=0xa4, data=0x01a3 */
+		//0x00100193,	/* DRP address=0x10, data=0x0193 */
+		//0x00a40193,	/* DRP address=0xa4, data=0x0193 */
+		0x011b01a3	/* DRP address=0x11b, data=0x01a3 */
 	},
 
   	// Configuration 2.7 Gbps
   	{
-	//	0x001001b4,	/* DRP address=0x10, data=0x01b4 */
-	//	0x00a401b4	/* DRP address=0xa4, data=0x01b4 */
-		0x001001a3,	/* DRP address=0x10, data=0x01a3 */
-		0x00a401a3	/* DRP address=0xa4, data=0x01a3 */
+		0x001001b4,	/* DRP address=0x10, data=0x01b4 */
+		0x00a401b4,	/* DRP address=0xa4, data=0x01b4 */
+		//0x001001a3,	/* DRP address=0x10, data=0x01a3 */
+		//0x00a401a3,	/* DRP address=0xa4, data=0x01a3 */
+		0x011b01b4	/* DRP address=0x11b, data=0x01b4 */
 	},
 
   	// Configuration 5.4 Gbps
   	{
-	//	0x001001c4,	/* DRP address=0x10, data=0x01c4 */
-	//	0x00a401c4	/* DRP address=0xa4, data=0x01c4 */
-		0x001001b4,	/* DRP address=0x10, data=0x01b4 */
-		0x00a401b4	/* DRP address=0xa4, data=0x01b4 */
+		0x001001c4,	/* DRP address=0x10, data=0x01c4 */
+		0x00a401c4,	/* DRP address=0xa4, data=0x01c4 */
+		//0x001001b4,	/* DRP address=0x10, data=0x01b4 */
+		//0x00a401b4,	/* DRP address=0xa4, data=0x01b4 */
+		0x011b01c4	/* DRP address=0x11b, data=0x01c4 */
 	},
 
   	// Configuration 8.1 Gbps
 	{
-	//	0x001001c4,	/* DRP address=0x10, data=0x01c4 */
-	//	0x00a401c4	/* DRP address=0xa4, data=0x01c4 */
-		0x00100259,	/* DRP address=0x10, data=0x0259 */
-		0x00a40259	/* DRP address=0xa4, data=0x0259 */
+		0x001001c4,	/* DRP address=0x10, data=0x01c4 */
+		0x00a401c4,	/* DRP address=0xa4, data=0x01c4 */
+		//0x00100259,	/* DRP address=0x10, data=0x0259 */
+		//0x00a40259,	/* DRP address=0xa4, data=0x0259 */
+		0x011b01c4	/* DRP address=0x11b, data=0x01c4 */
 	}
 };
 
@@ -662,6 +670,7 @@ prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div)
 	return phy;
 }
 
+
 // PHY TX PLL and datapath reset
 /*
 prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
@@ -793,6 +802,8 @@ prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy,
 */
 
 // PHY assert reset 
+// This function resets the PLL and the complete GT components
+// This function is called before the line rate is changed. 
 prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, 
 	prt_u32 PLL_RST, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PHY_USR_RDY)
 {
@@ -809,10 +820,10 @@ prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy,
 		// Assert PLL reset
 	    prt_phy_amd_pio_dat_set (phy, PLL_RST);
 
-		// De-assert PHY TX reset
+		// De-assert PHY reset
 	    prt_phy_amd_pio_dat_clr (phy, PHY_RST);
 
-	     // De-assert TXUSR ready
+	     // De-assert USR ready
 		prt_phy_amd_pio_dat_clr (phy, PHY_USR_RDY);
 
 	     // De-assert divider reset
@@ -829,6 +840,8 @@ prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy,
 }
 
 // PHY release reset
+// This function completes the reset of the PLL and the complete GT components
+// This function is called after the PLL and GT line rate change.  
 prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy, 
 	prt_u32 PLL_RST, prt_u32 PLL_LOCK, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PMA_RST_DONE, prt_u32 PHY_USR_RDY, prt_u32 PHY_RST_DONE)
 {
@@ -915,6 +928,79 @@ prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy,
 		dat = prt_phy_amd_pio_dat_get (phy);
 
 		if (dat & PHY_RST_DONE)
+		{
+			exit_loop = PRT_TRUE;
+		}
+
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHY: Reset done timeout\n");
+			return PRT_STA_FAIL;
+		}
+    } while (exit_loop == PRT_FALSE);
+
+    return PRT_STA_OK;
+}
+
+// PHY RX reset
+// This function resets all the GT RX components (no PLL)
+// This function is called during the clock recovery training
+prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy)
+{
+	// Variables
+	prt_u32 dat;
+    prt_bool exit_loop;
+
+ 	// De-assert USR ready
+	prt_phy_amd_pio_dat_clr (phy, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
+
+     // Assert GTRX reset
+	prt_phy_amd_pio_dat_set (phy, PRT_PHY_AMD_PIO_OUT_RX_RST);
+
+	// Sleep alarm 0
+	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
+     
+     // Release GTRX reset
+	prt_phy_amd_pio_dat_clr (phy, PRT_PHY_AMD_PIO_OUT_RX_RST);
+
+    // Wait for PMA reset done
+
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+     
+    exit_loop = PRT_FALSE;
+    do
+    {
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
+
+		if (dat & PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE)
+		{
+			exit_loop = PRT_TRUE;
+		}
+
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHY: PMA reset done timeout\n");
+			return PRT_STA_FAIL;
+		}
+    } while (exit_loop == PRT_FALSE);
+
+    // Set RXUSR ready
+	prt_phy_amd_pio_dat_set (phy, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
+
+    // Wait for reset done
+
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+     
+    exit_loop = PRT_FALSE;
+    do
+    {
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
+
+		if (dat & PRT_PHY_AMD_PIO_IN_RX_RST_DONE)
 		{
 			exit_loop = PRT_TRUE;
 		}
@@ -1118,4 +1204,45 @@ void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 m
 prt_u32 prt_phy_amd_pio_dat_get (prt_phy_amd_ds_struct *phy)
 {
   return phy->dev->pio_din;
+}
+
+// Dump CDR registers
+void prt_phy_amd_cdr_dump (prt_phy_amd_ds_struct *phy)
+{
+	// Variables
+	prt_u16 dat;
+	
+	prt_printf ("\n=====\n");
+	prt_printf ("DRP CDR dump\n");
+	prt_printf ("=====\n");
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x0e);
+	prt_printf ("0x0e = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x0f);
+	prt_printf ("0x0f = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x10);
+	prt_printf ("0x10 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x11);
+	prt_printf ("0x11 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x12);
+	prt_printf ("0x12 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x13);
+	prt_printf ("0x13 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0xa4);
+	prt_printf ("0xa4 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0xa8);
+	prt_printf ("0xa8 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x2d);
+	prt_printf ("0x2d = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x72);
+	prt_printf ("0x72 = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0xdb);
+	prt_printf ("0xdb = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0xdf);
+	prt_printf ("0xdf = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x11b);
+	prt_printf ("0x11b = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0x11c);
+	prt_printf ("0x11c = %x\n", dat);
+	dat = prt_phy_amd_drp_rd (phy, 0, 0xa4);
+	prt_printf ("0xa4 = %x\n", dat);
 }

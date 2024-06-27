@@ -101,6 +101,8 @@ prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr
 void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
 prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc);
+prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy);
+
 prt_u8 prt_phy_amd_encode_cpll_fbdiv (prt_u8 fbdiv);
 prt_u8 prt_phy_amd_encode_cpll_fbdiv_45 (prt_u8 fbdiv_45);
 prt_u8 prt_phy_amd_encode_cpll_refclk_div (prt_u8 cpll_refclk_div);
@@ -137,3 +139,4 @@ void prt_phy_amd_pio_dat_set (prt_phy_amd_ds_struct *phy, prt_u32 dat);
 void prt_phy_amd_pio_dat_clr (prt_phy_amd_ds_struct *phy, prt_u32 dat);
 void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 msk);
 prt_u32 prt_phy_amd_pio_dat_get (prt_phy_amd_ds_struct *phy);
+void prt_phy_amd_cdr_dump (prt_phy_amd_ds_struct *phy);
