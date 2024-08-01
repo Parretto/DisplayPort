@@ -34,7 +34,7 @@
 module prt_dptx_lnk
 #(
     // System
-    parameter           P_VENDOR       = "none",  // Vendor "xilinx", "lattice" or "intel"
+    parameter           P_VENDOR       = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
     parameter           P_SIM          = 0,       // Simulation
     parameter           P_MST          = 0,       // MST support
 

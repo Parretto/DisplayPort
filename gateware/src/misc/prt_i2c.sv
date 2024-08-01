@@ -5,11 +5,13 @@
 
 
     Module: I2C Peripheral
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Implemented clock stretching support for read cycle
+    v1.2 - Added support for Tentiva System Controller in DIA mode
 
     License
     =======
@@ -56,7 +58,8 @@ localparam P_CTL_WR         = 3;
 localparam P_CTL_RD         = 4;
 localparam P_CTL_ACK        = 5;
 localparam P_CTL_DIA        = 6;
-localparam P_CTL_WIDTH      = 7;
+localparam P_CTL_TENTIVA    = 7;
+localparam P_CTL_WIDTH      = 8;
 
 // Status register bit locations
 localparam P_STA_BUSY       = 0;
@@ -103,6 +106,7 @@ typedef struct {
     logic                       rd;             // Read data
     logic                       ack;            // ACK
     logic                       dia;            // DIA enable
+    logic                       tentiva;        // Tentiva - 0 - Rev. C / 1 - Rev. D
 } ctl_struct;
 
 typedef struct {
@@ -266,13 +270,14 @@ dia_struct          clk_dia;        // Direct I2C Access
     end
 
 // Control register bit locations
-    assign clk_ctl.run  = clk_ctl.r[P_CTL_RUN];     // Run
-    assign clk_ctl.str  = clk_ctl.r[P_CTL_STR];     // I2C Start
-    assign clk_ctl.stp  = clk_ctl.r[P_CTL_STP];     // I2C Stop
-    assign clk_ctl.wr   = clk_ctl.r[P_CTL_WR];      // I2C Write 
-    assign clk_ctl.rd   = clk_ctl.r[P_CTL_RD];      // I2C Read
-    assign clk_ctl.ack  = clk_ctl.r[P_CTL_ACK];     // I2C Ack
-    assign clk_ctl.dia  = clk_ctl.r[P_CTL_DIA];     // DIA enable
+    assign clk_ctl.run          = clk_ctl.r[P_CTL_RUN];     // Run
+    assign clk_ctl.str          = clk_ctl.r[P_CTL_STR];     // I2C Start
+    assign clk_ctl.stp          = clk_ctl.r[P_CTL_STP];     // I2C Stop
+    assign clk_ctl.wr           = clk_ctl.r[P_CTL_WR];      // I2C Write 
+    assign clk_ctl.rd           = clk_ctl.r[P_CTL_RD];      // I2C Read
+    assign clk_ctl.ack          = clk_ctl.r[P_CTL_ACK];     // I2C Ack
+    assign clk_ctl.dia          = clk_ctl.r[P_CTL_DIA];     // DIA enable
+    assign clk_ctl.tentiva      = clk_ctl.r[P_CTL_TENTIVA]; // Tentiva - 0 - Rev. C / 1 - Rev. D
 
 // Status register
 	assign clk_sta.r[P_STA_BUSY]    = clk_sta.busy;
@@ -786,9 +791,15 @@ dia_struct          clk_dia;        // Direct I2C Access
                 // Wait for beat
                 if (clk_i2c.beat)
                 begin
-                    // Set SDA so we can read the SDA input
+                    // Set SCL and SDA so we can read the SDA input
                     clk_i2c.sda_out_set = 1;
-                    clk_i2c.sm_nxt = i2c_sm_rd1;
+                    clk_i2c.scl_out_set = 1;
+
+                    // Wait if the slave is holding off the transaction (clock stretching)
+                    if (clk_i2c.scl_in)
+                        clk_i2c.sm_nxt = i2c_sm_rd1;
+                    else
+                        clk_i2c.sm_nxt = i2c_sm_rd;
                 end
 
                 else
@@ -1126,7 +1137,10 @@ dia_struct          clk_dia;        // Direct I2C Access
             // Slave
             dia_sm_wr :
             begin
-                clk_dia.wr_dat = 8'h12; // RC22504a slave address
+                if (clk_ctl.tentiva)
+                    clk_dia.wr_dat = 8'h9a; // Tentiva SC slave address
+                else
+                    clk_dia.wr_dat = 8'h12; // RC22504a slave address
                 clk_dia.wr = 1;
 
                 // Wait for busy
@@ -1148,7 +1162,10 @@ dia_struct          clk_dia;        // Direct I2C Access
             // Address high
             dia_sm_wr2 :
             begin
-                clk_dia.wr_dat = 8'h00;
+                if (clk_ctl.tentiva)
+                    clk_dia.wr_dat = 8'h05;     // Register 5
+                else
+                    clk_dia.wr_dat = 8'h00;
                 clk_dia.wr = 1;
 
                 // Wait for busy
@@ -1162,7 +1179,13 @@ dia_struct          clk_dia;        // Direct I2C Access
             begin
                 // Wait for busy release
                 if (!clk_sta.busy)
-                    clk_dia.sm_nxt = dia_sm_wr4;
+                begin
+                    // Skip the address low byte for Tentiva SC
+                    if (clk_ctl.tentiva)
+                        clk_dia.sm_nxt = dia_sm_wr6;
+                    else
+                        clk_dia.sm_nxt = dia_sm_wr4;
+                end
                 else
                     clk_dia.sm_nxt = dia_sm_wr3;                        
             end

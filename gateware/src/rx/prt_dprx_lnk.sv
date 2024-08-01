@@ -33,7 +33,7 @@
 module prt_dprx_lnk
 #(
     // System
-    parameter               P_VENDOR      = "none",  // Vendor "xilinx", "intel" or "lattice"
+    parameter               P_VENDOR      = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
     parameter               P_SIM         = 0,       // Simulation
     parameter               P_MST         = 0,       // MST support
 
@@ -76,8 +76,9 @@ module prt_dprx_lnk
     input wire              LNK_RST_IN,         // Reset
     input wire              LNK_CLK_IN,         // Clock
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,         // Interface
-    output wire             LNK_SYNC_OUT,
-
+    output wire             LNK_SYNC_OUT,       // Sync
+    output wire [7:0]       LNK_VBID_OUT,       // VB-ID 
+    
     // Video source
     input wire              VID_RST_IN,         // Reset
     input wire              VID_CLK_IN,         // Clock
@@ -403,12 +404,12 @@ generate
         )
         SCRM_INST
         (
-            .RST_IN             (LNK_RST_IN),         // Reset
-            .CLK_IN             (LNK_CLK_IN),         // Clock
+            .RST_IN             (LNK_RST_IN),               // Reset
+            .CLK_IN             (LNK_CLK_IN),               // Clock
 
             // Control
-            .CTL_EN_IN          (1'b1),                 // Enable
-            .CTL_MST_IN         (mst_en_from_ctl),      // MST
+            .CTL_EN_IN          (1'b1),                     // Enable
+            .CTL_MST_IN         (mst_en_from_ctl),          // MST
 
             // Link
             .LNK_SNK_IF         (lnk_from_pars_lane[i]),    // Sink
@@ -557,7 +558,8 @@ endgenerate
         .LNK_RST_IN         (LNK_RST_IN),           // Reset
         .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
         .LNK_SNK_IF         (lnk_from_msa),         // Interface
-
+        .LNK_VBID_OUT       (LNK_VBID_OUT),         // VB-ID 
+        
         // Video source
         .VID_RST_IN         (VID_RST_IN),           // Reset
         .VID_CLK_IN         (VID_CLK_IN),           // Clock

@@ -26,6 +26,7 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_rc22504a.h"
@@ -34,7 +35,7 @@
 // Set two byte addressing mode
 // At power-up the device is operating in page  mode with single byte addressing. 
 // This function sets the device in two byte addressing. 
-prt_sta_type prt_rc22504a_set_adr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_rc22504a_set_adr_mode (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -68,7 +69,7 @@ prt_sta_type prt_rc22504a_set_adr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Read register
-prt_sta_type prt_rc22504a_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u8 *dat)
+prt_sta_type prt_rc22504a_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint8_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -113,7 +114,7 @@ prt_sta_type prt_rc22504a_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Write register
-prt_sta_type prt_rc22504a_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u8 dat)
+prt_sta_type prt_rc22504a_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint8_t dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -141,14 +142,14 @@ prt_sta_type prt_rc22504a_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Config
-prt_sta_type prt_rc22504a_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 length, prt_rc22504a_reg_struct *config)
+prt_sta_type prt_rc22504a_cfg (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t length, prt_rc22504a_reg_struct *config)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 	
 	// Load configuration
-	for (prt_u32 i = 0; i < length; i++)
+	for (uint32_t i = 0; i < length; i++)
 	{
 		sta = prt_rc22504a_wr (i2c, slave, config->offset, config->value);
 
@@ -174,12 +175,12 @@ prt_sta_type prt_rc22504a_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 len
 }
 
 // Enable / Disable output driver
-prt_sta_type prt_rc22504a_out_drv (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 out, prt_u8 en)
+prt_sta_type prt_rc22504a_out_drv (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t out, uint8_t en)
 {
 	// Variables 
 	prt_sta_type sta;
-	prt_u8 dat;
-	prt_u16 reg;
+	uint8_t dat;
+	uint16_t reg;
 
 	switch (out)
 	{
@@ -207,12 +208,12 @@ prt_sta_type prt_rc22504a_out_drv (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 
 }
 
 // Set output divider
-prt_sta_type prt_rc22504a_out_div (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 out, prt_u16 div)
+prt_sta_type prt_rc22504a_out_div (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t out, uint16_t div)
 {
 	// Variables 
 	prt_sta_type sta;
-	prt_u8 dat;
-	prt_u16 reg;
+	uint8_t dat;
+	uint16_t reg;
 
 	// Disable output driver
 	prt_rc22504a_out_drv (i2c, slave, out, 0);
@@ -247,11 +248,11 @@ prt_sta_type prt_rc22504a_out_div (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 
 }
 
 // Set dco
-prt_sta_type prt_rc22504a_dco (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u32 val)
+prt_sta_type prt_rc22504a_dco (prt_i2c_ds_struct *i2c, uint8_t slave, uint32_t val)
 {
 	// Variables 
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	// Load first byte
 	dat = val & 0xff;

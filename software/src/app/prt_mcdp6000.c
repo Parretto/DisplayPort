@@ -26,13 +26,14 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_mcdp6000.h"
 #include "prt_printf.h"
 
 // Initialize
-prt_sta_type prt_mcdp6000_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_init (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -59,7 +60,7 @@ prt_sta_type prt_mcdp6000_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Disable mode
-prt_sta_type prt_mcdp6000_dis (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_dis (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -71,7 +72,7 @@ prt_sta_type prt_mcdp6000_dis (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Soft reset
-prt_sta_type prt_mcdp6000_rst (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_rst (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -85,7 +86,7 @@ prt_sta_type prt_mcdp6000_rst (prt_i2c_ds_struct *i2c, prt_u8 slave)
 
 // AUX
 // Enable AUX communication
-prt_sta_type prt_mcdp6000_aux (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_aux (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -98,7 +99,7 @@ prt_sta_type prt_mcdp6000_aux (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Configuration
-prt_sta_type prt_mcdp6000_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_cfg (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -114,7 +115,7 @@ prt_sta_type prt_mcdp6000_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // DP mode
-prt_sta_type prt_mcdp6000_dp_mode (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_dp_mode (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -128,7 +129,7 @@ prt_sta_type prt_mcdp6000_dp_mode (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Set pseudo transparent mode
-prt_sta_type prt_mcdp6000_trans (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_trans (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -141,11 +142,11 @@ prt_sta_type prt_mcdp6000_trans (prt_i2c_ds_struct *i2c, prt_u8 slave)
 
 // Force TX parameters
 // This function sets the TX voltage and pre-emphasis levels
-prt_sta_type prt_mcdp6000_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre)
+prt_sta_type prt_mcdp6000_tx_force (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6000_rd (i2c, slave, 0x0904, &dat);
@@ -185,13 +186,13 @@ prt_sta_type prt_mcdp6000_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8
 }
 
 // Revision
-prt_sta_type prt_mcdp6000_rev (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_rev (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
-	prt_u8 rev;
-	prt_u8 cfg;
+	uint32_t dat;
+	uint8_t rev;
+	uint8_t cfg;
 
 	// Read register
 	sta = prt_mcdp6000_rd (i2c, slave, 0x510, &dat);
@@ -214,11 +215,11 @@ prt_sta_type prt_mcdp6000_rev (prt_i2c_ds_struct *i2c, prt_u8 slave)
 // Reset CR path 
 // This function resets the CR path. 
 // It is called at the start of the clock recovery training
-prt_sta_type prt_mcdp6000_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6000_rst_cr (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6000_rd (i2c, slave, 0x150, &dat);
@@ -240,7 +241,7 @@ prt_sta_type prt_mcdp6000_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Read register
-prt_sta_type prt_mcdp6000_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 *dat)
+prt_sta_type prt_mcdp6000_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -288,7 +289,7 @@ prt_sta_type prt_mcdp6000_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Write register
-prt_sta_type prt_mcdp6000_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 dat)
+prt_sta_type prt_mcdp6000_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -325,11 +326,11 @@ prt_sta_type prt_mcdp6000_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Dump register
-void prt_mcdp6000_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset)
+void prt_mcdp6000_dump (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6000_rd (i2c, slave, offset, &dat);

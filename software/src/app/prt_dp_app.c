@@ -14,6 +14,7 @@
     v1.2 - Added video resolution 7680x4320P30
     v1.3 - Increased EDID size to 1024 bytes
     v1.4 - Added training clock recovery callback and DPRX spread spectrum option
+    v1.5 - Added support for Tentiva board with system controller
     
     License
     =======
@@ -259,10 +260,6 @@ int main (void)
 
      prt_printf ("Bits per component: %d\n", dp_app.bpc);
 
-#ifdef SCALER
-     prt_printf ("Scaler enabled\n");
-#endif
-
 // ZCU102 FMC I2C mux
 #if (BOARD == BOARD_AMD_ZCU102)
      prt_printf ("Enable FMC I2C Mux... ");
@@ -300,7 +297,7 @@ int main (void)
      prt_tentiva_scan (&tentiva);
 
      // Force Tentiva slot ID
-     //prt_tentiva_force_id (&tentiva, 0, PRT_TENTIVA_DP14RX_MCDP6000_ID);
+     //prt_tentiva_force_slot_id (&tentiva, 0, PRT_TENTIVA_DP14RX_MCDP6000_ID);
 
      // Config
      prt_printf ("Tentiva config... ");
@@ -316,13 +313,13 @@ int main (void)
 
 #if (BOARD == BOARD_AMD_ZCU102)
      // Set the TX card select
-     if (prt_tentiva_get_id (&tentiva, 1) == PRT_TENTIVA_DP21TX_ID)
+     if (prt_tentiva_get_slot_id (&tentiva, 1) == PRT_TENTIVA_DP21TX_ID)
           prt_pio_dat_set (&pio, PIO_OUT_TX_CARD);
      else
           prt_pio_dat_clr (&pio, PIO_OUT_TX_CARD);
 
      // Set the RX card select
-     if (prt_tentiva_get_id (&tentiva, 0) == PRT_TENTIVA_DP21RX_ID)
+     if (prt_tentiva_get_slot_id (&tentiva, 0) == PRT_TENTIVA_DP21RX_ID)
           prt_pio_dat_set (&pio, PIO_OUT_RX_CARD);
      else
           prt_pio_dat_clr (&pio, PIO_OUT_RX_CARD);
@@ -435,14 +432,14 @@ int main (void)
 
 // Set TX and RX channel polarity
 #if (BOARD == BOARD_LSC_LFCPNX)
-     prt_phy_lsc_tx_pol (&phy, 0, PRT_FALSE); // TX channel 0 - normal
-     prt_phy_lsc_tx_pol (&phy, 1, PRT_FALSE); // TX channel 1 - normal
-     prt_phy_lsc_tx_pol (&phy, 2, PRT_TRUE);  // TX channel 2 - inverted
-     prt_phy_lsc_tx_pol (&phy, 3, PRT_TRUE);  // TX channel 3 - inverted
-     prt_phy_lsc_rx_pol (&phy, 0, PRT_TRUE);  // RX channel 0 - inverted
-     prt_phy_lsc_rx_pol (&phy, 1, PRT_TRUE);  // RX channel 1 - inverted
-     prt_phy_lsc_rx_pol (&phy, 2, PRT_TRUE);  // RX channel 2 - inverted
-     prt_phy_lsc_rx_pol (&phy, 3, PRT_TRUE);  // RX channel 3 - inverted
+     prt_phy_lsc_tx_pol (&phy, 0, false); // TX channel 0 - normal
+     prt_phy_lsc_tx_pol (&phy, 1, false); // TX channel 1 - normal
+     prt_phy_lsc_tx_pol (&phy, 2, true);  // TX channel 2 - inverted
+     prt_phy_lsc_tx_pol (&phy, 3, true);  // TX channel 3 - inverted
+     prt_phy_lsc_rx_pol (&phy, 0, true);  // RX channel 0 - inverted
+     prt_phy_lsc_rx_pol (&phy, 1, true);  // RX channel 1 - inverted
+     prt_phy_lsc_rx_pol (&phy, 2, true);  // RX channel 2 - inverted
+     prt_phy_lsc_rx_pol (&phy, 3, true);  // RX channel 3 - inverted
 #endif
 
      // Initialize IRQ
@@ -546,7 +543,7 @@ int main (void)
 
      // MST capability
      #ifdef MST
-          prt_dp_set_mst_cap (&dprx, PRT_TRUE);
+          prt_dp_set_mst_cap (&dprx, true);
      #endif 
 
      if (prt_dp_cfg (&dprx))
@@ -555,7 +552,7 @@ int main (void)
           prt_printf ("error\n");
 
      // Set edid
-     set_edid (PRT_FALSE);
+     set_edid (false);
 
      // HPD plug
      prt_printf ("DPRX: HPD...");
@@ -601,33 +598,6 @@ int main (void)
                          prt_dp_sta (&dptx);
                          break;
 
-                    // Force training
-                    case 'r' :
-                         prt_printf ("DPTX: Training\n");
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dptx, dat);
-
-                         // Force training
-                         prt_dptx_trn (&dptx);
-                         break;
-
                     // MST enable / disable
                     case 't' :
 
@@ -639,7 +609,7 @@ int main (void)
                               mst_sta = prt_dptx_mst_stp (&dptx);
 
                               // Clear flag
-                              dp_app.tx.mst = PRT_FALSE;
+                              dp_app.tx.mst = false;
 
                               // Start colorbar
                               dp_app.tx.colorbar = true;
@@ -680,6 +650,7 @@ int main (void)
                               }
                          }
                          break;
+
 
                     /*
                          DPRX
@@ -739,7 +710,7 @@ int main (void)
                     // Colorbar
                     case 'z' :
                          prt_printf ("\nColorbar\n");
-                         vtb_colorbar (PRT_FALSE);
+                         vtb_colorbar (false);
                          break;
 
                     // Pass-Through
@@ -750,7 +721,7 @@ int main (void)
 
                     // Set edid
                     case 'c' :
-                         set_edid (PRT_TRUE);
+                         set_edid (true);
                          break;
 
                     default :
@@ -899,6 +870,7 @@ int main (void)
                // Reset DP path
                //prt_tentiva_mcdp6xx0_rst_dp (&tentiva);
 
+               //prt_printf ("cr\n\r");
                #if (BOARD == BOARD_AMD_ZCU102)
                     prt_phy_amd_rx_rst (&phy);
                #endif
@@ -962,7 +934,7 @@ int main (void)
                // After the link is up the colorbar is started
                #ifdef AUTO_COLORBAR
                if (dp->id == PRT_DPTX_ID)
-                    dp_app.tx.colorbar = PRT_TRUE;
+                    dp_app.tx.colorbar = true;
                #endif
           }
 
@@ -1037,7 +1009,7 @@ int main (void)
                if (dp->vid[i].evt)
                {
                     // Clear flag
-                    dp->vid[i].evt = PRT_FALSE;
+                    dp->vid[i].evt = false;
                     
                     // Print prefix
                     if (dp->id == PRT_DPTX_ID)
@@ -1083,7 +1055,7 @@ int main (void)
 
                          // When the RX video is down start the TX colorbar
                          if (dp->id == PRT_DPRX_ID)
-                              dp_app.tx.colorbar = PRT_TRUE;
+                              dp_app.tx.colorbar = true;
                     }
                }
           }
@@ -1138,22 +1110,11 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("w - Config\n");
-     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
-     #ifdef ADVANCED
-         prt_printf ("t - PHY test\n");
-         prt_printf ("y - AUX test\n");
-         prt_printf ("u - Force HPD\n");
-     #endif
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("s - Config\n");
-     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1165,13 +1126,6 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
-     #ifdef SCALER
-         prt_printf ("v - scale\n");
-     #endif
-
-     #ifdef ADVANCED
-         prt_printf ("b - PRBS\n");
-     #endif
          prt_printf ("\n");
      }
 
@@ -1185,7 +1139,6 @@ void phy_set_tx_linerate (uint8_t linerate)
 #if (BOARD == BOARD_AMD_ZCU102)
 
      // Variables
-     uint8_t freq;
      uint8_t phy_linerate;
 
      // Set reference clock
@@ -1202,7 +1155,7 @@ void phy_set_tx_linerate (uint8_t linerate)
      // Set TX reference clock
      // The TX reference clock is driven by the Tentiva PHY clock 0.
      // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
-     prt_tentiva_set_phy_freq (&tentiva, 0, PRT_TENTIVA_PHY_FREQ_270_MHZ);
+     prt_tentiva_set_phy_freq (&tentiva, 270000);
 
      // Set TX line rate 
      prt_phy_amd_tx_rate (&phy, phy_linerate);
@@ -1211,20 +1164,20 @@ void phy_set_tx_linerate (uint8_t linerate)
 #elif (BOARD == BOARD_LSC_LFCPNX)
 
      // Variables
-     uint8_t freq;
+     uint32_t freq;
      uint8_t phy_linerate;
 
      // Find reference clock and PHY linerate
      switch (linerate)
      {
-          case PRT_DP_PHY_LINERATE_2700 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
-          case PRT_DP_PHY_LINERATE_5400 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
-          case PRT_DP_PHY_LINERATE_8100 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
-          default : freq = PRT_TENTIVA_PHY_FREQ_81_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
+          case PRT_DP_PHY_LINERATE_2700 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
+          case PRT_DP_PHY_LINERATE_5400 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
+          case PRT_DP_PHY_LINERATE_8100 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
+          default : freq = 81000; phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
      }
 
      // Set reference clock
-     prt_tentiva_set_phy_freq (&tentiva, 1, freq);
+     prt_tentiva_set_phy_freq (&tentiva, freq);
 
      // Update PHY TX linerate
      prt_phy_lsc_tx_rate (&phy, phy_linerate);
@@ -1244,6 +1197,11 @@ void phy_set_tx_linerate (uint8_t linerate)
           case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_INT_LINERATE_5400; break;
           default : phy_linerate = PRT_PHY_INT_LINERATE_1620; break;
      }
+
+     // Set TX reference clock
+     // The TX reference clock is driven by the Tentiva PHY clock 0.
+     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
+     prt_tentiva_set_phy_freq (&tentiva, 135000);
 
      // Update PHY TX linerate
      prt_phy_int_tx_rate (&phy, phy_linerate);
@@ -1265,6 +1223,11 @@ void phy_set_tx_linerate (uint8_t linerate)
           default : phy_linerate = PRT_PHY_INT_LINERATE_1620; break;
      }
 
+     // Set TX reference clock
+     // The TX reference clock is driven by the Tentiva PHY clock 0.
+     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
+     prt_tentiva_set_phy_freq (&tentiva, 135000);
+
      // Update PHY TX linerate
      prt_phy_int_tx_rate (&phy, phy_linerate);
 
@@ -1284,6 +1247,11 @@ void phy_set_tx_linerate (uint8_t linerate)
           case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_AMD_LINERATE_5400; break;
           default : phy_linerate = PRT_PHY_AMD_LINERATE_1620; break;
      }
+
+     // Set TX reference clock
+     // The TX reference clock is driven by the Tentiva PHY clock 0.
+     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
+     prt_tentiva_set_phy_freq (&tentiva, 135000);
 
      // Set TX line rate 
      prt_phy_amd_tx_rate (&phy, phy_linerate);
@@ -1319,6 +1287,7 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
      // Set reference clock
      // The RX reference clock is driven by the Tentiva PHY clock 1. 
      // The reference clock is always 270 MHz. 
+     // The PHY reference clock is set by the TX linerate function
 
      // Convert PHY linerate
      switch (linerate)
@@ -1329,10 +1298,6 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
           default : phy_linerate = PRT_PHY_AMD_LINERATE_1620; break;
      }
 
-     // Set RX reference clock
-     // The RX reference clock is driven by the Tentiva PHY clock 1.
-     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
-     prt_tentiva_set_phy_freq (&tentiva, 1, PRT_TENTIVA_PHY_FREQ_270_MHZ);
 
      // Set PHY RX line rate 
      prt_phy_amd_rx_rate (&phy, phy_linerate, ssc);
@@ -1345,14 +1310,16 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
      uint8_t phy_linerate;
 
      // Set reference clock
+     // The PHY reference clock is set by the TX linerate function
+
+     // Convert PHY linerate
      switch (linerate)
      {
-          case PRT_DP_PHY_LINERATE_2700 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
-          case PRT_DP_PHY_LINERATE_5400 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
-          case PRT_DP_PHY_LINERATE_8100 : freq = PRT_TENTIVA_PHY_FREQ_135_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
-          default : freq = PRT_TENTIVA_PHY_FREQ_81_MHZ; phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
+          case PRT_DP_PHY_LINERATE_2700 : phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
+          case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
+          case PRT_DP_PHY_LINERATE_8100 : phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
+          default : phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
      }
-     prt_tentiva_set_phy_freq (&tentiva, 1, freq);
 
      // Set PHY RX linerate
      prt_phy_lsc_rx_rate (&phy, phy_linerate);
@@ -1365,6 +1332,7 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 
      // Set reference clock
      // The reference clock is always 135 MHz. 
+     // The PHY reference clock is set by the TX linerate function
 
      // Convert PHY linerate
      switch (linerate)
@@ -1386,6 +1354,7 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 
      // Set reference clock
      // The reference clock is always 135 MHz. 
+     // The PHY reference clock is set by the TX linerate function
 
      // Convert PHY linerate
      switch (linerate)
@@ -1407,6 +1376,7 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
      uint8_t phy_linerate;
 
      // The reference clock is always 135 MHz. 
+     // The PHY reference clock is set by the TX linerate function
 
      // Convert PHY linerate
      switch (linerate)
@@ -1528,7 +1498,7 @@ prt_sta_type vtb_colorbar (prt_bool force)
      prt_vtb_tp_struct vtb_tp;
      prt_dp_tp_struct dp_tp;
      uint8_t vtb_preset;
-     uint8_t tentiva_clk;
+     uint32_t tentiva_clk;
      uint8_t bpc; 
 
      prt_printf ("\nStart colorbar\n");
@@ -1540,32 +1510,26 @@ prt_sta_type vtb_colorbar (prt_bool force)
           return PRT_STA_FAIL;
      }
 
+     // Disable direct I2C access mode (in case it was running)
+     prt_i2c_dia (&i2c, false, false);
+
      // MST
      if (dp_app.tx.mst)
      {
           // In MST two 1080p60 streams are displayed
           vtb_preset = VTB_PRESET_1920X1080P60;
+          
+          // Look up video clock
+          vtb_tp = prt_vtb_get_tp (&vtb[0]);
 
-          // Four pixels per clock
+          // Modify pixel clock based on pixels per clock
           if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-          // Two pixels per clock
+               tentiva_clk = vtb_tp.pclk >> 2;
           else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
+               tentiva_clk = vtb_tp.pclk >> 1;
 
           // Set Tentiva video clock
-          prt_printf ("Set video clock frequency: ");
-          switch (tentiva_clk)
-          {
-               case PRT_TENTIVA_VID_FREQ_185625_MHZ    : prt_printf ("18.5625 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_37125_MHZ     : prt_printf ("37.125 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-               default : break;
-          }
-
+          prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
           prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
 
           for (uint8_t i = 0; i < 2; i++)
@@ -1582,7 +1546,7 @@ prt_sta_type vtb_colorbar (prt_bool force)
                     prt_vtb_tpg (&vtb[i], NULL, vtb_preset, VTB_TPG_FMT_GREEN);
 
                // Enable overlay
-               prt_vtb_ovl_en (&vtb[i], PRT_TRUE);
+               prt_vtb_ovl_en (&vtb[i], true);
 
                // Get video timing parameters
                vtb_tp = prt_vtb_get_tp (&vtb[i]);
@@ -1617,9 +1581,9 @@ prt_sta_type vtb_colorbar (prt_bool force)
      else
      {
           // Disable overlay
-          prt_vtb_ovl_en (&vtb[0], PRT_FALSE);
+          prt_vtb_ovl_en (&vtb[0], false);
 
-          if (force == PRT_FALSE)
+          if (force == false)
           {
                // Video resolution
                prt_printf ("Select video resolution:\n");
@@ -1634,7 +1598,8 @@ prt_sta_type vtb_colorbar (prt_bool force)
                
                if (dp_app.ppc == 4)
                {
-                    prt_printf (" 9 - 7680 x 4320p30\n");
+                    prt_printf (" 9 - 5120 x 2880p60\n");
+                    prt_printf (" a - 7680 x 4320p30\n");
                }
 
                cmd = prt_uart_get_char ();
@@ -1644,115 +1609,46 @@ prt_sta_type vtb_colorbar (prt_bool force)
                     // 1280 x 720p @ 50Hz
                     case '1' :
                          vtb_preset  = VTB_PRESET_1280X720P50;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_185625_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
                          break;
 
                     // 1280 x 720p @ 60Hz
                     case '2' :
                          vtb_preset  = VTB_PRESET_1280X720P60;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_185625_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
                          break;
 
                     // 1920 x 1080p @ 50Hz
                     case '3' :
                          vtb_preset  = VTB_PRESET_1920X1080P50;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
                          break;
 
                     // 2560 x 1440p @ 50Hz
                     case '5' :
                          vtb_preset  = VTB_PRESET_2560X1440P50;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
                          break;
 
                     // 2560 x 1440p @ 60Hz
                     case '6' :
                          vtb_preset  = VTB_PRESET_2560X1440P60;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
                          break;
 
                     // 3840 x 2160p @ 50Hz
                     case '7' :
                          vtb_preset  = VTB_PRESET_3840X2160P50;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_297_MHZ;
                          break;
 
                     // 3840 x 2160p @ 60Hz
                     case '8' :
                          vtb_preset  = VTB_PRESET_3840X2160P60;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_297_MHZ;
-
                          break;
 
                     // 7680 x 4320p @ 30Hz
-                    case '9' :
+                    case 'a' :
                          vtb_preset = VTB_PRESET_7680X4320P30;
-
-                         // Only in four pixels per clock
-                         tentiva_clk = PRT_TENTIVA_VID_FREQ_254_974_MHZ;
-
                          break;
 
                     // 1920 x 1080p @ 60Hz
                     default : 
                          vtb_preset = VTB_PRESET_1920X1080P60;
-
-                         // Four pixels per clock
-                         if (dp_app.ppc == 4)
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-                         // Two pixels per clock
-                         else
-                              tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
                          break;
                }
 
@@ -1787,45 +1683,25 @@ prt_sta_type vtb_colorbar (prt_bool force)
           {
                vtb_preset = VTB_PRESET_1920X1080P60;
                bpc = 8;
-
-               // Four pixels per clock
-               if (dp_app.ppc == 4)
-                    tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-               // Two pixels per clock
-               else
-                    tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
           }          
-
-          // Set Tentiva video clock
-          prt_printf ("Set video clock frequency: ");
-          switch (tentiva_clk)
-          {
-               case PRT_TENTIVA_VID_FREQ_185625_MHZ    : prt_printf ("18.5625 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_37125_MHZ     : prt_printf ("37.125 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_254_974_MHZ   : prt_printf ("254.974 MHz\n"); break;
-               case PRT_TENTIVA_VID_FREQ_231_036_MHZ   : prt_printf ("231.036 MHz\n"); break;
-               default : break;
-          }
-
-          prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
-
-     #ifdef SCALER
-          prt_printf ("Scaler: stop\n");
-          prt_scaler_stp (&scaler);
-     #endif
 
           // Start test pattern
           prt_printf ("VTB: Start test pattern\n");
           prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_FULL);
-          //prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_RED);
 
           // Get video timing parameters
           vtb_tp = prt_vtb_get_tp (&vtb[0]);
           
+          // Modify pixel clock based on pixels per clock
+          if (dp_app.ppc == 4)
+               tentiva_clk = vtb_tp.pclk >> 2;
+          else
+               tentiva_clk = vtb_tp.pclk >> 1;
+
+          // Set Tentiva video clock
+          prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
+          prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
+
           // Copy VTB timing parameters to DP   
           dp_tp.htotal = vtb_tp.htotal;
           dp_tp.hwidth = vtb_tp.hwidth;
@@ -1863,8 +1739,7 @@ prt_sta_type vtb_pass (void)
      uint8_t cmd;
      prt_dp_tp_struct dp_tp;
      prt_vtb_tp_struct vtb_tp;
-     uint8_t tentiva_clk;
-     uint8_t scaler_flag = PRT_FALSE;
+     uint32_t tentiva_clk;
      uint8_t vtb_preset;
 
      // MST
@@ -1877,16 +1752,16 @@ prt_sta_type vtb_pass (void)
      prt_printf ("\nStart pass-through\n");
 
      // Disable overlay
-     prt_vtb_ovl_en (&vtb[0], PRT_FALSE);
+     prt_vtb_ovl_en (&vtb[0], false);
 
      // Disable direct I2C access mode
-     prt_i2c_dia (&i2c, PRT_FALSE);
+     prt_i2c_dia (&i2c, false, false);
 
      // Get DPRX timing parameters
      dp_tp = prt_dprx_tp_get (&dprx);
 
      // Find preset
-     vtb_preset = prt_vtb_find_preset (dp_tp.htotal, dp_tp.vtotal);
+     vtb_preset = prt_vtb_find_preset (dp_tp.htotal, dp_tp.vtotal, &tentiva_clk);
 
      if (vtb_preset == 0)
      {
@@ -1904,160 +1779,19 @@ prt_sta_type vtb_pass (void)
      vtb_tp.vstart = dp_tp.vstart;
      vtb_tp.vsw = dp_tp.vsw;
 
-     // Find clock
-     // 1280 x 720p @ 50Hz
-     if (vtb_preset == VTB_PRESET_1280X720P50) 
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-                    tentiva_clk = PRT_TENTIVA_VID_FREQ_185625_MHZ;
-
-               // Two pixels per clock
-               else
-                    tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-     }
-
-     // 1280 x 720p @ 60Hz
-     else if (vtb_preset == VTB_PRESET_1280X720P60)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_185625_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-     }
-
-     // 1920 x 1080p @ 50Hz
-     else if (vtb_preset == VTB_PRESET_1920X1080P50)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-     }
-
-     // 1920 x 1080p @ 60Hz
-     else if (vtb_preset == VTB_PRESET_1920X1080P60)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-     }
-
-     // 2560 x 1440p @ 50Hz
-     else if (vtb_preset == VTB_PRESET_2560X1440P50)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-     }
-
-     // 2560 x 1440p @ 60Hz
-     else if (vtb_preset == VTB_PRESET_2560X1440P60)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-     }
-
-     // 3840 x 2160p @ 50Hz
-     else if (vtb_preset == VTB_PRESET_3840X2160P50)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_297_MHZ;
-     }
-
-     // 3840 x 2160p @ 60Hz
-     else if (vtb_preset == VTB_PRESET_3840X2160P60)
-     {
-          // Four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-
-          // Two pixels per clock
-          else
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_297_MHZ;
-     }
-
-     // 7680 x 4320p @ 30Hz
-     else if (vtb_preset == VTB_PRESET_7680X4320P30)
-     {
-          // Only support in four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_254_974_MHZ;
-
-          // Two pixels per clock
-          else
-          {
-               prt_printf ("Unsupported input resolution\n");
-               return PRT_STA_FAIL;
-          }
-     }
-
-     // 5120 x 2160p @ 60Hz
-     else if (vtb_preset == VTB_PRESET_5120X2160P60)
-     {
-               prt_printf ("5k\n");
-          
-          // Only support in four pixels per clock
-          if (dp_app.ppc == 4)
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_231_036_MHZ;
-
-          // Two pixels per clock
-          else
-          {
-               prt_printf ("Unsupported input resolution\n");
-               return PRT_STA_FAIL;
-          }
-     }
-
+     // Modify pixel clock based on pixels per clock
+     if (dp_app.ppc == 4)
+          tentiva_clk = tentiva_clk >> 2;
      else
-     {
-          prt_printf ("Unsupported input resolution\n");
-          return PRT_STA_FAIL;
-     }
+          tentiva_clk = tentiva_clk >> 1;
 
      // Update tentiva video clock
-     prt_printf ("Set video clock frequency: ");
-     switch (tentiva_clk)
-     {
-          case PRT_TENTIVA_VID_FREQ_185625_MHZ    : prt_printf ("18.5625 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_37125_MHZ     : prt_printf ("37.125 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_254_974_MHZ   : prt_printf ("254.974 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_231_036_MHZ   : prt_printf ("231.036 MHz\n"); break;
-          default : break;
-     }
-
+     prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
      prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
 
      // Enable direct I2C access mode
      prt_printf ("I2C: enable direct access mode\n");
-     prt_i2c_dia (&i2c, PRT_TRUE);
+     prt_i2c_dia (&i2c, true, prt_tentiva_has_sc(&tentiva));
 
      // Select video clock device
      prt_tentiva_sel_dev (&tentiva, PRT_TENTIVA_VID_DEV);
@@ -2097,6 +1831,7 @@ prt_sta_type vtb_pass (void)
      return PRT_STA_OK;
 }
 
+
 /*
      EDID
 */
@@ -2110,7 +1845,7 @@ void set_edid (prt_bool user)
      uint8_t edid;
 
      // Let the user choose the video resolution
-     if (user == PRT_TRUE)
+     if (user == true)
      {
           prt_printf ("Select RX EDID video resolution:\n");
           prt_printf (" 1 - 1280 x 720p @ 50Hz\n");
@@ -2148,7 +1883,7 @@ void set_edid (prt_bool user)
      else
           prt_printf ("error\n");
      
-     if (user == PRT_TRUE)
+     if (user == true)
      {
           prt_printf ("Toggle HPD\n");
           prt_dprx_hpd (&dprx, 3);

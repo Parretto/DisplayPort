@@ -29,7 +29,7 @@
 
 module prt_dptx_vid_fifo
 #(
-    parameter                               P_VENDOR = "none",  // Vendor "amd", "intel" or "lattice"
+    parameter                               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC" 
     parameter                               P_SIM = 0,          // Simulation
     parameter                               P_FIFO_WRDS = 64,   // FIFO words
     parameter                               P_LANES = 4,        // Lanes

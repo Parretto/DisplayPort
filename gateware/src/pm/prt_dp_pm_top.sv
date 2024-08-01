@@ -33,7 +33,7 @@
 module prt_dp_pm_top
 #
 (
-    parameter                           P_VENDOR        = "none",  // Vendor "xilinx" or "lattice"
+    parameter                           P_VENDOR        = "none",    // Vendor - "AMD", "ALTERA" or "LSC" 
     parameter                           P_BEAT          = 'd125,     // Beat value
     parameter                           P_HW_VER_MAJOR  = 1,         // Hardware version major
     parameter                           P_HW_VER_MINOR  = 0,         // Hardware version minor

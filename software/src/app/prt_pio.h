@@ -29,17 +29,17 @@
 
 // Device structure
 typedef struct {
-  prt_u32 id;         // ID
-  prt_u32 ctl;        // Control
-  prt_u32 sta;        // Status register
-  prt_u32 din;        // Data in
-  prt_u32 evt_re;     // Event rising edge
-  prt_u32 evt_fe;     // Event falling edge
-  prt_u32 dout_set;   // Data out set
-  prt_u32 dout_clr;   // Data out clear
-  prt_u32 dout_tgl;   // Data out toggle
-  prt_u32 dout;       // Data out
-  prt_u32 msk;        // Mask
+  uint32_t id;         // ID
+  uint32_t ctl;        // Control
+  uint32_t sta;        // Status register
+  uint32_t din;        // Data in
+  uint32_t evt_re;     // Event rising edge
+  uint32_t evt_fe;     // Event falling edge
+  uint32_t dout_set;   // Data out set
+  uint32_t dout_clr;   // Data out clear
+  uint32_t dout_tgl;   // Data out toggle
+  uint32_t dout;       // Data out
+  uint32_t msk;        // Mask
 } prt_pio_dev_struct;
 
 // Data structure
@@ -53,13 +53,13 @@ typedef struct {
 #define PRT_PIO_DEV_CTL_EVT_FE_SHIFT          (2 + 8)
 
 // Prototypes
-void prt_pio_init (prt_pio_ds_struct *pio, prt_u32 base);
-void prt_pio_dat_set (prt_pio_ds_struct *pio, prt_u32 dat);
-void prt_pio_dat_clr (prt_pio_ds_struct *pio, prt_u32 dat);
-void prt_pio_dat_tgl (prt_pio_ds_struct *pio, prt_u32 dat);
-void prt_pio_dat_msk (prt_pio_ds_struct *pio, prt_u32 dat, prt_u32 msk);
-void prt_pio_re_set (prt_pio_ds_struct *pio, prt_u32 re);
-prt_u32 prt_pio_re_get (prt_pio_ds_struct *pio, prt_u32 re);
-prt_u32 prt_pio_dat_get (prt_pio_ds_struct *pio);
-prt_bool prt_pio_tst_bit (prt_pio_ds_struct *pio, prt_u32 dat);
+void prt_pio_init (prt_pio_ds_struct *pio, uint32_t base);
+void prt_pio_dat_set (prt_pio_ds_struct *pio, uint32_t dat);
+void prt_pio_dat_clr (prt_pio_ds_struct *pio, uint32_t dat);
+void prt_pio_dat_tgl (prt_pio_ds_struct *pio, uint32_t dat);
+void prt_pio_dat_msk (prt_pio_ds_struct *pio, uint32_t dat, uint32_t msk);
+void prt_pio_re_set (prt_pio_ds_struct *pio, uint32_t re);
+uint32_t prt_pio_re_get (prt_pio_ds_struct *pio, uint32_t re);
+uint32_t prt_pio_dat_get (prt_pio_ds_struct *pio);
+prt_bool prt_pio_tst_bit (prt_pio_ds_struct *pio, uint32_t dat);
 

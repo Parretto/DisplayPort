@@ -5,7 +5,7 @@
 
 
     Module: DP PM Exchange
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -30,7 +30,7 @@
 // Module
 module prt_dp_pm_exch
 #(
-	parameter                P_VENDOR        = "none"  // Vendor "xilinx" or "lattice"
+	parameter                P_VENDOR        = "none"  // Vendor - "AMD", "ALTERA" or "LSC" 
 )
 (
 	// Reset and clock

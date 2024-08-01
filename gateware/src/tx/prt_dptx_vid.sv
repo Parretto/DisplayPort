@@ -37,7 +37,7 @@
 module prt_dptx_vid
 #(
     // System
-    parameter               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+    parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC" 
     parameter               P_SIM = 0,          // Simulation
     parameter               P_STREAM = 0,       // Stream ID
 

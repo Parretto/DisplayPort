@@ -5,7 +5,7 @@
 
 
     Module: RISC-V ROM
-    (c) 2022 - 2023 by Parretto B.V.
+    (c) 2022 - 2024 by Parretto B.V.
 
     History
     =======
@@ -29,7 +29,7 @@
 
 module prt_riscv_rom
 #(
-    parameter P_VENDOR      = "none",       // Vendor "xilinx", "lattice" or "intel"
+    parameter P_VENDOR      = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
     parameter P_ADR         = 16,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -86,8 +86,8 @@ logic [1:0]             clk_vld;
     assign clk_wr = INIT_VLD_IN;
 
 generate
-    if (P_VENDOR == "xilinx")
-    begin : gen_xilinx
+    if (P_VENDOR == "AMD")
+    begin : gen_rom_amd
         xpm_memory_spram
         #(
             .READ_LATENCY_A             (2),                // DECIMAL
@@ -127,8 +127,8 @@ generate
         );
     end
 
-    else if (P_VENDOR == "lattice")
-    begin : gen_lattice
+    else if (P_VENDOR == "LSC")
+    begin : gen_rom_lsc
         prt_riscv_rom_lat
         ROM_INST
         (
@@ -146,8 +146,8 @@ generate
         );
     end
 
-    else if (P_VENDOR == "intel")
-    begin : gen_int
+    else if (P_VENDOR == "ALTERA")
+    begin : gen_rom_altera
         altera_syncram
         #( 
             .init_file                          (P_INIT_FILE),

@@ -29,8 +29,8 @@
 
 // Structures
 typedef struct {
-	prt_u32 offset;
-	prt_u8 value;
+	uint32_t offset;
+	uint8_t value;
 } prt_rc22504a_reg_struct;
 
 // Defines
@@ -44,10 +44,10 @@ typedef struct {
 #define PRT_RC22504A_ODRV_EN_OUT_DIS		(1 << 1)
 
 // Prototypes
-prt_sta_type prt_rc22504a_set_adr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_rc22504a_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u8 *dat);
-prt_sta_type prt_rc22504a_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u8 dat);
-prt_sta_type prt_rc22504a_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 length, prt_rc22504a_reg_struct *config);
-prt_sta_type prt_rc22504a_out_drv (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 out, prt_u8 en);
-prt_sta_type prt_rc22504a_out_div (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 out, prt_u16 div);
-prt_sta_type prt_rc22504a_dco (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u32 val);
+prt_sta_type prt_rc22504a_set_adr_mode (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_rc22504a_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint8_t *dat);
+prt_sta_type prt_rc22504a_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint8_t dat);
+prt_sta_type prt_rc22504a_cfg (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t length, prt_rc22504a_reg_struct *config);
+prt_sta_type prt_rc22504a_out_drv (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t out, uint8_t en);
+prt_sta_type prt_rc22504a_out_div (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t out, uint16_t div);
+prt_sta_type prt_rc22504a_dco (prt_i2c_ds_struct *i2c, uint8_t slave, uint32_t val);

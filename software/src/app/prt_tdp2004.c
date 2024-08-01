@@ -26,12 +26,13 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_tdp2004.h"
 
 // Initialize
-prt_sta_type prt_tdp2004_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_tdp2004_init (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -46,11 +47,11 @@ prt_sta_type prt_tdp2004_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Read ID
-prt_sta_type prt_tdp2004_id (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_tdp2004_id (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	sta = prt_tdp2004_rd (i2c, slave, 0xf0, &dat);
 	sta = prt_tdp2004_rd (i2c, slave, 0xf1, &dat);
@@ -62,11 +63,11 @@ prt_sta_type prt_tdp2004_id (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Run (Normal operation)
-prt_sta_type prt_tdp2004_run (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_tdp2004_run (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	// Read TI test mode control register
 	sta = prt_tdp2004_rd (i2c, slave, 0x84, &dat);
@@ -81,7 +82,7 @@ prt_sta_type prt_tdp2004_run (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Read register
-prt_sta_type prt_tdp2004_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 *dat)
+prt_sta_type prt_tdp2004_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -123,7 +124,7 @@ prt_sta_type prt_tdp2004_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset
 }
 
 // Write register
-prt_sta_type prt_tdp2004_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 dat)
+prt_sta_type prt_tdp2004_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t dat)
 {
 	// Variables
 	prt_sta_type sta;

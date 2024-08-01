@@ -904,7 +904,6 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 {
 	// Variables
 	uint32_t dat;
-	uint8_t adr;
 	uint8_t stream;
 
 	// Clear mail flags
@@ -1287,7 +1286,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 // DP Initialize rom
 void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom)
 {
-	uint32_t dat;
+	uint32_t dat = 0;
 
 	// Start initialization
 	dp->dev->ctl = PRT_DP_CTL_MEM_STR;
@@ -1306,7 +1305,7 @@ void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom)
 // DP Initialize ram
 void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram)
 {
-	uint32_t dat;
+	uint32_t dat = 0;
 
 	// Start initialization and select ram
 	dp->dev->ctl = PRT_DP_CTL_MEM_STR | PRT_DP_CTL_MEM_SEL;
@@ -1377,7 +1376,6 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len)
 	// Variables
 	uint8_t sta;
 	uint8_t done;
-	uint16_t adr;
 
 	// Reset base address
 	dp->edid.adr = 0;

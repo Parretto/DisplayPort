@@ -386,7 +386,7 @@ dia_struct 		sclk_dia;
 
 // Error
 // The error is positive in case of a faster video clock
-// The error becomes negative is case of a slower video clock
+// The error becomes negative in case of a slower video clock
 	always_ff @ (posedge VID_CLK_IN)
 	begin
 		// Enable

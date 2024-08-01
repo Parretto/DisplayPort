@@ -30,43 +30,34 @@
 // Data structure
 typedef struct {
     // Hardware identification
-    prt_u8 fmc_id;                                  // FMC board ID
-    prt_u8 slot_id[2];                              // PHY slot ID
+    uint8_t fmc_id;                                  // FMC board ID
+    uint8_t slot_id[2];                              // PHY slot ID
 
     // Devices
 	prt_pio_ds_struct *pio;		                    // PIO
 	prt_i2c_ds_struct *i2c;		                    // I2C
 	prt_tmr_ds_struct *tmr;                         // Timer
     
-	prt_u8 phy_freq;			                    // PHY frequency
+	uint32_t phy_freq;			                    // PHY clock frequency (in kHz)
     prt_rc22504a_reg_struct *phy_clk_cfg_prt[2];    // PHY clock configuration pointer
     prt_u16 phy_clk_cfg_len;                        // PHY clock configuration length
+
+	uint32_t vid_freq;			                    // Video clock frequency (in kHz)
     prt_rc22504a_reg_struct *vid_clk_cfg_prt[2];    // Video clock configuration pointer
     prt_u16 vid_clk_cfg_len;                        // Video clock configuration length
-    prt_u32 pio_phy_refclk_lock;                    // PIO PHY reference clock lock
-    prt_u32 pio_vid_refclk_lock;                    // PIO VID reference clock lock
-    prt_u32 pio_clk_sel;                            // PIO clock select
-    prt_u8 phy_clk_cfg;                             // Active phy clock configuration
-    prt_u8 vid_clk_cfg;                             // Active video clock configuration
+    
+    uint32_t pio_phy_refclk_lock;                    // PIO PHY reference clock lock
+    uint32_t pio_vid_refclk_lock;                    // PIO VID reference clock lock
+    uint32_t pio_clk_sel;                            // PIO clock select
+    uint8_t phy_clk_cfg;                             // Active phy clock configuration
+    uint8_t vid_clk_cfg;                             // Active video clock configuration
 } prt_tentiva_ds_struct;
 
 // Defines
 #define PRT_TENTIVA_PHY_DEV					    0
 #define PRT_TENTIVA_VID_DEV					    1
 
-#define PRT_TENTIVA_PHY_FREQ_81_MHZ			    0
-#define PRT_TENTIVA_PHY_FREQ_135_MHZ			1
-#define PRT_TENTIVA_PHY_FREQ_202_5_MHZ			2
-#define PRT_TENTIVA_PHY_FREQ_270_MHZ			3
-
-#define PRT_TENTIVA_VID_FREQ_185625_MHZ			0
-#define PRT_TENTIVA_VID_FREQ_37125_MHZ			1
-#define PRT_TENTIVA_VID_FREQ_7425_MHZ			2
-#define PRT_TENTIVA_VID_FREQ_1485_MHZ			3
-#define PRT_TENTIVA_VID_FREQ_297_MHZ			4
-#define PRT_TENTIVA_VID_FREQ_254_974_MHZ        5
-#define PRT_TENTIVA_VID_FREQ_231_036_MHZ        6
-
+#define PRT_TENTIVA_I2C_SC_ADR		          	0x4d
 #define PRT_TENTIVA_I2C_RC22504A_ADR			0x09
 #define PRT_TENTIVA_I2C_BASE_EEPROM_ADR			0x50
 #define PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR		0x15
@@ -94,24 +85,36 @@ typedef struct {
 
 #define PRT_TENTIVA_LOCK_TIMEOUT				10000 	// 10 ms
 
+#define PRT_TENTIVA_SC_VER                      0
+#define PRT_TENTIVA_SC_CTL                      1
+#define PRT_TENTIVA_SC_STA                      2
+#define PRT_TENTIVA_SC_PHY_CLK                  3
+#define PRT_TENTIVA_SC_VID_CLK                  4
+#define PRT_TENTIVA_SC_STA_PHY_CLK_LOCK         (1 << 0)
+#define PRT_TENTIVA_SC_STA_VID_CLK_LOCK         (1 << 1)
+
 // Prototypes
 void prt_tentiva_init (prt_tentiva_ds_struct *tentiva, prt_pio_ds_struct *pio, prt_i2c_ds_struct *i2c, prt_tmr_ds_struct *tmr, 
-    prt_u32 pio_phy_refclk_lock, prt_u32 pio_vid_refclk_lock, prt_u32 pio_clk_sel);
-void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u8 cfg, prt_rc22504a_reg_struct *prt, prt_u16 len);
+    uint32_t pio_phy_refclk_lock, uint32_t pio_vid_refclk_lock, uint32_t pio_clk_sel);
+void prt_tentiva_set_clk_cfg (prt_tentiva_ds_struct *tentiva, uint8_t dev, uint8_t cfg, prt_rc22504a_reg_struct *prt, prt_u16 len);
 void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva);
-prt_u8 prt_tentiva_get_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot);
-void prt_tentiva_force_id (prt_tentiva_ds_struct *tentiva, prt_u8 slot, prt_u8 id);
+uint8_t prt_tentiva_get_fmc_id (prt_tentiva_ds_struct *tentiva);
+bool prt_tentiva_has_sc (prt_tentiva_ds_struct *tentiva);
+uint8_t prt_tentiva_get_slot_id (prt_tentiva_ds_struct *tentiva, uint8_t slot);
+void prt_tentiva_force_slot_id (prt_tentiva_ds_struct *tentiva, uint8_t slot, uint8_t id);
 prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ingore_err);
-prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, prt_u8 dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, prt_u32 pio_phy_lock);
-void prt_tentiva_sel_dev (prt_tentiva_ds_struct *tentiva, prt_u8 dev);
+prt_sta_type prt_tentiva_clk_cfg (prt_tentiva_ds_struct *tentiva, uint8_t dev, prt_u16 clk_cfg_len, prt_rc22504a_reg_struct *clk_cfg_prt, uint32_t pio_phy_lock);
+void prt_tentiva_sel_dev (prt_tentiva_ds_struct *tentiva, uint8_t dev);
 prt_sta_type prt_tentiva_phy_cfg (prt_tentiva_ds_struct *tentiva);
-prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, prt_u8 ref, prt_u8 freq);
-prt_sta_type prt_tentiva_set_vid_freq (prt_tentiva_ds_struct *tentiva, prt_u8 freq);
-prt_sta_type prt_tentiva_get_lock (prt_tentiva_ds_struct *tentiva, prt_u32 lock);
-void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, prt_u8 id);
+prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, uint32_t freq);
+prt_sta_type prt_tentiva_set_vid_freq (prt_tentiva_ds_struct *tentiva, uint32_t freq);
+prt_sta_type prt_tentiva_get_lock (prt_tentiva_ds_struct *tentiva, uint32_t lock);
+void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, uint8_t id);
 void prt_tentiva_id_rd (prt_tentiva_ds_struct *tentiva);
-prt_sta_type prt_tentiva_eeprom_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 id);
-prt_sta_type prt_tentiva_eeprom_rd (prt_i2c_ds_struct *i2c, prt_u8 slave);
+prt_sta_type prt_tentiva_eeprom_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t id);
+prt_sta_type prt_tentiva_eeprom_rd (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_tentiva_sc_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat);
+prt_sta_type prt_tentiva_sc_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat);
 void prt_tentiva_tst (prt_tentiva_ds_struct *tentiva);
 
 // TDP142

@@ -12,7 +12,8 @@
     v1.0 - Initial release
     v1.1 - Initial MST support
     v1.2 - Added training TPS4 
-    
+    v1.3 - Added VB-ID register output
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -32,7 +33,7 @@
 module prt_dprx_top
 #(
     // System
-    parameter                                   P_VENDOR    = "none",       // Vendor "xilinx", "lattice" or "intel"
+    parameter                                   P_VENDOR    = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
     parameter                                   P_BEAT      = 'd125,        // Beat value
     parameter                                   P_MST       = 0,            // MST support
 
@@ -67,6 +68,7 @@ module prt_dprx_top
     input wire                                  LNK_CLK_IN,         // Clock
     input wire [(P_LANES * P_SPL * 9)-1:0]      LNK_DAT_IN,         // Data
     output wire                                 LNK_SYNC_OUT,       // Sync
+    output wire [7:0]                           LNK_VBID_OUT,       // VB-ID 
 
     // Video
     input wire                                  VID_CLK_IN,         // Clock
@@ -85,11 +87,11 @@ localparam P_SIM =
 0;
 
 // Debug
-localparam P_DEBUG = 1;             // Set this parameter to 1 to enable the debug pin (pio)
+localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_rom.hex" : "none";
-localparam P_RAM_INIT = (P_VENDOR == "xilinx") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "intel") ? "prt_dprx_pm_ram.hex" : "none";
+localparam P_ROM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_rom.hex" : "none";
+localparam P_RAM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_ram.hex" : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -293,8 +295,9 @@ genvar i, j;
         .LNK_RST_IN         (rst_from_lnk_rst),     // Reset
         .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
         .LNK_SNK_IF         (lnk_if),               // Interface
-        .LNK_SYNC_OUT       (LNK_SYNC_OUT),
-        
+        .LNK_SYNC_OUT       (LNK_SYNC_OUT),         // Sync
+        .LNK_VBID_OUT       (LNK_VBID_OUT),         // VB-ID
+
         // Video source
         .VID_RST_IN         (rst_from_vid_rst),     // Reset
         .VID_CLK_IN         (VID_CLK_IN),           // Clock

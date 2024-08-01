@@ -31,7 +31,7 @@
 module prt_dptx_trn
 #(
     // System
-    parameter P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
+    parameter P_VENDOR      = "none",      // Vendor - "AMD", "ALTERA" or "LSC" 
 
     // PHY
     parameter P_LANES       = 2,           // Lanes

@@ -27,40 +27,44 @@
 
 #pragma once
 
+// Includes
+#include <stdbool.h>
+
 // Device structure
 typedef struct {
-  prt_u32 ctl; 			  // Control
-  prt_u32 sta; 			  // Status
-  prt_u32 beat; 		  // Beat
-  prt_u32 wr_dat; 		// Write data
-  prt_u32 rd_dat; 		// Read data
+  uint32_t ctl; 			  // Control
+  uint32_t sta; 			  // Status
+  uint32_t beat; 		  // Beat
+  uint32_t wr_dat; 		// Write data
+  uint32_t rd_dat; 		// Read data
 } prt_i2c_dev_struct;
 
 // Data structure
 typedef struct {
-  volatile prt_i2c_dev_struct *dev;
-  prt_u8                      slave;
-  prt_u8                      dat[16];
-  prt_u8                      len;
-  prt_bool                    no_stop;
+  volatile  prt_i2c_dev_struct *dev;
+  uint8_t   slave;
+  uint8_t   dat[16];
+  uint8_t   len;
+  bool      no_stop;
 } prt_i2c_ds_struct;
 
 // Defines
-#define PRT_I2C_CTL_RUN 	(1<<0)
-#define PRT_I2C_CTL_STR 	(1<<1)
-#define PRT_I2C_CTL_STP 	(1<<2)
-#define PRT_I2C_CTL_WR 		(1<<3)
-#define PRT_I2C_CTL_RD 		(1<<4)
-#define PRT_I2C_CTL_ACK 	(1<<5)
-#define PRT_I2C_CTL_DIA   (1<<6)
+#define PRT_I2C_CTL_RUN 	    (1<<0)
+#define PRT_I2C_CTL_STR 	    (1<<1)
+#define PRT_I2C_CTL_STP 	    (1<<2)
+#define PRT_I2C_CTL_WR 		    (1<<3)
+#define PRT_I2C_CTL_RD 		    (1<<4)
+#define PRT_I2C_CTL_ACK 	    (1<<5)
+#define PRT_I2C_CTL_DIA       (1<<6)
+#define PRT_I2C_CTL_TENTIVA   (1<<7)
 
-#define PRT_I2C_STA_BUSY	(1<<0)
-#define PRT_I2C_STA_RDY 	(1<<1)
-#define PRT_I2C_STA_ACK 	(1<<2)
-#define PRT_I2C_STA_BUS   (1<<3)
+#define PRT_I2C_STA_BUSY	    (1<<0)
+#define PRT_I2C_STA_RDY 	    (1<<1)
+#define PRT_I2C_STA_ACK 	    (1<<2)
+#define PRT_I2C_STA_BUS       (1<<3)
 
 // Prototypes
-void prt_i2c_init (prt_i2c_ds_struct *i2c, prt_u32 base, prt_u32 beat);
+void prt_i2c_init (prt_i2c_ds_struct *i2c, uint32_t base, uint32_t beat);
 prt_sta_type prt_i2c_wr (prt_i2c_ds_struct *i2c);
 prt_sta_type prt_i2c_rd (prt_i2c_ds_struct *i2c);
-prt_sta_type prt_i2c_dia (prt_i2c_ds_struct *i2c, prt_u8 dia);
+prt_sta_type prt_i2c_dia (prt_i2c_ds_struct *i2c, bool dia, bool tentiva);

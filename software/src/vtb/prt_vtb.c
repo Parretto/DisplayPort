@@ -28,31 +28,32 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_vtb.h"
 #include "prt_printf.h"
 
 // Set base address
-void prt_vtb_set_base (prt_vtb_ds_struct *vtb, prt_u32 base)
+void prt_vtb_set_base (prt_vtb_ds_struct *vtb, uint32_t base)
 {
 	// Base address
 	vtb->dev = (prt_vtb_dev_struct *) base;
 }
 
 // Set reference clock
-void prt_vtb_set_refclk (prt_vtb_ds_struct *vtb, prt_u32 clk)
+void prt_vtb_set_refclk (prt_vtb_ds_struct *vtb, uint32_t clk)
 {
 	vtb->refclk = clk;
 }
 
 // Set video clock
-void prt_vtb_set_vidclk (prt_vtb_ds_struct *vtb, prt_u32 clk)
+void prt_vtb_set_vidclk (prt_vtb_ds_struct *vtb, uint32_t clk)
 {
 	vtb->vidclk = clk;
 }
 
 // Set preset timing parameters
-void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset)
+void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset)
 {
 	switch (preset)
 	{
@@ -65,6 +66,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_1280X720P50_VHEIGHT;
 			vtb->tp.vstart  = VTB_1280X720P50_VSTART;
 			vtb->tp.vsw     = VTB_1280X720P50_VSW;
+			vtb->tp.pclk    = VTB_1280X720P50_PCLK;
 		break;
 
 		case VTB_PRESET_1280X720P60 :
@@ -76,6 +78,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_1280X720P60_VHEIGHT;
 			vtb->tp.vstart  = VTB_1280X720P60_VSTART;
 			vtb->tp.vsw     = VTB_1280X720P60_VSW;
+			vtb->tp.pclk    = VTB_1280X720P60_PCLK;
 		break;
 
 		case VTB_PRESET_1920X1080P50 :
@@ -87,6 +90,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_1920X1080P50_VHEIGHT;
 			vtb->tp.vstart  = VTB_1920X1080P50_VSTART;
 			vtb->tp.vsw     = VTB_1920X1080P50_VSW;
+			vtb->tp.pclk    = VTB_1920X1080P50_PCLK;
 		break;
 
 		case VTB_PRESET_1920X1080P60 :
@@ -98,6 +102,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_1920X1080P60_VHEIGHT;
 			vtb->tp.vstart  = VTB_1920X1080P60_VSTART;
 			vtb->tp.vsw     = VTB_1920X1080P60_VSW;
+			vtb->tp.pclk    = VTB_1920X1080P60_PCLK;
 		break;
 
 		case VTB_PRESET_2560X1440P50 :
@@ -109,6 +114,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_2560X1440P50_VHEIGHT;
 			vtb->tp.vstart  = VTB_2560X1440P50_VSTART;
 			vtb->tp.vsw     = VTB_2560X1440P50_VSW;
+			vtb->tp.pclk    = VTB_2560X1440P50_PCLK;
 		break;
 
 		case VTB_PRESET_2560X1440P60 :
@@ -120,6 +126,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_2560X1440P60_VHEIGHT;
 			vtb->tp.vstart  = VTB_2560X1440P60_VSTART;
 			vtb->tp.vsw     = VTB_2560X1440P60_VSW;
+			vtb->tp.pclk    = VTB_2560X1440P60_PCLK;
 		break;
 
 		case VTB_PRESET_3840X2160P50 :
@@ -131,6 +138,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_3840X2160P50_VHEIGHT;
 			vtb->tp.vstart  = VTB_3840X2160P50_VSTART;
 			vtb->tp.vsw     = VTB_3840X2160P50_VSW;
+			vtb->tp.pclk    = VTB_3840X2160P50_PCLK;
 		break;
 
 		case VTB_PRESET_3840X2160P60 :
@@ -142,17 +150,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_3840X2160P60_VHEIGHT;
 			vtb->tp.vstart  = VTB_3840X2160P60_VSTART;
 			vtb->tp.vsw     = VTB_3840X2160P60_VSW;
-		break;
-
-		case VTB_PRESET_5120X2160P60 :
-			vtb->tp.htotal  = VTB_5120X2160P60_HTOTAL;
-			vtb->tp.hwidth  = VTB_5120X2160P60_HWIDTH;
-			vtb->tp.hstart  = VTB_5120X2160P60_HSTART;
-			vtb->tp.hsw     = VTB_5120X2160P60_HSW;
-			vtb->tp.vtotal  = VTB_5120X2160P60_VTOTAL;
-			vtb->tp.vheight = VTB_5120X2160P60_VHEIGHT;
-			vtb->tp.vstart  = VTB_5120X2160P60_VSTART;
-			vtb->tp.vsw     = VTB_5120X2160P60_VSW;
+			vtb->tp.pclk    = VTB_3840X2160P60_PCLK;
 		break;
 
 		case VTB_PRESET_7680X4320P30 :
@@ -164,6 +162,7 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = VTB_7680X4320P30_VHEIGHT;
 			vtb->tp.vstart  = VTB_7680X4320P30_VSTART;
 			vtb->tp.vsw     = VTB_7680X4320P30_VSW;
+			vtb->tp.pclk    = VTB_7680X4320P30_PCLK;
 		break;
 
 		default :
@@ -175,15 +174,16 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 prese
 			vtb->tp.vheight = tp->vheight;	
 			vtb->tp.vstart = tp->vstart;
 			vtb->tp.vsw = tp->vsw;
+			vtb->tp.pclk = tp->pclk;
 		break;
 	}
 }
 
 // Test pattern generator
-void prt_vtb_tpg (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset, prt_u8 fmt)
+void prt_vtb_tpg (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset, uint8_t fmt)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Stop video
 	prt_vtb_set_og (vtb, PRT_VTB_OG_CTL, 0);
@@ -219,10 +219,10 @@ void prt_vtb_tpg (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset, 
 }
 
 // Clock Recovery
-void prt_vtb_cr (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset)
+void prt_vtb_cr (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Stop video
 	prt_vtb_set_og (vtb, PRT_VTB_OG_CTL, 0);
@@ -261,38 +261,38 @@ void prt_vtb_cr (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset)
 }
 
 // Write video parameter set
-void prt_vtb_set_vps (prt_vtb_ds_struct *vtb, prt_u8 vps, prt_u32 dat)
+void prt_vtb_set_vps (prt_vtb_ds_struct *vtb, uint8_t vps, uint32_t dat)
 {
 	vtb->dev->ctl = (vps << PRT_VTB_DEV_CTL_VPS_SHIFT);
 	vtb->dev->vps = dat;
 }
 
 // Write outgress
-void prt_vtb_set_og (prt_vtb_ds_struct *vtb, prt_u8 og, prt_u32 dat)
+void prt_vtb_set_og (prt_vtb_ds_struct *vtb, uint8_t og, uint32_t dat)
 {
 	vtb->dev->ctl = (og << PRT_VTB_DEV_CTL_OG_SHIFT);
 	vtb->dev->og = dat;
 }
 
 // Read outgress
-prt_u32 prt_vtb_get_og (prt_vtb_ds_struct *vtb, prt_u8 og)
+uint32_t prt_vtb_get_og (prt_vtb_ds_struct *vtb, uint8_t og)
 {
 	vtb->dev->ctl = (og << PRT_VTB_DEV_CTL_OG_SHIFT);
 	return vtb->dev->og;
 }
 
 // Read ingress
-prt_u32 prt_vtb_get_ig (prt_vtb_ds_struct *vtb, prt_u8 ig)
+uint32_t prt_vtb_get_ig (prt_vtb_ds_struct *vtb, uint8_t ig)
 {
 	vtb->dev->ctl = (ig << PRT_VTB_DEV_CTL_IG_SHIFT);
 	return vtb->dev->ig;
 }
 
 // Set P gain
-void prt_vtb_cr_set_p_gain (prt_vtb_ds_struct *vtb, prt_u8 gain)
+void prt_vtb_cr_set_p_gain (prt_vtb_ds_struct *vtb, uint8_t gain)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read outgress
 	dat = prt_vtb_get_og (vtb, PRT_VTB_OG_CR);
@@ -311,7 +311,7 @@ void prt_vtb_cr_set_p_gain (prt_vtb_ds_struct *vtb, prt_u8 gain)
 void prt_vtb_cr_set_i_gain (prt_vtb_ds_struct *vtb, prt_u16 gain)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read outgress
 	dat = prt_vtb_get_og (vtb, PRT_VTB_OG_CR);
@@ -327,10 +327,10 @@ void prt_vtb_cr_set_i_gain (prt_vtb_ds_struct *vtb, prt_u16 gain)
 }
 
 // FIFO lock
-prt_u8 prt_vtb_get_fifo_lock (prt_vtb_ds_struct *vtb)
+uint8_t prt_vtb_get_fifo_lock (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read fifo status
 	dat = prt_vtb_get_ig (vtb, PRT_VTB_IG_FIFO);
@@ -345,7 +345,7 @@ prt_u8 prt_vtb_get_fifo_lock (prt_vtb_ds_struct *vtb)
 prt_u16 prt_vtb_get_fifo_max_wrds (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read fifo status
 	dat = prt_vtb_get_ig (vtb, PRT_VTB_IG_FIFO);
@@ -363,7 +363,7 @@ prt_u16 prt_vtb_get_fifo_max_wrds (prt_vtb_ds_struct *vtb)
 prt_u16 prt_vtb_get_fifo_min_wrds (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read fifo status
 	dat = prt_vtb_get_ig (vtb, PRT_VTB_IG_FIFO);
@@ -381,7 +381,7 @@ prt_u16 prt_vtb_get_fifo_min_wrds (prt_vtb_ds_struct *vtb)
 prt_s8 prt_vtb_get_cr_cur_err (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 	prt_s8 signed_dat;
 
 	// Read fifo status
@@ -414,7 +414,7 @@ prt_s8 prt_vtb_get_cr_cur_err (prt_vtb_ds_struct *vtb)
 prt_s8 prt_vtb_get_cr_max_err (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 	prt_s8 signed_dat;
 
 	// Read fifo status
@@ -446,7 +446,7 @@ prt_s8 prt_vtb_get_cr_max_err (prt_vtb_ds_struct *vtb)
 prt_s8 prt_vtb_get_cr_min_err (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 	prt_s8 signed_dat;
 
 	// Read fifo status
@@ -478,7 +478,7 @@ prt_s8 prt_vtb_get_cr_min_err (prt_vtb_ds_struct *vtb)
 prt_s16 prt_vtb_get_cr_sum (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 	prt_s16 signed_dat;
 
 	// Read fifo status
@@ -507,7 +507,7 @@ prt_s16 prt_vtb_get_cr_sum (prt_vtb_ds_struct *vtb)
 prt_s32 prt_vtb_get_cr_co (prt_vtb_ds_struct *vtb)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 	prt_s32 signed_dat;
 
 	// Read fifo status
@@ -535,75 +535,96 @@ prt_vtb_tp_struct prt_vtb_get_tp (prt_vtb_ds_struct *vtb)
 }
 
 // TX link clock frequency
-prt_u32 prt_vtb_get_tx_lnk_clk_freq (prt_vtb_ds_struct *vtb)
+uint32_t prt_vtb_get_tx_lnk_clk_freq (prt_vtb_ds_struct *vtb)
 {
 	return prt_vtb_get_ig (vtb, PRT_VTB_IG_TX_LNK_CLK_FREQ);
 }
 
 // RX link clock frequency
-prt_u32 prt_vtb_get_rx_lnk_clk_freq (prt_vtb_ds_struct *vtb)
+uint32_t prt_vtb_get_rx_lnk_clk_freq (prt_vtb_ds_struct *vtb)
 {
 	return prt_vtb_get_ig (vtb, PRT_VTB_IG_RX_LNK_CLK_FREQ);
 }
 
 // Video reference clock frequency
-prt_u32 prt_vtb_get_vid_ref_freq (prt_vtb_ds_struct *vtb)
+uint32_t prt_vtb_get_vid_ref_freq (prt_vtb_ds_struct *vtb)
 {
 	return prt_vtb_get_ig (vtb, PRT_VTB_IG_VID_REF_FREQ);
 }
 
 // Video clock frequency
-prt_u32 prt_vtb_get_vid_clk_freq (prt_vtb_ds_struct *vtb)
+uint32_t prt_vtb_get_vid_clk_freq (prt_vtb_ds_struct *vtb)
 {
 	return prt_vtb_get_ig (vtb, PRT_VTB_IG_VID_CLK_FREQ);
 }
 
 // Find preset
-prt_u8 prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal)
+uint8_t prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal, uint32_t *pclk)
 {
-	prt_u8 preset = 0;
+	uint8_t preset = 0;
 
 	if ( (htotal == VTB_1280X720P50_HTOTAL) && (vtotal == VTB_1280X720P50_VTOTAL))
+	{
 		preset = VTB_PRESET_1280X720P50;
-	
+		*pclk = VTB_1280X720P50_PCLK;
+	}
+
 	else if ( (htotal == VTB_1280X720P60_HTOTAL) && (vtotal == VTB_1280X720P60_VTOTAL))
+	{
 		preset = VTB_PRESET_1280X720P60;
+		*pclk = VTB_1280X720P60_PCLK;
+	}
 
 	else if ( (htotal == VTB_1920X1080P50_HTOTAL) && (vtotal == VTB_1920X1080P50_VTOTAL))
+	{
 		preset = VTB_PRESET_1920X1080P50;
+		*pclk = VTB_1920X1080P50_PCLK;
+	}
 
 	else if ( (htotal == VTB_1920X1080P60_HTOTAL) && (vtotal == VTB_1920X1080P60_VTOTAL))
+	{
 		preset = VTB_PRESET_1920X1080P60;
+		*pclk = VTB_1920X1080P60_PCLK;
+	}
 
 	else if ( (htotal == VTB_2560X1440P50_HTOTAL) && (vtotal == VTB_2560X1440P50_VTOTAL))
+	{
 		preset = VTB_PRESET_2560X1440P50;
+		*pclk = VTB_2560X1440P50_PCLK;
+	}
 
 	else if ( (htotal == VTB_2560X1440P60_HTOTAL) && (vtotal == VTB_2560X1440P60_VTOTAL))
+	{
 		preset = VTB_PRESET_2560X1440P60;
-
-	else if ( (htotal == VTB_2560X1440P60_HTOTAL) && (vtotal == VTB_2560X1440P60_VTOTAL))
-		preset = VTB_PRESET_2560X1440P60;
+		*pclk = VTB_2560X1440P60_PCLK;
+	}
 
 	else if ( (htotal == VTB_3840X2160P50_HTOTAL) && (vtotal == VTB_3840X2160P50_VTOTAL))
+	{
 		preset = VTB_PRESET_3840X2160P50;
+		*pclk = VTB_3840X2160P50_PCLK;
+	}
 
 	else if ( (htotal == VTB_3840X2160P60_HTOTAL) && (vtotal == VTB_3840X2160P60_VTOTAL))
+	{
 		preset = VTB_PRESET_3840X2160P60;
-
-	else if ( (htotal == VTB_5120X2160P60_HTOTAL) && (vtotal == VTB_5120X2160P60_VTOTAL))
-		preset = VTB_PRESET_5120X2160P60;
+		*pclk = VTB_3840X2160P60_PCLK;
+	}
 
 	else if ( (htotal == VTB_7680X4320P30_HTOTAL) && (vtotal == VTB_7680X4320P30_VTOTAL))
+	{
 		preset = VTB_PRESET_7680X4320P30;
+		*pclk = VTB_7680X4320P30_PCLK;
+	}
 
 	return preset;
 }
 
 // Overlay enable / disable
-void prt_vtb_ovl_en (prt_vtb_ds_struct *vtb, prt_u8 en)
+void prt_vtb_ovl_en (prt_vtb_ds_struct *vtb, uint8_t en)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read current control bits
 	dat = prt_vtb_get_og (vtb, PRT_VTB_OG_CTL);

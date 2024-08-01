@@ -28,9 +28,9 @@
 #pragma once
 
 // Prototypes
-prt_sta_type prt_tdp142_init (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq);
-prt_sta_type prt_tdp142_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_tdp142_aux_snoop (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_bool en);
-prt_sta_type prt_tdp142_eq (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq);
-prt_sta_type prt_tdp142_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 *dat);
-prt_sta_type prt_tdp142_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 dat);
+prt_sta_type prt_tdp142_init (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t eq);
+prt_sta_type prt_tdp142_dp_en (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_tdp142_aux_snoop (prt_i2c_ds_struct *i2c, uint8_t slave, prt_bool en);
+prt_sta_type prt_tdp142_eq (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t eq);
+prt_sta_type prt_tdp142_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t *dat);
+prt_sta_type prt_tdp142_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t dat);

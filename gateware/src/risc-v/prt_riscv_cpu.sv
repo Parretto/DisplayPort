@@ -5,7 +5,7 @@
 
 
     Module: RISC-V CPU
-    (c) 2022 - 2023 by Parretto B.V.
+    (c) 2022 - 2024 by Parretto B.V.
 
     History
     =======
@@ -40,7 +40,7 @@
 // Module
 module prt_riscv_cpu
 # (
-    parameter                   P_VENDOR    = "none"   // Vendor "xilinx", "lattice" or "intel"
+    parameter                   P_VENDOR    = "none"   // Vendor - "AMD", "ALTERA" or "LSC"
 )
 (
 	// Clocks and reset

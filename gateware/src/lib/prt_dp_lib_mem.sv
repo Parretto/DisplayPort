@@ -14,6 +14,7 @@
     v1.2 - Added support for Intel FPGA 
 	v1.3 - Added read enable for prt_dp_lib_sdp_ram_sc
 	v1.4 - Added optimized mode for prt_dp_lib_fifo_dc
+	v1.5 - Updated vendor names
 
     License
     =======
@@ -37,7 +38,7 @@
 */
 module prt_dp_lib_fifo_sc
 #(
-	parameter                       P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter                       P_VENDOR    	= "none",  		// Vendor - "AMD", "ALTERA" or "LSC" 
 	parameter						P_MODE         	= "single",		// "single" or "burst"
 	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
@@ -82,8 +83,8 @@ logic						clk_fl;
 
 // RAM instantiation
 generate
-	if (P_VENDOR == "xilinx")
-	begin : gen_ram_xlx
+	if (P_VENDOR == "AMD")
+	begin : gen_ram_amd
 
 		xpm_memory_sdpram 
 		#(
@@ -135,8 +136,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "lattice")
-	begin : gen_ram_lat
+	else if (P_VENDOR == "LSC")
+	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
 		// The distributed read path is asynchronous.
@@ -168,8 +169,8 @@ generate
 		);	
 	end
 
-	else if (P_VENDOR == "intel")
-	begin : gen_ram_int
+	else if (P_VENDOR == "ALTERA")
+	begin : gen_ram_altera
 
 		localparam P_RAM_TYPE = (P_RAM_STYLE == "distributed") ? "MLAB" : "AUTO";
 		
@@ -394,7 +395,7 @@ endmodule
 */
 module prt_dp_lib_fifo_dc
 #(
-	parameter                       P_VENDOR    	= "none",  			// Vendor "xilinx" or "lattice"
+	parameter                       P_VENDOR    	= "none",  			// Vendor - "AMD", "ALTERA" or "LSC" 
 	parameter						P_MODE         	= "single",			// "single" or "burst"
 	parameter 						P_RAM_STYLE		= "distributed",	// "distributed" or "block"
 	parameter 						P_OPT 			= 0,				// In optimized mode some logic is saved. The status port are not available. 
@@ -459,8 +460,8 @@ logic	[1:0]				bclk_de;
 
 // RAM instantiation
 generate
-	if (P_VENDOR == "xilinx")
-	begin : gen_ram_xlx
+	if (P_VENDOR == "AMD")
+	begin : gen_ram_amd
 
 		// The parameter USE_EMBEDDED_CONSTRAINT must be used for distributed memory with independent clocks
 		// to set automatically timing constraints.
@@ -516,8 +517,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "lattice")
-	begin : gen_ram_lat
+	else if (P_VENDOR == "LSC")
+	begin : gen_ram_lsc
 		
 		// Block ram
 		if (P_RAM_STYLE == "block")
@@ -603,8 +604,8 @@ generate
 		end
 	end
 
-	else if (P_VENDOR == "intel")
-	begin : gen_ram_int
+	else if (P_VENDOR == "ALTERA")
+	begin : gen_ram_altera
 		
 		localparam P_RAM_TYPE = (P_RAM_STYLE == "distributed") ? "MLAB" : "AUTO";
 		
@@ -917,7 +918,7 @@ endmodule
 */
 module prt_dp_lib_sdp_ram_sc
 #(
-	parameter                   	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter                   	P_VENDOR    	= "none",  			// Vendor - "AMD", "ALTERA" or "LSC"	
 	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
@@ -950,8 +951,8 @@ logic  clk_b_vld;
 
 // RAM instantiation
 generate
-	if (P_VENDOR == "xilinx")
-	begin : gen_ram_xlx
+	if (P_VENDOR == "AMD")
+	begin : gen_ram_amd
 		xpm_memory_sdpram 
 		#(
 			.ADDR_WIDTH_A				(P_ADR_WIDTH),  
@@ -1002,8 +1003,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "lattice")
-	begin : gen_ram_lat
+	else if (P_VENDOR == "LSC")
+	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
 		// The distributed read path is asynchronous.
@@ -1034,8 +1035,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "intel")
-	begin : gen_ram_int
+	else if (P_VENDOR == "ALTERA")
+	begin : gen_ram_altera
 
 		localparam P_RAM_TYPE = (P_RAM_STYLE == "distributed") ? "MLAB" : "AUTO";
 		
@@ -1116,7 +1117,7 @@ endmodule
 */
 module prt_dp_lib_sdp_ram_dc
 #(
-	parameter                   	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter                   	P_VENDOR    	= "none",  		// Vendor - "AMD", "ALTERA" or "LSC"
 	parameter 						P_RAM_STYLE		= "distributed",	// "distributed", "block" or "ultra"
 	parameter 						P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
@@ -1148,8 +1149,8 @@ logic bclk_vld;
 
 // RAM instantiation
 generate
-	if (P_VENDOR == "xilinx")
-	begin : gen_ram_xlx
+	if (P_VENDOR == "AMD")
+	begin : gen_ram_amd
 		
 		// The parameter USE_EMBEDDED_CONSTRAINT must be used for distributed memory with independent clocks
 		// to set automatically timing constraints.
@@ -1205,8 +1206,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "lattice")
-	begin : gen_ram_lat
+	else if (P_VENDOR == "LSC")
+	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
 		// The distributed read path is asynchronous.
@@ -1238,8 +1239,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "intel")
-	begin : gen_ram_int
+	else if (P_VENDOR == "ALTERA")
+	begin : gen_ram_altera
 
 		localparam P_RAM_TYPE = (P_RAM_STYLE == "distributed") ? "MLAB" : "AUTO";
 		

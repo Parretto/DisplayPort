@@ -32,7 +32,7 @@
 
 module prt_vtb_top
 #(
-    parameter P_VENDOR = "none",  			// Vendor "xilinx", "intel" or "lattice"
+    parameter P_VENDOR = "none",  			// Vendor - "AMD", "ALTERA" or "LSC" 
 	parameter P_SYS_FREQ = 'd50_000_000,	// System frequency
 	parameter P_PPC = 2,					// Pixels per clock
 	parameter P_BPC = 8,					// Bits per component

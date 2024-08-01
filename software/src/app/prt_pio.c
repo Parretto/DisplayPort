@@ -26,11 +26,12 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_pio.h"
 
 // Initialize
-void prt_pio_init (prt_pio_ds_struct *pio, prt_u32 base)
+void prt_pio_init (prt_pio_ds_struct *pio, uint32_t base)
 {
 	// Base address
 	pio->dev = (prt_pio_dev_struct *) base;
@@ -40,44 +41,44 @@ void prt_pio_init (prt_pio_ds_struct *pio, prt_u32 base)
 }
 
 //  Data set
-void prt_pio_dat_set (prt_pio_ds_struct *pio, prt_u32 dat)
+void prt_pio_dat_set (prt_pio_ds_struct *pio, uint32_t dat)
 {
 	pio->dev->dout_set = dat;
 }
 
 // Data clear
-void prt_pio_dat_clr (prt_pio_ds_struct *pio, prt_u32 dat)
+void prt_pio_dat_clr (prt_pio_ds_struct *pio, uint32_t dat)
 {
 	pio->dev->dout_clr = dat;
 }
 
 // Data toggle
-void prt_pio_dat_tgl (prt_pio_ds_struct *pio, prt_u32 dat)
+void prt_pio_dat_tgl (prt_pio_ds_struct *pio, uint32_t dat)
 {
 	pio->dev->dout_tgl = dat;
 }
 
 // Data mask
-void prt_pio_dat_msk (prt_pio_ds_struct *pio, prt_u32 dat, prt_u32 msk)
+void prt_pio_dat_msk (prt_pio_ds_struct *pio, uint32_t dat, uint32_t msk)
 {
 	pio->dev->msk = msk;
 	pio->dev->dout = dat;
 }
 
-void prt_pio_re_set (prt_pio_ds_struct *pio, prt_u32 re)
+void prt_pio_re_set (prt_pio_ds_struct *pio, uint32_t re)
 {
 	// Variables
-	prt_u32 dat;
+	uint32_t dat;
 
 	dat = pio->dev->ctl;
 	dat |= (re << PRT_PIO_DEV_CTL_EVT_RE_SHIFT);
 	pio->dev->ctl = dat;
 }
 
-prt_u32 prt_pio_re_get (prt_pio_ds_struct *pio, prt_u32 re)
+uint32_t prt_pio_re_get (prt_pio_ds_struct *pio, uint32_t re)
 {
 	// Variables
-	prt_u32 sta;
+	uint32_t sta;
 
   	// Is the bit set in the rising edge register
   	if (pio->dev->evt_re & re)
@@ -89,13 +90,13 @@ prt_u32 prt_pio_re_get (prt_pio_ds_struct *pio, prt_u32 re)
 }
 
 // Get data
-prt_u32 prt_pio_dat_get (prt_pio_ds_struct *pio)
+uint32_t prt_pio_dat_get (prt_pio_ds_struct *pio)
 {
   return pio->dev->din;
 }
 
 // Test bit
-prt_bool prt_pio_tst_bit (prt_pio_ds_struct *pio, prt_u32 dat)
+prt_bool prt_pio_tst_bit (prt_pio_ds_struct *pio, uint32_t dat)
 {
 	prt_bool sta;
 

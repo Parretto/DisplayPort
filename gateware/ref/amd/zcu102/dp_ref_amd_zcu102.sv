@@ -14,7 +14,8 @@
     v1.2 - Separated TX and RX reference clocks
     v1.3 - Added 10-bits video 
     v1.4 - Updated DRP peripheral with PIO
-
+    v1.5 - Added support for Tentiva DP21TX and DP21RX cards
+    
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -57,12 +58,14 @@ module dp_ref_amd_zcu102
     output wire             DPTX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPTX_AUX_RX_IN,             // AUX Receive
     input wire              DPTX_HPD_IN,                // HPD
+    output wire             DPTX_I2C_SEL,               // I2C select (DP21 TX)
 
     // DP RX
     output wire             DPRX_AUX_EN_OUT,            // AUX Enable
     output wire             DPRX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPRX_AUX_RX_IN,             // AUX Receive
     output wire             DPRX_HPD_OUT,               // HPD
+    output wire             DPRX_I2C_SEL,               // I2C select (DP21 RX)
 
     // GT
     input wire [1:0]        GT_REFCLK_IN_P,             // GT reference clock
@@ -77,13 +80,13 @@ module dp_ref_amd_zcu102
 );
 
 // Parameters
-localparam P_VENDOR         = "xilinx";
+localparam P_VENDOR         = "AMD";
 localparam P_SYS_FREQ       = 50_000_000;      // System frequency - 50 MHz
 localparam P_BEAT           = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR  = 1;     // Reference design version major
 localparam P_REF_VER_MINOR  = 0;     // Reference design minor
 localparam P_PIO_IN_WIDTH   = 4;
-localparam P_PIO_OUT_WIDTH  = 3;
+localparam P_PIO_OUT_WIDTH  = 5;
 
 localparam P_LANES          = 4;
 localparam P_SPL            = 2;    // Symbols per lane. Valid options - 2, 4. 
@@ -150,9 +153,9 @@ wire                                    sys_clk_from_pll;
 wire                                    drp_clk_from_pll;
 wire                                    clk_from_vid_ibuf;
 wire                                    clk_from_vid_bufg;
-wire [1:0]                              clk_from_gt_ibuf;
-wire [1:0]                              odiv2_from_gt_ibuf;
-wire [1:0]                              clk_from_gt_bufg;
+wire [1:0]                              clk_from_phy_ibuf;
+wire [1:0]                              odiv2_from_phy_ibuf;
+wire [1:0]                              clk_from_phy_bufg;
 
 // Reset
 (* dont_touch = "yes" *) logic [7:0]    clk_por_line = 0;
@@ -166,6 +169,8 @@ wire [P_PIO_OUT_WIDTH-1:0]              pio_dat_from_app;
 
 wire                                    dptx_rst_from_app;
 wire                                    dprx_rst_from_app;
+wire                                    tx_card_from_app;
+wire                                    rx_card_from_app;
 
 // PHY
 wire [3:0]                              pwrgd_from_phy;
@@ -173,22 +178,24 @@ wire [3:0]                              tx_pmarst_done_from_phy;
 wire [3:0]                              tx_rst_done_from_phy;
 wire [3:0]                              rx_pmarst_done_from_phy;
 wire [3:0]                              rx_rst_done_from_phy;
-wire                                    txclk_from_gt;
-wire                                    rxclk_from_gt;
+wire                                    txclk_from_phy;
+wire                                    rxclk_from_phy;
 wire [3:0]                              cplllock_from_phy;
 wire                                    qplllock_from_phy;
-wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_tx_to_gt;
-wire [63:0]                             txctrl0_to_gt;
-wire [63:0]                             txctrl1_to_gt;
-wire [31:0]                             txctrl2_to_gt;
+logic [P_PHY_DAT_WIDTH-1:0]             gtwiz_userdata_tx_to_phy;
+logic [63:0]                            txctrl0_to_phy;
+logic [63:0]                            txctrl1_to_phy;
+logic [31:0]                            txctrl2_to_phy;
+logic [3:0]                             txpolarity_to_phy;
 
-wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_rx_from_gt;
-wire [63:0]                             rxctrl0_from_gt;
+wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_rx_from_phy;
+wire [63:0]                             rxctrl0_from_phy;
+logic [3:0]                             rxpolarity_to_phy;
 
 logic [1:0]                             dclk_gt_linerate_cap;
 logic [1:0]                             dclk_gt_linerate;
-logic [17:0]                            cpll_cal_txoutclk_period_to_gt;
-logic [17:0]                            cpll_cal_cnt_tol_to_gt;
+logic [17:0]                            cpll_cal_txoutclk_period_to_phy;
+logic [17:0]                            cpll_cal_cnt_tol_to_phy;
 
 wire [(P_PHY_CTL_DRP_PORTS * 16)-1:0]   drp_dat_from_phy;
 wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_rdy_from_phy;
@@ -199,7 +206,7 @@ wire                                    irq_from_dptx;
 wire                                    hb_from_dptx;
 
 // DPRX
-wire [(P_LANES*P_SPL*9)-1:0]            lnk_dat_to_dprx;
+logic [(P_LANES*P_SPL*9)-1:0]           lnk_dat_to_dprx;
 wire                                    irq_from_dprx;
 wire                                    hb_from_dprx;
 wire                                    lnk_sync_from_dprx;
@@ -246,7 +253,7 @@ wire [4:0]                              tx_postcursor_from_phy_ctl;
 // Heartbeat
 wire                                    led_from_sys_hb;
 wire                                    led_from_vid_hb;
-wire                                    led_from_gt_hb;
+wire                                    led_from_phy_hb;
 
 genvar i;
 
@@ -307,8 +314,8 @@ generate
             .I      (GT_REFCLK_IN_P[i]),
             .IB     (GT_REFCLK_IN_N[i]),
             .CEB    (1'b0),
-            .O      (clk_from_gt_ibuf[i]),
-            .ODIV2  (odiv2_from_gt_ibuf[i])
+            .O      (clk_from_phy_ibuf[i]),
+            .ODIV2  (odiv2_from_phy_ibuf[i])
         );
 
         BUFG_GT
@@ -319,8 +326,8 @@ generate
             .CLR      (1'b0),
             .CLRMASK  (1'b0),
             .DIV      (3'd0),
-            .I        (odiv2_from_gt_ibuf[i]),
-            .O        (clk_from_gt_bufg[i])
+            .I        (odiv2_from_phy_ibuf[i]),
+            .O        (clk_from_phy_bufg[i])
         );
     end
 endgenerate
@@ -431,7 +438,9 @@ endgenerate
     assign TENTIVA_CLK_SEL_OUT          = pio_dat_from_app[0];
     assign dptx_rst_from_app            = pio_dat_from_app[1];
     assign dprx_rst_from_app            = pio_dat_from_app[2];
-    
+    assign tx_card_from_app             = pio_dat_from_app[3];      // Tentiva TX card 0 - DP1.4 / 1 - DP2.1
+    assign rx_card_from_app             = pio_dat_from_app[4];      // Tentiva RX card 0 - DP1.4 / 1 - DP2.1
+
 // Displayport TX
     prt_dptx_top
     #(
@@ -488,7 +497,7 @@ endgenerate
         .VID1_DE_IN          (de_from_vtb[1]),           // Data enable
 
         // Link
-        .LNK_CLK_IN         (txclk_from_gt),
+        .LNK_CLK_IN         (txclk_from_phy),
         .LNK_DAT_OUT        (lnk_dat_from_dptx)
     );
 
@@ -528,10 +537,11 @@ endgenerate
         .HB_OUT             (hb_from_dprx),
 
         // Link
-        .LNK_CLK_IN         (rxclk_from_gt),        // Clock
+        .LNK_CLK_IN         (rxclk_from_phy),        // Clock
         .LNK_DAT_IN         (lnk_dat_to_dprx),      // Data
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
-
+        .LNK_VBID_OUT       (),
+        
         // Video
         .VID_CLK_IN         (clk_from_vid_bufg),    // Clock
         .VID_RDY_IN         (1'b1),                 // Ready
@@ -547,57 +557,129 @@ generate
     // Four symbols per lane
     if (P_SPL == 4)
     begin : gen_dprx_lnk_dat_4spl
-        // DP lane 0 -> GT lane 0   
-        assign {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8], lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} = gtwiz_userdata_rx_from_gt[(0*32)+:32]; 
-        assign lnk_dat_to_dprx[(0*9)+8]  = rxctrl0_from_gt[(0*16)+0];
-        assign lnk_dat_to_dprx[(1*9)+8]  = rxctrl0_from_gt[(0*16)+1];
-        assign lnk_dat_to_dprx[(2*9)+8]  = rxctrl0_from_gt[(0*16)+2];
-        assign lnk_dat_to_dprx[(3*9)+8]  = rxctrl0_from_gt[(0*16)+3];
 
-        // DP lane 1 -> GT lane 3   
-        assign {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8], lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} = gtwiz_userdata_rx_from_gt[(3*32)+:32]; 
-        assign lnk_dat_to_dprx[(4*9)+8]  = rxctrl0_from_gt[(3*16)+0];
-        assign lnk_dat_to_dprx[(5*9)+8]  = rxctrl0_from_gt[(3*16)+1];
-        assign lnk_dat_to_dprx[(6*9)+8]  = rxctrl0_from_gt[(3*16)+2];
-        assign lnk_dat_to_dprx[(7*9)+8]  = rxctrl0_from_gt[(3*16)+3];
+        always_ff @ (posedge rxclk_from_phy)
+        begin
+            // Tentiva DP2.1 RX card
+            if (rx_card_from_app)
+            begin
+                //  GT lane 2 -> DP lane 0
+                {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8], lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} <= gtwiz_userdata_rx_from_phy[(2*32)+:32]; 
+                lnk_dat_to_dprx[(0*9)+8] <= rxctrl0_from_phy[(2*16)+0];
+                lnk_dat_to_dprx[(1*9)+8] <= rxctrl0_from_phy[(2*16)+1];
+                lnk_dat_to_dprx[(2*9)+8] <= rxctrl0_from_phy[(2*16)+2];
+                lnk_dat_to_dprx[(3*9)+8] <= rxctrl0_from_phy[(2*16)+3];
 
-        // DP lane 2 -> GT lane 2
-        assign {lnk_dat_to_dprx[(11*9)+:8], lnk_dat_to_dprx[(10*9)+:8], lnk_dat_to_dprx[(9*9)+:8], lnk_dat_to_dprx[(8*9)+:8]} = gtwiz_userdata_rx_from_gt[(2*32)+:32];  
-        assign lnk_dat_to_dprx[(8*9)+8]  = rxctrl0_from_gt[(2*16)+0];
-        assign lnk_dat_to_dprx[(9*9)+8]  = rxctrl0_from_gt[(2*16)+1];
-        assign lnk_dat_to_dprx[(10*9)+8] = rxctrl0_from_gt[(2*16)+2];
-        assign lnk_dat_to_dprx[(11*9)+8] = rxctrl0_from_gt[(2*16)+3];
+                // GT lane 1 -> DP lane 1
+                {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8], lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} <= gtwiz_userdata_rx_from_phy[(1*32)+:32]; 
+                lnk_dat_to_dprx[(4*9)+8] <= rxctrl0_from_phy[(1*16)+0];
+                lnk_dat_to_dprx[(5*9)+8] <= rxctrl0_from_phy[(1*16)+1];
+                lnk_dat_to_dprx[(6*9)+8] <= rxctrl0_from_phy[(1*16)+2];
+                lnk_dat_to_dprx[(7*9)+8] <= rxctrl0_from_phy[(1*16)+3];
 
-        // DP lane 3 -> GT lane 1
-        assign {lnk_dat_to_dprx[(15*9)+:8], lnk_dat_to_dprx[(14*9)+:8], lnk_dat_to_dprx[(13*9)+:8], lnk_dat_to_dprx[(12*9)+:8]} = gtwiz_userdata_rx_from_gt[(1*32)+:32]; 
-        assign lnk_dat_to_dprx[(12*9)+8] = rxctrl0_from_gt[(1*16)+0];
-        assign lnk_dat_to_dprx[(13*9)+8] = rxctrl0_from_gt[(1*16)+1];
-        assign lnk_dat_to_dprx[(14*9)+8] = rxctrl0_from_gt[(1*16)+2];
-        assign lnk_dat_to_dprx[(15*9)+8] = rxctrl0_from_gt[(1*16)+3];
+                // GT lane 3 -> DP lane 2
+                {lnk_dat_to_dprx[(11*9)+:8], lnk_dat_to_dprx[(10*9)+:8], lnk_dat_to_dprx[(9*9)+:8], lnk_dat_to_dprx[(8*9)+:8]} <= gtwiz_userdata_rx_from_phy[(3*32)+:32];  
+                lnk_dat_to_dprx[(8*9)+8]  <= rxctrl0_from_phy[(3*16)+0];
+                lnk_dat_to_dprx[(9*9)+8]  <= rxctrl0_from_phy[(3*16)+1];
+                lnk_dat_to_dprx[(10*9)+8] <= rxctrl0_from_phy[(3*16)+2];
+                lnk_dat_to_dprx[(11*9)+8] <= rxctrl0_from_phy[(3*16)+3];
+
+                // GT lane 0 -> DP lane 3
+                {lnk_dat_to_dprx[(15*9)+:8], lnk_dat_to_dprx[(14*9)+:8], lnk_dat_to_dprx[(13*9)+:8], lnk_dat_to_dprx[(12*9)+:8]} <= gtwiz_userdata_rx_from_phy[(0*32)+:32]; 
+                lnk_dat_to_dprx[(12*9)+8] <= rxctrl0_from_phy[(0*16)+0];
+                lnk_dat_to_dprx[(13*9)+8] <= rxctrl0_from_phy[(0*16)+1];
+                lnk_dat_to_dprx[(14*9)+8] <= rxctrl0_from_phy[(0*16)+2];
+                lnk_dat_to_dprx[(15*9)+8] <= rxctrl0_from_phy[(0*16)+3];
+            end
+
+            // Tentiva DP1.4 RX card
+            else
+            begin
+                // GT lane 0 -> DP lane 0
+                {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8], lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} <= gtwiz_userdata_rx_from_phy[(0*32)+:32]; 
+                lnk_dat_to_dprx[(0*9)+8] <= rxctrl0_from_phy[(0*16)+0];
+                lnk_dat_to_dprx[(1*9)+8] <= rxctrl0_from_phy[(0*16)+1];
+                lnk_dat_to_dprx[(2*9)+8] <= rxctrl0_from_phy[(0*16)+2];
+                lnk_dat_to_dprx[(3*9)+8] <= rxctrl0_from_phy[(0*16)+3];
+
+                // GT lane 3 -> DP lane 1
+                {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8], lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} <= gtwiz_userdata_rx_from_phy[(3*32)+:32]; 
+                lnk_dat_to_dprx[(4*9)+8] <= rxctrl0_from_phy[(3*16)+0];
+                lnk_dat_to_dprx[(5*9)+8] <= rxctrl0_from_phy[(3*16)+1];
+                lnk_dat_to_dprx[(6*9)+8] <= rxctrl0_from_phy[(3*16)+2];
+                lnk_dat_to_dprx[(7*9)+8] <= rxctrl0_from_phy[(3*16)+3];
+
+                // GT lane 2 -> DP lane 2
+                {lnk_dat_to_dprx[(11*9)+:8], lnk_dat_to_dprx[(10*9)+:8], lnk_dat_to_dprx[(9*9)+:8], lnk_dat_to_dprx[(8*9)+:8]} <= gtwiz_userdata_rx_from_phy[(2*32)+:32];  
+                lnk_dat_to_dprx[(8*9)+8]  <= rxctrl0_from_phy[(2*16)+0];
+                lnk_dat_to_dprx[(9*9)+8]  <= rxctrl0_from_phy[(2*16)+1];
+                lnk_dat_to_dprx[(10*9)+8] <= rxctrl0_from_phy[(2*16)+2];
+                lnk_dat_to_dprx[(11*9)+8] <= rxctrl0_from_phy[(2*16)+3];
+
+                // GT lane 1 -> DP lane 3 
+                {lnk_dat_to_dprx[(15*9)+:8], lnk_dat_to_dprx[(14*9)+:8], lnk_dat_to_dprx[(13*9)+:8], lnk_dat_to_dprx[(12*9)+:8]} <= gtwiz_userdata_rx_from_phy[(1*32)+:32]; 
+                lnk_dat_to_dprx[(12*9)+8] <= rxctrl0_from_phy[(1*16)+0];
+                lnk_dat_to_dprx[(13*9)+8] <= rxctrl0_from_phy[(1*16)+1];
+                lnk_dat_to_dprx[(14*9)+8] <= rxctrl0_from_phy[(1*16)+2];
+                lnk_dat_to_dprx[(15*9)+8] <= rxctrl0_from_phy[(1*16)+3];
+            end
+        end
     end
 
     // Two symbols per lane
     else
     begin : gen_dprx_lnk_dat_2spl
-        // DP lane 0 -> GT lane 0   
-        assign {lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} = gtwiz_userdata_rx_from_gt[(0*16)+:16]; 
-        assign lnk_dat_to_dprx[(0*9)+8] = rxctrl0_from_gt[(0*16)+0];
-        assign lnk_dat_to_dprx[(1*9)+8] = rxctrl0_from_gt[(0*16)+1];
 
-        // DP lane 1 -> GT lane 3   
-        assign {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8]} = gtwiz_userdata_rx_from_gt[(3*16)+:16]; 
-        assign lnk_dat_to_dprx[(2*9)+8] = rxctrl0_from_gt[(3*16)+0];
-        assign lnk_dat_to_dprx[(3*9)+8] = rxctrl0_from_gt[(3*16)+1];
+        always_ff @ (posedge rxclk_from_phy)
+        begin
+            // Tentiva DP2.1 RX card
+            if (rx_card_from_app)
+            begin
+                // GT lane 2 -> DP lane 0    
+                {lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} <= gtwiz_userdata_rx_from_phy[(2*16)+:16]; 
+                lnk_dat_to_dprx[(0*9)+8] <= rxctrl0_from_phy[(2*16)+0];
+                lnk_dat_to_dprx[(1*9)+8] <= rxctrl0_from_phy[(2*16)+1];
 
-        // DP lane 2 -> GT lane 2
-        assign {lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} = gtwiz_userdata_rx_from_gt[(2*16)+:16];  
-        assign lnk_dat_to_dprx[(4*9)+8] = rxctrl0_from_gt[(2*16)+0];
-        assign lnk_dat_to_dprx[(5*9)+8] = rxctrl0_from_gt[(2*16)+1];
+                // GT lane 1 -> DP lane 1 
+                {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8]} <= gtwiz_userdata_rx_from_phy[(1*16)+:16]; 
+                lnk_dat_to_dprx[(2*9)+8] <= rxctrl0_from_phy[(1*16)+0];
+                lnk_dat_to_dprx[(3*9)+8] <= rxctrl0_from_phy[(1*16)+1];
 
-        // DP lane 3 -> GT lane 1
-        assign {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8]} = gtwiz_userdata_rx_from_gt[(1*16)+:16]; 
-        assign lnk_dat_to_dprx[(6*9)+8] = rxctrl0_from_gt[(1*16)+0];
-        assign lnk_dat_to_dprx[(7*9)+8] = rxctrl0_from_gt[(1*16)+1];
+                // GT lane 3 -> DP lane 2 
+                {lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} <= gtwiz_userdata_rx_from_phy[(3*16)+:16];  
+                lnk_dat_to_dprx[(4*9)+8] <= rxctrl0_from_phy[(3*16)+0];
+                lnk_dat_to_dprx[(5*9)+8] <= rxctrl0_from_phy[(3*16)+1];
+
+                // GT lane 0 -> DP lane 3
+                {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8]} <= gtwiz_userdata_rx_from_phy[(0*16)+:16]; 
+                lnk_dat_to_dprx[(6*9)+8] <= rxctrl0_from_phy[(0*16)+0];
+                lnk_dat_to_dprx[(7*9)+8] <= rxctrl0_from_phy[(0*16)+1];
+            end
+
+            else
+            begin
+                // Tentiva DPRX 1.4 board (MCDP6150) 
+                // GT lane 0 -> DP lane 0    
+                {lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} <= gtwiz_userdata_rx_from_phy[(0*16)+:16]; 
+                lnk_dat_to_dprx[(0*9)+8] <= rxctrl0_from_phy[(0*16)+0];
+                lnk_dat_to_dprx[(1*9)+8] <= rxctrl0_from_phy[(0*16)+1];
+
+                // GT lane 3 -> DP lane 1 
+                {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8]} <= gtwiz_userdata_rx_from_phy[(3*16)+:16]; 
+                lnk_dat_to_dprx[(2*9)+8] <= rxctrl0_from_phy[(3*16)+0];
+                lnk_dat_to_dprx[(3*9)+8] <= rxctrl0_from_phy[(3*16)+1];
+
+                // GT lane 2 -> DP lane 2 
+                {lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} <= gtwiz_userdata_rx_from_phy[(2*16)+:16];  
+                lnk_dat_to_dprx[(4*9)+8] <= rxctrl0_from_phy[(2*16)+0];
+                lnk_dat_to_dprx[(5*9)+8] <= rxctrl0_from_phy[(2*16)+1];
+
+                // GT lane 1 -> DP lane 3
+                {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8]} <= gtwiz_userdata_rx_from_phy[(1*16)+:16]; 
+                lnk_dat_to_dprx[(6*9)+8] <= rxctrl0_from_phy[(1*16)+0];
+                lnk_dat_to_dprx[(7*9)+8] <= rxctrl0_from_phy[(1*16)+1];
+            end
+        end
     end
 endgenerate
 
@@ -626,8 +708,8 @@ endgenerate
         .DIA_VLD_OUT            (dia_vld_from_vtb),
 
         // Link
-        .TX_LNK_CLK_IN          (txclk_from_gt),        // TX link clock
-        .RX_LNK_CLK_IN          (rxclk_from_gt),        // RX link clock
+        .TX_LNK_CLK_IN          (txclk_from_phy),        // TX link clock
+        .RX_LNK_CLK_IN          (rxclk_from_phy),        // RX link clock
         .LNK_SYNC_IN            (lnk_sync_from_dprx),
         
         // Axi-stream Video
@@ -676,8 +758,8 @@ generate
             .DIA_VLD_OUT            (),
 
             // Link
-            .TX_LNK_CLK_IN          (txclk_from_gt),     // TX link clock
-            .RX_LNK_CLK_IN          (rxclk_from_gt),     // RX link clock
+            .TX_LNK_CLK_IN          (txclk_from_phy),     // TX link clock
+            .RX_LNK_CLK_IN          (rxclk_from_phy),     // RX link clock
             .LNK_SYNC_IN            (1'b0),
 
             // Axi-stream Video
@@ -766,6 +848,7 @@ endgenerate
     assign tx_postcursor_from_phy_ctl       = pio_dat_from_phy_ctl[15+:5];
 
 // PHY
+/*
 generate
     // Four symbols per lane
     if (P_SPL == 4)
@@ -810,20 +893,19 @@ generate
 
             // CPLL
             .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),     // GT reference clock 0
+            .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
-            // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
-            // To enable the CPLL calibration ports type the following command in the TCL console
-            // set_property -dict [list CONFIG.INCLUDE_CPLL_CAL {1} ] [get_ips zcu102_gth_4spl]
-            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_gt}}),
-            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_gt}}),
+            // See Xilinx PG182
+            // Enabling CPLL calibration block for UltraScale+ Devices
+            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_phy}}),
+            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_phy}}),
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
 
             // QPLL
             .qpll0reset_in                              (qpll_rst_from_phy_ctl),
-            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),          // GT reference clock 1
+            .gtrefclk00_in                              (clk_from_phy_ibuf[1]),          // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -831,20 +913,20 @@ generate
             // User clocks       
             .gtwiz_userclk_tx_srcclk_out                (),
             .gtwiz_userclk_tx_usrclk_out                (),
-            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_gt),
+            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_phy),
             .gtwiz_userclk_rx_srcclk_out                (),
             .gtwiz_userclk_rx_usrclk_out                (),
-            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_gt),
+            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_phy),
 
             // TX control
             .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
             .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
 
             // TX datapath
-            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_gt), // 64 bits
-            .txctrl0_in                                 (txctrl0_to_gt),
-            .txctrl1_in                                 (txctrl1_to_gt),
-            .txctrl2_in                                 (txctrl2_to_gt),
+            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_phy), // 64 bits
+            .txctrl0_in                                 (txctrl0_to_phy),
+            .txctrl1_in                                 (txctrl1_to_phy),
+            .txctrl2_in                                 (txctrl2_to_phy),
             .tx8b10ben_in                               (4'b1111),
             .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted),  
 
@@ -852,8 +934,8 @@ generate
             .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
 
             // RX datapath
-            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_gt), // 64 bits
-            .rxctrl0_out                                (rxctrl0_from_gt), // 64 bits
+            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_phy), // 64 bits
+            .rxctrl0_out                                (rxctrl0_from_phy), // 64 bits
             .rxctrl1_out                                (),
             .rxctrl2_out                                (),
             .rxctrl3_out                                (),
@@ -884,6 +966,7 @@ generate
     // Two symbols per lane
     else 
     begin : phy_2spl
+*/
         zcu102_gth_2spl
         PHY_INST
         (
@@ -901,7 +984,18 @@ generate
 
             // Resets
             .gtpowergood_out                            (pwrgd_from_phy),
-            
+
+/*
+            .gtwiz_reset_all_in                         (1'b0),
+            .gtwiz_reset_tx_pll_and_datapath_in         (tx_pll_and_dp_rst_from_phy_ctl),
+            .gtwiz_reset_tx_datapath_in                 (tx_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_pll_and_datapath_in         (rx_pll_and_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_datapath_in                 (rx_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_cdr_stable_out              (),
+            .gtwiz_reset_tx_done_out                    (tx_rst_done_from_phy),
+            .gtwiz_reset_rx_done_out                    (rx_rst_done_from_phy),
+*/
+ 
             .gttxreset_in                               ({4{tx_rst_from_phy_ctl}}),
             .txuserrdy_in                               ({4{tx_usrrdy_from_phy_ctl}}),
             .txprogdivreset_in                          ({4{tx_divrst_from_phy_ctl}}),
@@ -916,28 +1010,28 @@ generate
 
             .gtwiz_reset_tx_done_in                     (&tx_rst_done_from_phy),
             .gtwiz_reset_rx_done_in                     (&rx_rst_done_from_phy),
-
+/*
             .gtwiz_userclk_tx_reset_in                  (1'b0),
             .gtwiz_userclk_tx_active_out                (),
             .gtwiz_userclk_rx_reset_in                  (1'b0),
             .gtwiz_userclk_rx_active_out                (),
-
+*/
             // CPLL
             .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
-            .gtrefclk0_in                               ({4{clk_from_gt_ibuf[0]}}),     // GT reference clock 0
+            .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
             .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
             // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
             // To enable the CPLL calibration ports type the following command in the TCL console
             // set_property -dict [list CONFIG.INCLUDE_CPLL_CAL {1} ] [get_ips zcu102_gth_2spl]
-            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_gt}}),
-            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_gt}}),
+            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_phy}}),
+            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_phy}}),
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
 
             // QPLL
             .qpll0reset_in                              (qpll_rst_from_phy_ctl),
-            .gtrefclk00_in                              (clk_from_gt_ibuf[1]),          // GT reference clock 1
+            .gtrefclk00_in                              (clk_from_phy_ibuf[1]),          // GT reference clock 1
             .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
@@ -945,29 +1039,29 @@ generate
             // User clocks       
             .gtwiz_userclk_tx_srcclk_out                (),
             .gtwiz_userclk_tx_usrclk_out                (),
-            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_gt),
+            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_phy),
             .gtwiz_userclk_rx_srcclk_out                (),
             .gtwiz_userclk_rx_usrclk_out                (),
-            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_gt),
+            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_phy),
 
             // TX control
             .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
             .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
 
             // TX datapath
-            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_gt), // 64 bits
-            .txctrl0_in                                 (txctrl0_to_gt),
-            .txctrl1_in                                 (txctrl1_to_gt),
-            .txctrl2_in                                 (txctrl2_to_gt),
+            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_phy), // 64 bits
+            .txctrl0_in                                 (txctrl0_to_phy),
+            .txctrl1_in                                 (txctrl1_to_phy),
+            .txctrl2_in                                 (txctrl2_to_phy),
             .tx8b10ben_in                               (4'b1111),
-            .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted, 
+            .txpolarity_in                              (txpolarity_to_phy),  
           
             // RX control
-            .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
+            .rxpolarity_in                              (rxpolarity_to_phy),     
 
             // RX datapath
-            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_gt), // 64 bits
-            .rxctrl0_out                                (rxctrl0_from_gt), // 64 bits
+            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_phy), // 64 bits
+            .rxctrl0_out                                (rxctrl0_from_phy), // 64 bits
             .rxctrl1_out                                (),
             .rxctrl2_out                                (),
             .rxctrl3_out                                (),
@@ -996,8 +1090,33 @@ generate
             .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
             .drprdy_common_out                          (drp_rdy_from_phy[4])
         );
+//    end
+//endgenerate
+
+// TX polarity select
+    always_ff @ (posedge txclk_from_phy)
+    begin
+        // Tentiva DP2.1 TX card
+        if (tx_card_from_app)
+            txpolarity_to_phy <= 4'b0000; // All lanes have possitive polarity
+        
+        // Tentiva DP1.4 TX card
+        else
+            txpolarity_to_phy <= 4'b1001; // Lanes 0 & 3 are inverted,
     end
-endgenerate
+
+// RX polarity select
+    always_ff @ (posedge rxclk_from_phy)
+    begin
+        // Tentiva DP2.1 RX card
+        if (rx_card_from_app)
+            rxpolarity_to_phy <= 4'b0000; // All lanes have possitive polarity
+        
+        // Tentiva DP1.4 RX card
+        else
+            rxpolarity_to_phy <= 4'b1111; // All lanes are inverted,
+    end
+
 
 /*
     CPLL calibration block
@@ -1015,29 +1134,29 @@ endgenerate
             // 2.7 Gbps
             'd1 : 
             begin
-                cpll_cal_txoutclk_period_to_gt = 'd10800;
-                cpll_cal_cnt_tol_to_gt = 'd108;
+                cpll_cal_txoutclk_period_to_phy = 'd10800;
+                cpll_cal_cnt_tol_to_phy = 'd108;
             end
 
             // 5.4 Gbps
             'd2 : 
             begin
-                cpll_cal_txoutclk_period_to_gt = 'd10800;
-                cpll_cal_cnt_tol_to_gt = 'd108;
+                cpll_cal_txoutclk_period_to_phy = 'd10800;
+                cpll_cal_cnt_tol_to_phy = 'd108;
             end
 
             // 8.1 Gbps
             'd3 : 
             begin
-                cpll_cal_txoutclk_period_to_gt = 'd16200;
-                cpll_cal_cnt_tol_to_gt = 'd162;
+                cpll_cal_txoutclk_period_to_phy = 'd16200;
+                cpll_cal_cnt_tol_to_phy = 'd162;
             end
 
             // 1.62 Gbps
             default : 
             begin
-                cpll_cal_txoutclk_period_to_gt = 'd12960;
-                cpll_cal_cnt_tol_to_gt = 'd130;
+                cpll_cal_txoutclk_period_to_phy = 'd12960;
+                cpll_cal_cnt_tol_to_phy = 'd130;
             end
         endcase
     end
@@ -1050,57 +1169,127 @@ generate
     // Four symbols per lane
     if (P_SPL == 4)
     begin : gen_phy_tx_dat_4spl
-        // GT lane 0 -> DP lane 3
-        assign gtwiz_userdata_tx_to_gt[(0*32)+:32]  = {lnk_dat_from_dptx[(15*11)+:8], lnk_dat_from_dptx[(14*11)+:8], lnk_dat_from_dptx[(13*11)+:8], lnk_dat_from_dptx[(12*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(0*8)+:8]              = {4'h0,  lnk_dat_from_dptx[(15*11)+8],  lnk_dat_from_dptx[(14*11)+8],  lnk_dat_from_dptx[(13*11)+8],  lnk_dat_from_dptx[(12*11)+8]};     // K character
-        assign txctrl0_to_gt[(0*16)+:16]            = {12'h0, lnk_dat_from_dptx[(15*11)+9],  lnk_dat_from_dptx[(14*11)+9],  lnk_dat_from_dptx[(13*11)+9],  lnk_dat_from_dptx[(12*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(0*16)+:16]            = {12'h0, lnk_dat_from_dptx[(15*11)+10], lnk_dat_from_dptx[(14*11)+10], lnk_dat_from_dptx[(13*11)+10], lnk_dat_from_dptx[(12*11)+10]};  // Disparity control (0-automatic / 1-force)
+        always_ff @ (posedge txclk_from_phy)
+        begin
+            // Tentiva DP2.1 TX card
+            if (tx_card_from_app)
+            begin
+                // GT lane 0 -> DP lane 3
+                gtwiz_userdata_tx_to_phy[(0*32)+:32]  <= {lnk_dat_from_dptx[(15*11)+:8], lnk_dat_from_dptx[(14*11)+:8], lnk_dat_from_dptx[(13*11)+:8], lnk_dat_from_dptx[(12*11)+:8]};         // TX data
+                txctrl2_to_phy[(0*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(15*11)+8],  lnk_dat_from_dptx[(14*11)+8],  lnk_dat_from_dptx[(13*11)+8],  lnk_dat_from_dptx[(12*11)+8]};     // K character
+                txctrl0_to_phy[(0*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(15*11)+9],  lnk_dat_from_dptx[(14*11)+9],  lnk_dat_from_dptx[(13*11)+9],  lnk_dat_from_dptx[(12*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(0*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(15*11)+10], lnk_dat_from_dptx[(14*11)+10], lnk_dat_from_dptx[(13*11)+10], lnk_dat_from_dptx[(12*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 1 -> DP lane 0 
-        assign gtwiz_userdata_tx_to_gt[(1*32)+:32]  = {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8], lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(1*8)+:8]              = {4'h0,  lnk_dat_from_dptx[(3*11)+8],  lnk_dat_from_dptx[(2*11)+8],  lnk_dat_from_dptx[(1*11)+8],  lnk_dat_from_dptx[(0*11)+8]};     // K character
-        assign txctrl0_to_gt[(1*16)+:16]            = {12'h0, lnk_dat_from_dptx[(3*11)+9],  lnk_dat_from_dptx[(2*11)+9],  lnk_dat_from_dptx[(1*11)+9],  lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(1*16)+:16]            = {12'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10], lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 1 -> DP lane 1
+                gtwiz_userdata_tx_to_phy[(1*32)+:32]  <= {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8], lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
+                txctrl2_to_phy[(1*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(7*11)+8],  lnk_dat_from_dptx[(6*11)+8],  lnk_dat_from_dptx[(5*11)+8],  lnk_dat_from_dptx[(4*11)+8]};     // K character
+                txctrl0_to_phy[(1*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(7*11)+9],  lnk_dat_from_dptx[(6*11)+9],  lnk_dat_from_dptx[(5*11)+9],  lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(1*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10], lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 2 -> DP lane 1
-        assign gtwiz_userdata_tx_to_gt[(2*32)+:32]  = {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8], lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(2*8)+:8]              = {4'h0,  lnk_dat_from_dptx[(7*11)+8],  lnk_dat_from_dptx[(6*11)+8],  lnk_dat_from_dptx[(5*11)+8],  lnk_dat_from_dptx[(4*11)+8]};     // K character
-        assign txctrl0_to_gt[(2*16)+:16]            = {12'h0, lnk_dat_from_dptx[(7*11)+9],  lnk_dat_from_dptx[(6*11)+9],  lnk_dat_from_dptx[(5*11)+9],  lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(2*16)+:16]            = {12'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10], lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 2 -> DP lane 0 
+                gtwiz_userdata_tx_to_phy[(2*32)+:32]  <= {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8], lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
+                txctrl2_to_phy[(2*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(3*11)+8],  lnk_dat_from_dptx[(2*11)+8],  lnk_dat_from_dptx[(1*11)+8],  lnk_dat_from_dptx[(0*11)+8]};     // K character
+                txctrl0_to_phy[(2*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(3*11)+9],  lnk_dat_from_dptx[(2*11)+9],  lnk_dat_from_dptx[(1*11)+9],  lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(2*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10], lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 3 -> DP lane 2
-        assign gtwiz_userdata_tx_to_gt[(3*32)+:32]  = {lnk_dat_from_dptx[(11*11)+:8], lnk_dat_from_dptx[(10*11)+:8], lnk_dat_from_dptx[(9*11)+:8], lnk_dat_from_dptx[(8*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(3*8)+:8]              = {4'h0,  lnk_dat_from_dptx[(11*11)+8],  lnk_dat_from_dptx[(10*11)+8],  lnk_dat_from_dptx[(9*11)+8],  lnk_dat_from_dptx[(8*11)+8]};     // K character
-        assign txctrl0_to_gt[(3*16)+:16]            = {12'h0, lnk_dat_from_dptx[(11*11)+9],  lnk_dat_from_dptx[(10*11)+9],  lnk_dat_from_dptx[(9*11)+9],  lnk_dat_from_dptx[(8*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(3*16)+:16]            = {12'h0, lnk_dat_from_dptx[(11*11)+10], lnk_dat_from_dptx[(10*11)+10], lnk_dat_from_dptx[(9*11)+10], lnk_dat_from_dptx[(8*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 3 -> DP lane 2
+                gtwiz_userdata_tx_to_phy[(3*32)+:32]  <= {lnk_dat_from_dptx[(11*11)+:8], lnk_dat_from_dptx[(10*11)+:8], lnk_dat_from_dptx[(9*11)+:8], lnk_dat_from_dptx[(8*11)+:8]};         // TX data
+                txctrl2_to_phy[(3*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(11*11)+8],  lnk_dat_from_dptx[(10*11)+8],  lnk_dat_from_dptx[(9*11)+8],  lnk_dat_from_dptx[(8*11)+8]};     // K character
+                txctrl0_to_phy[(3*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(11*11)+9],  lnk_dat_from_dptx[(10*11)+9],  lnk_dat_from_dptx[(9*11)+9],  lnk_dat_from_dptx[(8*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(3*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(11*11)+10], lnk_dat_from_dptx[(10*11)+10], lnk_dat_from_dptx[(9*11)+10], lnk_dat_from_dptx[(8*11)+10]};  // Disparity control (0-automatic / 1-force)
+            end
+
+            // Tentiva DP1.4 TX card
+            else
+            begin
+                // GT lane 0 -> DP lane 3
+                gtwiz_userdata_tx_to_phy[(0*32)+:32]  <= {lnk_dat_from_dptx[(15*11)+:8], lnk_dat_from_dptx[(14*11)+:8], lnk_dat_from_dptx[(13*11)+:8], lnk_dat_from_dptx[(12*11)+:8]};         // TX data
+                txctrl2_to_phy[(0*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(15*11)+8],  lnk_dat_from_dptx[(14*11)+8],  lnk_dat_from_dptx[(13*11)+8],  lnk_dat_from_dptx[(12*11)+8]};     // K character
+                txctrl0_to_phy[(0*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(15*11)+9],  lnk_dat_from_dptx[(14*11)+9],  lnk_dat_from_dptx[(13*11)+9],  lnk_dat_from_dptx[(12*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(0*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(15*11)+10], lnk_dat_from_dptx[(14*11)+10], lnk_dat_from_dptx[(13*11)+10], lnk_dat_from_dptx[(12*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 1 -> DP lane 0 
+                gtwiz_userdata_tx_to_phy[(1*32)+:32]  <= {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8], lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
+                txctrl2_to_phy[(1*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(3*11)+8],  lnk_dat_from_dptx[(2*11)+8],  lnk_dat_from_dptx[(1*11)+8],  lnk_dat_from_dptx[(0*11)+8]};     // K character
+                txctrl0_to_phy[(1*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(3*11)+9],  lnk_dat_from_dptx[(2*11)+9],  lnk_dat_from_dptx[(1*11)+9],  lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(1*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10], lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 2 -> DP lane 1
+                gtwiz_userdata_tx_to_phy[(2*32)+:32]  <= {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8], lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
+                txctrl2_to_phy[(2*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(7*11)+8],  lnk_dat_from_dptx[(6*11)+8],  lnk_dat_from_dptx[(5*11)+8],  lnk_dat_from_dptx[(4*11)+8]};     // K character
+                txctrl0_to_phy[(2*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(7*11)+9],  lnk_dat_from_dptx[(6*11)+9],  lnk_dat_from_dptx[(5*11)+9],  lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(2*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10], lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 3 -> DP lane 2
+                gtwiz_userdata_tx_to_phy[(3*32)+:32]  <= {lnk_dat_from_dptx[(11*11)+:8], lnk_dat_from_dptx[(10*11)+:8], lnk_dat_from_dptx[(9*11)+:8], lnk_dat_from_dptx[(8*11)+:8]};         // TX data
+                txctrl2_to_phy[(3*8)+:8]              <= {4'h0,  lnk_dat_from_dptx[(11*11)+8],  lnk_dat_from_dptx[(10*11)+8],  lnk_dat_from_dptx[(9*11)+8],  lnk_dat_from_dptx[(8*11)+8]};     // K character
+                txctrl0_to_phy[(3*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(11*11)+9],  lnk_dat_from_dptx[(10*11)+9],  lnk_dat_from_dptx[(9*11)+9],  lnk_dat_from_dptx[(8*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(3*16)+:16]            <= {12'h0, lnk_dat_from_dptx[(11*11)+10], lnk_dat_from_dptx[(10*11)+10], lnk_dat_from_dptx[(9*11)+10], lnk_dat_from_dptx[(8*11)+10]};  // Disparity control (0-automatic / 1-force)
+            end
+        end
     end
 
     // Two symbols per lane
     else
     begin : gen_phy_tx_dat_2spl
-        // GT lane 0 -> DP lane 3
-        assign gtwiz_userdata_tx_to_gt[(0*16)+:16]  = {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(0*8)+:8]              = {6'h0, lnk_dat_from_dptx[(7*11)+8], lnk_dat_from_dptx[(6*11)+8]};     // K character
-        assign txctrl0_to_gt[(0*16)+:16]            = {14'h0, lnk_dat_from_dptx[(7*11)+9], lnk_dat_from_dptx[(6*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(0*16)+:16]            = {14'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10]};  // Disparity control (0-automatic / 1-force)
+        always_ff @ (posedge txclk_from_phy)
+        begin
+            // Tentiva DP2.1 TX card
+            if (tx_card_from_app)
+            begin
+                // GT lane 0 -> DP lane 3
+                gtwiz_userdata_tx_to_phy[(0*16)+:16]  <= {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8]};         // TX data
+                txctrl2_to_phy[(0*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(7*11)+8], lnk_dat_from_dptx[(6*11)+8]};     // K character
+                txctrl0_to_phy[(0*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(7*11)+9], lnk_dat_from_dptx[(6*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(0*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 1 -> DP lane 0 
-        assign gtwiz_userdata_tx_to_gt[(1*16)+:16]  = {lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(1*8)+:8]              = {6'h0, lnk_dat_from_dptx[(1*11)+8], lnk_dat_from_dptx[(0*11)+8]};     // K character
-        assign txctrl0_to_gt[(1*16)+:16]            = {14'h0, lnk_dat_from_dptx[(1*11)+9], lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(1*16)+:16]            = {14'h0, lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 1 -> DP lane 1
+                gtwiz_userdata_tx_to_phy[(1*16)+:16]  <= {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8]};         // TX data
+                txctrl2_to_phy[(1*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(3*11)+8], lnk_dat_from_dptx[(2*11)+8]};     // K character
+                txctrl0_to_phy[(1*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(3*11)+9], lnk_dat_from_dptx[(2*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(1*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 2 -> DP lane 1
-        assign gtwiz_userdata_tx_to_gt[(2*16)+:16]  = {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(2*8)+:8]              = {6'h0, lnk_dat_from_dptx[(3*11)+8], lnk_dat_from_dptx[(2*11)+8]};     // K character
-        assign txctrl0_to_gt[(2*16)+:16]            = {14'h0, lnk_dat_from_dptx[(3*11)+9], lnk_dat_from_dptx[(2*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(2*16)+:16]            = {14'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 2 -> DP lane 0 
+                gtwiz_userdata_tx_to_phy[(2*16)+:16]  <= {lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
+                txctrl2_to_phy[(2*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(1*11)+8], lnk_dat_from_dptx[(0*11)+8]};     // K character
+                txctrl0_to_phy[(2*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(1*11)+9], lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(2*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
 
-        // GT lane 3 -> DP lane 2
-        assign gtwiz_userdata_tx_to_gt[(3*16)+:16]  = {lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
-        assign txctrl2_to_gt[(3*8)+:8]              = {6'h0, lnk_dat_from_dptx[(5*11)+8], lnk_dat_from_dptx[(4*11)+8]};     // K character
-        assign txctrl0_to_gt[(3*16)+:16]            = {14'h0, lnk_dat_from_dptx[(5*11)+9], lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
-        assign txctrl1_to_gt[(3*16)+:16]            = {14'h0, lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
+                // GT lane 3 -> DP lane 2
+                gtwiz_userdata_tx_to_phy[(3*16)+:16]  <= {lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
+                txctrl2_to_phy[(3*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(5*11)+8], lnk_dat_from_dptx[(4*11)+8]};     // K character
+                txctrl0_to_phy[(3*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(5*11)+9], lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(3*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
+            end
+
+            // Tentiva DP1.4 TX card
+            else
+            begin
+                // GT lane 0 -> DP lane 3
+                gtwiz_userdata_tx_to_phy[(0*16)+:16]  <= {lnk_dat_from_dptx[(7*11)+:8], lnk_dat_from_dptx[(6*11)+:8]};         // TX data
+                txctrl2_to_phy[(0*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(7*11)+8], lnk_dat_from_dptx[(6*11)+8]};     // K character
+                txctrl0_to_phy[(0*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(7*11)+9], lnk_dat_from_dptx[(6*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(0*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(7*11)+10], lnk_dat_from_dptx[(6*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 1 -> DP lane 0 
+                gtwiz_userdata_tx_to_phy[(1*16)+:16]  <= {lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};         // TX data
+                txctrl2_to_phy[(1*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(1*11)+8], lnk_dat_from_dptx[(0*11)+8]};     // K character
+                txctrl0_to_phy[(1*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(1*11)+9], lnk_dat_from_dptx[(0*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(1*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 2 -> DP lane 1
+                gtwiz_userdata_tx_to_phy[(2*16)+:16]  <= {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8]};         // TX data
+                txctrl2_to_phy[(2*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(3*11)+8], lnk_dat_from_dptx[(2*11)+8]};     // K character
+                txctrl0_to_phy[(2*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(3*11)+9], lnk_dat_from_dptx[(2*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(2*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10]};  // Disparity control (0-automatic / 1-force)
+
+                // GT lane 3 -> DP lane 2
+                gtwiz_userdata_tx_to_phy[(3*16)+:16]  <= {lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};         // TX data
+                txctrl2_to_phy[(3*8)+:8]              <= {6'h0, lnk_dat_from_dptx[(5*11)+8], lnk_dat_from_dptx[(4*11)+8]};     // K character
+                txctrl0_to_phy[(3*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(5*11)+9], lnk_dat_from_dptx[(4*11)+9]};    // Disparity value (0-negative / 1-positive)
+                txctrl1_to_phy[(3*16)+:16]            <= {14'h0, lnk_dat_from_dptx[(5*11)+10], lnk_dat_from_dptx[(4*11)+10]};  // Disparity control (0-automatic / 1-force)
+            end
+        end
     end
 endgenerate
 
@@ -1133,20 +1322,22 @@ endgenerate
     )
     GTTX_HB_INST
     (
-        .CLK_IN     (clk_from_gt_bufg[0]),
-        .LED_OUT    (led_from_gt_hb)
+        .CLK_IN     (clk_from_phy_bufg[0]),
+        .LED_OUT    (led_from_phy_hb)
     );
 
 // Outputs
     assign LED_OUT[0]   = led_from_sys_hb;
     assign LED_OUT[1]   = led_from_vid_hb;
-    assign LED_OUT[2]   = led_from_gt_hb;
+    assign LED_OUT[2]   = led_from_phy_hb;
     assign LED_OUT[3]   = hb_from_dptx;
     assign LED_OUT[4]   = hb_from_dprx;
-    assign LED_OUT[5]   = 0; 
+    assign LED_OUT[5]   = tx_card_from_app; 
     assign LED_OUT[6]   = 0; 
     assign LED_OUT[7]   = 0; 
-    
+    assign DPTX_I2C_SEL = 1;    // Only for DP21 TX card. Select FMC I2C interface
+    assign DPRX_I2C_SEL = 1;    // Only for DP21 RX card. Select FMC I2C interface
+       
 endmodule
 
 `default_nettype wire

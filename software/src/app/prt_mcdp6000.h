@@ -30,16 +30,16 @@
 // Defines
 
 // Prototypes
-prt_sta_type prt_mcdp6000_init (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_rev (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_rst (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_dis (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_aux (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_cfg (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_dp_mode (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_trans (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6000_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre);
-prt_sta_type prt_mcdp6000_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 *dat);
-prt_sta_type prt_mcdp6000_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 dat);
-void prt_mcdp6000_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset);
-prt_sta_type prt_mcdp6000_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave);
+prt_sta_type prt_mcdp6000_init (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_rev (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_rst (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_dis (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_aux (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_cfg (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_dp_mode (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_trans (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6000_tx_force (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre);
+prt_sta_type prt_mcdp6000_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t *dat);
+prt_sta_type prt_mcdp6000_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t dat);
+void prt_mcdp6000_dump (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset);
+prt_sta_type prt_mcdp6000_rst_cr (prt_i2c_ds_struct *i2c, uint8_t slave);

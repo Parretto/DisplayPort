@@ -26,12 +26,13 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_tdp142.h"
 
 // Initialize
-prt_sta_type prt_tdp142_init (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq)
+prt_sta_type prt_tdp142_init (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t eq)
 {
 	// Variables
 	prt_sta_type sta;
@@ -49,11 +50,11 @@ prt_sta_type prt_tdp142_init (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq)
 }
 
 // Enable DP
-prt_sta_type prt_tdp142_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_tdp142_dp_en (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	// Generate register
 	// Read 
@@ -82,11 +83,11 @@ prt_sta_type prt_tdp142_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // AUX snoop
-prt_sta_type prt_tdp142_aux_snoop (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_bool en)
+prt_sta_type prt_tdp142_aux_snoop (prt_i2c_ds_struct *i2c, uint8_t slave, prt_bool en)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	// Control register
 	// Read 
@@ -113,11 +114,11 @@ prt_sta_type prt_tdp142_aux_snoop (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_boo
 }
 
 // Set EQ value
-prt_sta_type prt_tdp142_eq (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq)
+prt_sta_type prt_tdp142_eq (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t eq)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u8 dat;
+	uint8_t dat;
 
 	// Lane 0
 	dat = eq;
@@ -141,7 +142,7 @@ prt_sta_type prt_tdp142_eq (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 eq)
 }
 
 // Read register
-prt_sta_type prt_tdp142_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 *dat)
+prt_sta_type prt_tdp142_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -183,7 +184,7 @@ prt_sta_type prt_tdp142_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset,
 }
 
 // Write register
-prt_sta_type prt_tdp142_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 offset, prt_u8 dat)
+prt_sta_type prt_tdp142_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t offset, uint8_t dat)
 {
 	// Variables
 	prt_sta_type sta;

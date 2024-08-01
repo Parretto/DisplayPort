@@ -5,7 +5,7 @@
 
 
     Module: DP PM Hart
-    (c) 2021 - 2023 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -32,7 +32,7 @@
 // Module
 module prt_dp_pm_hart
 #(
-	parameter                       P_VENDOR        = "none"  // Vendor "xilinx", "intel" or "lattice"
+	parameter                       P_VENDOR        = "none"  // Vendor - "AMD", "ALTERA" or "LSC" 
 )
 (
 	// Clocks and reset
@@ -1485,8 +1485,8 @@ genvar i;
 generate
 	for (i = 0; i < 2; i++)
 	begin : gen_reg
-		if (P_VENDOR == "xilinx")
-		begin : gen_xilinx
+		if (P_VENDOR == "AMD")
+		begin : gen_amd
 			// XPM memory
 			xpm_memory_sdpram
 			#(
@@ -1536,8 +1536,8 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "lattice")
-		begin : gen_lattice
+		else if (P_VENDOR == "LSC")
+		begin : gen_lsc
 			pmi_distributed_dpram
 			#(
 				.pmi_addr_depth       	(P_WRDS), 		// integer       
@@ -1565,8 +1565,8 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "intel")
-		begin : gen_int
+		else if (P_VENDOR == "ALTERA")
+		begin : gen_altera
 			altdpram
 			#(
 				.indata_aclr 						("OFF"),

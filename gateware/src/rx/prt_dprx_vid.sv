@@ -12,6 +12,7 @@
     v1.0 - Initial release
     v1.1 - Added support for 1 and 2 lanes.
     v1.2 - Added 10-bits video support
+    v1.3 - Added VB-ID register output
 
     License
     =======
@@ -32,7 +33,7 @@
 module prt_dprx_vid
 #(
     // System
-    parameter               P_VENDOR = "none",  // Vendor "xilinx" or "lattice"
+    parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
     parameter               P_SIM = 0,          // Simulation
 
     // Link
@@ -45,9 +46,9 @@ module prt_dprx_vid
     parameter 				P_VID_DAT = 48,		// AXIS data width
 
     // Message
-    parameter               P_MSG_IDX     = 5,      // Message index width
-    parameter               P_MSG_DAT     = 16,     // Message data width
-    parameter               P_MSG_ID      = 0       // Message ID
+    parameter               P_MSG_IDX     = 5,  // Message index width
+    parameter               P_MSG_DAT     = 16, // Message data width
+    parameter               P_MSG_ID      = 0   // Message ID
 )
 (
     // Control
@@ -62,6 +63,7 @@ module prt_dprx_vid
     input wire              LNK_RST_IN,         // Reset
     input wire              LNK_CLK_IN,         // Clock 
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,         // Sink
+    output wire [7:0]       LNK_VBID_OUT,       // VB-ID 
 
     // Video 
     input wire              VID_RST_IN,         // Reset
@@ -110,10 +112,9 @@ typedef struct {
     logic                           stp_re;
     logic [P_SPL-1:0]               vbid[0:P_LANES-1];
     logic [P_SPL-1:0]               vbid_reg[0:P_LANES-1];
-    logic [P_LANES-1:0]             nvs_lane; // No video stream flag per lane
-    logic [P_LANES-1:0]             vbf_lane; // Vertical blanking flag per
-    logic                           nvs;      // No video stream flag
-    logic                           vbf;      // Vertical blanking flag 
+    logic [7:0]                     vbid_val;               // VB-ID value
+    logic                           nvs;                    // No video stream flag
+    logic                           vbf;                    // Vertical blanking flag 
     logic [P_SPL-1:0]               k[0:P_LANES-1];
     logic [7:0]                     dat[0:P_LANES-1][0:P_SPL-1];
     logic [7:0]                     dat_reg[0:P_LANES-1][0:P_SPL-1];
@@ -367,114 +368,53 @@ endgenerate
             lclk_lnk.str_toggle <= 0;
     end
 
-// VB-ID register per lane
-// This will capture the NoVideoStream_flag and vertical blanking flag.
+// VB-ID value
+// This will capture the VB-ID 
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        for (int i = 0; i < P_LANES; i++)
+        // Lock
+        if (lclk_lnk.lock)
         begin
-            // Lock
-            if (lclk_lnk.lock)
+            // Four symbols per lane
+            if (P_SPL == 4)
             begin
-                // Four symbols per lane
-                if (P_SPL == 4)
-                begin
-                    // Sublane 0
-                    if (lclk_lnk.vbid_reg[i][0])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][0][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][0][0];
-                    end
+                // Sublane 0
+                if (lclk_lnk.vbid_reg[0][0])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][0];
 
-                    // Sublane 1
-                    else if (lclk_lnk.vbid_reg[i][1])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][1][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][1][0];
-                    end
+                // Sublane 1
+                else if (lclk_lnk.vbid_reg[0][1])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][1];
 
-                    // Sublane 2
-                    else if (lclk_lnk.vbid_reg[i][2])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][2][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][2][0];
-                    end
+                // Sublane 2
+                else if (lclk_lnk.vbid_reg[0][2])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][2];
 
-                    // Sublane 3
-                    else if (lclk_lnk.vbid_reg[i][3])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][3][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][3][0];
-                    end
-                end
-
-                // Two symbols per lane
-                else
-                begin
-                    // Sublane 0
-                    if (lclk_lnk.vbid_reg[i][0])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][0][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][0][0];
-                    end
-
-                    // Sublane 1
-                    else if (lclk_lnk.vbid_reg[i][1])
-                    begin
-                        lclk_lnk.nvs_lane[i] <= lclk_lnk.dat_reg[i][1][3];
-                        lclk_lnk.vbf_lane[i] <= lclk_lnk.dat_reg[i][1][0];
-                    end
-                end    
+                // Sublane 3
+                else if (lclk_lnk.vbid_reg[0][3])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][3];
             end
 
-            // No lock
+            // Two symbols per lane
             else
             begin
-                lclk_lnk.nvs_lane[i] <= 1;
-                lclk_lnk.vbf_lane[i] <= 0;
-            end
-        end
-    end
+                // Sublane 0
+                if (lclk_lnk.vbid_reg[0][0])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][0];
 
-// VB-ID register combined
-// As an extra lane integrity check all the lanes should have the same value
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        // Four active lanes
-        if (lclk_ctl.lanes == 'd3)
-        begin   
-            if (lclk_lnk.nvs_lane == 'b0000)
-                lclk_lnk.nvs <= 0;
-            else
-                lclk_lnk.nvs <= 1;
-
-            if (lclk_lnk.vbf_lane == 'b1111)
-                lclk_lnk.vbf <= 1;
-            else
-                lclk_lnk.vbf <= 0;
+                // Sublane 1
+                else if (lclk_lnk.vbid_reg[0][1])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][1];
+            end    
         end
 
-        // Two active lanes
-        else if (lclk_ctl.lanes == 'd2)
-        begin   
-            if (lclk_lnk.nvs_lane[1:0] == 'b00)
-                lclk_lnk.nvs <= 0;
-            else
-                lclk_lnk.nvs <= 1;
-
-            if (lclk_lnk.vbf_lane[1:0] == 'b11)
-                lclk_lnk.vbf <= 1;
-            else
-                lclk_lnk.vbf <= 0;
-        end
-
-        // One active lane
+        // No lock
         else
-        begin
-            lclk_lnk.nvs <= lclk_lnk.nvs_lane[0];
-            lclk_lnk.vbf <= lclk_lnk.vbf_lane[0];
-        end
+            lclk_lnk.vbid_val <= 0;
     end
+
+    assign lclk_lnk.vbf = lclk_lnk.vbid_val[0];
+    assign lclk_lnk.nvs = lclk_lnk.vbid_val[3];
 
 /*
     Alignment
@@ -3294,6 +3234,9 @@ endgenerate
     end
 
 // Outputs
+    // Link
+    assign LNK_VBID_OUT     = lclk_lnk.vbid_val;   // VB-ID
+
     // Video source
     assign VID_EN_OUT       = ~vclk_vid.nvs;       // Enable
     assign VID_SRC_IF.sof   = vclk_vid.sof;        // Start of frame

@@ -5,7 +5,7 @@
 
 
     Module: RISC-V CPU registers
-    (c) 2022 - 2023 by Parretto B.V.
+    (c) 2022 - 2024 by Parretto B.V.
 
     History
     =======
@@ -29,7 +29,7 @@
 
 module prt_riscv_cpu_reg
 #(
-    parameter P_VENDOR 	= "none",       // Vendor "xilinx", "lattice" or "intel"
+    parameter P_VENDOR 	= "none",       // Vendor - "AMD", "ALTERA" or "LSC"
 	parameter P_REGS 	= 16,				// Number of registers
 	parameter P_IDX 	= 4
 )
@@ -70,8 +70,8 @@ genvar i;
 generate
 	for (i = 0; i < 2; i++)
 	begin : gen_reg
-		if (P_VENDOR == "xilinx")
-		begin : gen_xilinx
+		if (P_VENDOR == "AMD")
+		begin : gen_amd
 			// XPM memory
 			xpm_memory_sdpram
 			#(
@@ -121,8 +121,8 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "lattice")
-		begin : gen_lattice
+		else if (P_VENDOR == "LSC")
+		begin : gen_lsc
 			pmi_distributed_dpram
 			#(
 				.pmi_addr_depth       	(P_WRDS), 		// integer       
@@ -150,8 +150,8 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "intel")
-		begin : gen_int
+		else if (P_VENDOR == "ALTERA")
+		begin : gen_altera
 			altdpram
 			#(
 				.indata_aclr 						("OFF"),

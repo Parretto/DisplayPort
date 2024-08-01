@@ -5,7 +5,7 @@
 
 
     Module: DP PM RAM
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -30,7 +30,7 @@
 
 module prt_dp_pm_ram
 #(
-    parameter P_VENDOR      = "none",     // Vendor "xilinx", "lattice" or "intel"
+    parameter P_VENDOR      = "none",     // Vendor - "AMD", "ALTERA" or "LSC" 
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -84,8 +84,8 @@ logic [P_ADR-1:0]   clk_wp;
     assign clk_wea = (INIT_VLD_IN) ? 'b1111 : RAM_IF.strb;
 
 generate
-    if (P_VENDOR == "xilinx")
-    begin : gen_xilinx
+    if (P_VENDOR == "AMD")
+    begin : gen_ram_amd
         // XPM memory
         xpm_memory_sdpram
         #(
@@ -135,8 +135,8 @@ generate
         );
     end
 
-    else if (P_VENDOR == "lattice")
-    begin : gen_lattice
+    else if (P_VENDOR == "LSC")
+    begin : gen_ram_lsc
         pmi_ram_dp_be
         #(
             .pmi_wr_addr_depth    (P_WRDS),         // integer
@@ -172,8 +172,8 @@ generate
         );
     end
 
-    else if (P_VENDOR == "intel")
-    begin : gen_int
+    else if (P_VENDOR == "ALTERA")
+    begin : gen_ram_altera
         altera_syncram
         #( 
             .init_file                          (P_INIT_FILE),

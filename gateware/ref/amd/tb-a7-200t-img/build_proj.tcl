@@ -98,8 +98,8 @@ add_files ../../../software/build/bin/dp_app_tb_a7_200t_img_rom.mem
 add_files ../../../software/build/bin/dp_app_tb_a7_200t_img_ram.mem
 
 # IPs
-import_ip ../../ref/amd/tb-a7-200t-img/sys_pll.xci 
-import_ip ../../ref/amd/tb-a7-200t-img/gtp_4spl.xci 
+import_ip ../../ref/amd/tb-a7-200t-img/sys_pll/sys_pll.xci 
+import_ip ../../ref/amd/tb-a7-200t-img/gtp_4spl/gtp_4spl.xci 
 
 # Update IPs 
 upgrade_ip [get_ips]

@@ -1,16 +1,11 @@
 ###
 # Clocks
 ###
-
 # System clock 125 MHz
 create_clock -period 8.000 -name sys_clk_in -waveform {0.000 4.000} [get_ports CLK_IN_P]
 
 # GT reference clock - 270 MHz
 create_clock -period 3.703 -name gt_ref_clk -waveform {0.000 1.851} [get_ports {GT_REFCLK_IN_P[0]}]
-
-# Link clock 8.1 Gbps @ 2 sublanes = 405 MHz
-create_clock -period 2.469 -name tx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_tx_usrclk2_out[0]}]
-create_clock -period 2.469 -name rx_lnk_clk -waveform {0.000 1.234} [get_pins {phy_2spl.PHY_INST/gtwiz_userclk_rx_usrclk2_out[0]}]
 
 # Video clock 4K60p @ 2 pixel per clock = 297 MHz
 create_clock -period 3.367 -name vid_clk -waveform {0.000 1.683} [get_ports TENTIVA_VID_CLK_IN_P]
@@ -59,6 +54,9 @@ set_property PACKAGE_PIN K12 [get_ports DPTX_AUX_RX_IN]
 set_property IOSTANDARD LVCMOS18 [get_ports DPTX_HPD_IN]
 set_property PACKAGE_PIN V11 [get_ports DPTX_HPD_IN]
 
+set_property IOSTANDARD LVCMOS18 [get_ports DPTX_I2C_SEL]
+set_property PACKAGE_PIN U8 [get_ports DPTX_I2C_SEL]
+
 ###
 # Tentiva DP1.4 RX card
 # Tentiva Mezzanine slot 0
@@ -74,6 +72,9 @@ set_property PACKAGE_PIN M13 [get_ports DPRX_AUX_RX_IN]
 
 set_property IOSTANDARD LVCMOS18 [get_ports DPRX_HPD_OUT]
 set_property PACKAGE_PIN P12 [get_ports DPRX_HPD_OUT]
+
+set_property IOSTANDARD LVCMOS18 [get_ports DPRX_I2C_SEL]
+set_property PACKAGE_PIN N13 [get_ports DPRX_I2C_SEL]
 
 
 # ZCU102
@@ -95,12 +96,36 @@ set_property PACKAGE_PIN AH13 [get_ports {LED_OUT[5]}]
 set_property PACKAGE_PIN AH14 [get_ports {LED_OUT[6]}]
 set_property PACKAGE_PIN AL12 [get_ports {LED_OUT[7]}]
 
+# DEBUG
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[6]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[7]}]
+set_property PACKAGE_PIN H14 [get_ports {DEBUG_OUT[0]}]
+set_property PACKAGE_PIN J14 [get_ports {DEBUG_OUT[1]}]
+set_property PACKAGE_PIN G14 [get_ports {DEBUG_OUT[2]}]
+set_property PACKAGE_PIN G15 [get_ports {DEBUG_OUT[3]}]
+set_property PACKAGE_PIN J15 [get_ports {DEBUG_OUT[4]}]
+set_property PACKAGE_PIN J16 [get_ports {DEBUG_OUT[5]}]
+set_property PACKAGE_PIN G16 [get_ports {DEBUG_OUT[6]}]
+set_property PACKAGE_PIN H16 [get_ports {DEBUG_OUT[7]}]
+
 # UART
 # ZCU102
 set_property IOSTANDARD LVCMOS33 [get_ports UART_TX_OUT]
 set_property PACKAGE_PIN F13 [get_ports UART_TX_OUT]
 set_property IOSTANDARD LVCMOS33 [get_ports UART_RX_IN]
 set_property PACKAGE_PIN E13 [get_ports UART_RX_IN]
+
+# Tentiva Rev.C
+#set_property IOSTANDARD LVCMOS18 [get_ports UART_TX_OUT]
+#set_property PACKAGE_PIN L10 [get_ports UART_TX_OUT]
+#set_property IOSTANDARD LVCMOS18 [get_ports UART_RX_IN]
+#set_property PACKAGE_PIN M10 [get_ports UART_RX_IN]
 
 # I2C
 set_property IOSTANDARD LVCMOS33 [get_ports I2C_SCL_INOUT]
@@ -117,10 +142,10 @@ set_property PACKAGE_PIN G21 [get_ports CLK_IN_P]
 #set_property DIFF_TERM_ADV TERM_100 [get_ports CLK_IN_P]
 
 # GT reference clock
-set_property PACKAGE_PIN G8 [get_ports GT_REFCLK_IN_P[0]]
-set_property PACKAGE_PIN G7 [get_ports GT_REFCLK_IN_N[0]]
-set_property PACKAGE_PIN L8 [get_ports GT_REFCLK_IN_P[1]]
-set_property PACKAGE_PIN L7 [get_ports GT_REFCLK_IN_N[1]]
+set_property PACKAGE_PIN G7 [get_ports {GT_REFCLK_IN_N[0]}]
+set_property PACKAGE_PIN G8 [get_ports {GT_REFCLK_IN_P[0]}]
+set_property PACKAGE_PIN L7 [get_ports {GT_REFCLK_IN_N[1]}]
+set_property PACKAGE_PIN L8 [get_ports {GT_REFCLK_IN_P[1]}]
 
 ###
 # Timing

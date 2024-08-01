@@ -107,6 +107,7 @@
 #define VTB_1280X720P50_VHEIGHT 		720
 #define VTB_1280X720P50_VSTART 		    25
 #define VTB_1280X720P50_VSW 			5
+#define VTB_1280X720P50_PCLK 			74250
 
 // 1280 x 720p @ 60Hz
 #define VTB_1280X720P60_HTOTAL 		    1652
@@ -117,6 +118,7 @@
 #define VTB_1280X720P60_VHEIGHT 		720
 #define VTB_1280X720P60_VSTART 		    25
 #define VTB_1280X720P60_VSW 			5
+#define VTB_1280X720P60_PCLK            74250 			
 
 // 1920 x 1080 @ 50 Hz
 #define VTB_1920X1080P50_HTOTAL         2640
@@ -127,6 +129,7 @@
 #define VTB_1920X1080P50_VHEIGHT        1080
 #define VTB_1920X1080P50_VSTART         41
 #define VTB_1920X1080P50_VSW            5
+#define VTB_1920X1080P50_PCLK           148500
 
 // 1920 x 1080 @ 60 Hz
 #define VTB_1920X1080P60_HTOTAL         2200
@@ -137,6 +140,7 @@
 #define VTB_1920X1080P60_VHEIGHT        1080
 #define VTB_1920X1080P60_VSTART         41
 #define VTB_1920X1080P60_VSW            5
+#define VTB_1920X1080P60_PCLK           148500
 
 // 2560 x 1440p @ 50Hz
 #define VTB_2560X1440P50_HTOTAL 		3960
@@ -147,6 +151,7 @@
 #define VTB_2560X1440P50_VHEIGHT 		1440
 #define VTB_2560X1440P50_VSTART 		50
 #define VTB_2560X1440P50_VSW 			10
+#define VTB_2560X1440P50_PCLK 			297000
 
 // 2560 x 1440p @ 60Hz
 #define VTB_2560X1440P60_HTOTAL 		3304
@@ -157,6 +162,7 @@
 #define VTB_2560X1440P60_VHEIGHT 		1440
 #define VTB_2560X1440P60_VSTART 		50
 #define VTB_2560X1440P60_VSW 			10
+#define VTB_2560X1440P60_PCLK 			297000
 
 // 3840 x 2160p @ 50Hz
 #define VTB_3840X2160P50_HTOTAL 		5280
@@ -167,6 +173,7 @@
 #define VTB_3840X2160P50_VHEIGHT 		2160
 #define VTB_3840X2160P50_VSTART 		82
 #define VTB_3840X2160P50_VSW 			10
+#define VTB_3840X2160P50_PCLK 			594000
 
 // 3840 x 2160p @ 60Hz
 #define VTB_3840X2160P60_HTOTAL 		4400
@@ -177,16 +184,7 @@
 #define VTB_3840X2160P60_VHEIGHT 		2160
 #define VTB_3840X2160P60_VSTART 		82
 #define VTB_3840X2160P60_VSW 			10
-
-// 5120 x 2160p @ 60Hz 
-#define VTB_5120X2160P60_HTOTAL 		5500
-#define VTB_5120X2160P60_HWIDTH 		5120
-#define VTB_5120X2160P60_HSTART 		216
-#define VTB_5120X2160P60_HSW 			88
-#define VTB_5120X2160P60_VTOTAL 		2250
-#define VTB_5120X2160P60_VHEIGHT 		2160
-#define VTB_5120X2160P60_VSTART 		82
-#define VTB_5120X2160P60_VSW 			10
+#define VTB_3840X2160P60_PCLK           594000
 
 // 7680 x 4320p @ 30Hz (RB2)
 #define VTB_7680X4320P30_HTOTAL 		7760
@@ -197,6 +195,7 @@
 #define VTB_7680X4320P30_VHEIGHT 		4320
 #define VTB_7680X4320P30_VSTART 		14
 #define VTB_7680X4320P30_VSW 			8
+#define VTB_7680X4320P30_PCLK 			1019896
 
 // TPG format
 #define VTB_TPG_FMT_FULL                0
@@ -207,58 +206,59 @@
 
 // Device structure
 typedef struct {
-	prt_u32 ctl;
-	prt_u32 ig;		// Ingress 
-	prt_u32 og;		// Outgress
-	prt_u32 vps;		// Video parameters
+	uint32_t ctl;
+	uint32_t ig;		// Ingress 
+	uint32_t og;		// Outgress
+	uint32_t vps;		// Video parameters
 } prt_vtb_dev_struct;
 
 // Timing parameters
 typedef struct {
-	prt_u32 mvid;
-	prt_u32 nvid;
-	prt_u16 htotal;
-	prt_u16 hwidth;
-	prt_u16 hstart;
-	prt_u16 hsw;
-	prt_u16 vtotal;
-	prt_u16 vheight;
-	prt_u16 vstart;
-	prt_u16 vsw;
-	prt_u8 misc0;
-	prt_u8 misc1;
+	uint32_t mvid;
+	uint32_t nvid;
+	uint16_t htotal;
+	uint16_t hwidth;
+	uint16_t hstart;
+	uint16_t hsw;
+	uint16_t vtotal;
+	uint16_t vheight;
+	uint16_t vstart;
+	uint16_t vsw;
+	uint8_t misc0;
+	uint8_t misc1;
+    uint32_t pclk;
 } prt_vtb_tp_struct;
 
 // Data structure
 typedef struct {
 	volatile prt_vtb_dev_struct 	*dev;	// Device
-	prt_u32 					    refclk;	// Reference clock
-	prt_u32 					    vidclk;	// Video clock
+	uint32_t 					    refclk;	// Reference clock
+	uint32_t 					    vidclk;	// Video clock
 	prt_vtb_tp_struct 			    tp;		// Timing parameters
 } prt_vtb_ds_struct;
 
 // Prototypes
-void prt_vtb_set_base (prt_vtb_ds_struct *vtb, prt_u32 base);
-void prt_vtb_set_refclk (prt_vtb_ds_struct *vtb, prt_u32 clk);
-void prt_vtb_set_vidclk (prt_vtb_ds_struct *vtb, prt_u32 clk);
-void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset);
-prt_u32 prt_vtb_get_ig (prt_vtb_ds_struct *vtb, prt_u8 ig);
-void prt_vtb_set_og (prt_vtb_ds_struct *vtb, prt_u8 og, prt_u32 dat);
-prt_u32 prt_vtb_get_og (prt_vtb_ds_struct *vtb, prt_u8 og);
-void prt_vtb_set_vps (prt_vtb_ds_struct *vtb, prt_u8 vps, prt_u32 dat);
+void prt_vtb_set_base (prt_vtb_ds_struct *vtb, uint32_t base);
+void prt_vtb_set_refclk (prt_vtb_ds_struct *vtb, uint32_t clk);
+void prt_vtb_set_vidclk (prt_vtb_ds_struct *vtb, uint32_t clk);
+void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset);
+uint32_t prt_vtb_get_ig (prt_vtb_ds_struct *vtb, uint8_t ig);
+void prt_vtb_set_og (prt_vtb_ds_struct *vtb, uint8_t og, uint32_t dat);
+uint32_t prt_vtb_get_og (prt_vtb_ds_struct *vtb, uint8_t og);
+void prt_vtb_set_vps (prt_vtb_ds_struct *vtb, uint8_t vps, uint32_t dat);
 prt_vtb_tp_struct prt_vtb_get_tp (prt_vtb_ds_struct *vtb);
-void prt_vtb_tpg (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset, prt_u8 fmt);
-prt_u8 prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal);
+void prt_vtb_tpg (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset, uint8_t fmt);
+uint8_t prt_vtb_find_preset (uint16_t htotal, uint16_t vtotal, uint32_t *pclk);
 
 // FIFO
-prt_u8 prt_vtb_get_fifo_lock (prt_vtb_ds_struct *vtb);
-prt_u16 prt_vtb_get_fifo_max_wrds (prt_vtb_ds_struct *vtb);
-prt_u16 prt_vtb_get_fifo_min_wrds (prt_vtb_ds_struct *vtb);
+uint8_t prt_vtb_get_fifo_lock (prt_vtb_ds_struct *vtb);
+uint16_t prt_vtb_get_fifo_max_wrds (prt_vtb_ds_struct *vtb);
+uint16_t prt_vtb_get_fifo_min_wrds (prt_vtb_ds_struct *vtb);
 
 // Clock recovery
-void prt_vtb_cr (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, prt_u8 preset);
-void prt_vtb_cr_set_p_gain (prt_vtb_ds_struct *vtb, prt_u8 gain);
-void prt_vtb_cr_set_i_gain (prt_vtb_ds_struct *vtb, prt_u16 gain);
+void prt_vtb_cr (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t preset);
+void prt_vtb_cr_set_p_gain (prt_vtb_ds_struct *vtb, uint8_t gain);
+void prt_vtb_cr_set_i_gain (prt_vtb_ds_struct *vtb, uint16_t gain);
 prt_s8 prt_vtb_get_cr_cur_err (prt_vtb_ds_struct *vtb);
 prt_s8 prt_vtb_get_cr_max_err (prt_vtb_ds_struct *vtb);
 prt_s8 prt_vtb_get_cr_min_err (prt_vtb_ds_struct *vtb);
@@ -266,10 +266,10 @@ prt_s16 prt_vtb_get_cr_sum (prt_vtb_ds_struct *vtb);
 prt_s32 prt_vtb_get_cr_co (prt_vtb_ds_struct *vtb);
 
 // Frequency
-prt_u32 prt_vtb_get_tx_lnk_clk_freq (prt_vtb_ds_struct *vtb);
-prt_u32 prt_vtb_get_rx_lnk_clk_freq (prt_vtb_ds_struct *vtb);
-prt_u32 prt_vtb_get_vid_ref_freq (prt_vtb_ds_struct *vtb);
-prt_u32 prt_vtb_get_vid_clk_freq (prt_vtb_ds_struct *vtb);
+uint32_t prt_vtb_get_tx_lnk_clk_freq (prt_vtb_ds_struct *vtb);
+uint32_t prt_vtb_get_rx_lnk_clk_freq (prt_vtb_ds_struct *vtb);
+uint32_t prt_vtb_get_vid_ref_freq (prt_vtb_ds_struct *vtb);
+uint32_t prt_vtb_get_vid_clk_freq (prt_vtb_ds_struct *vtb);
 
 // Overlay
-void prt_vtb_ovl_en (prt_vtb_ds_struct *vtb, prt_u8 en);
+void prt_vtb_ovl_en (prt_vtb_ds_struct *vtb, uint8_t en);

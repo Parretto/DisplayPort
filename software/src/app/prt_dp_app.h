@@ -128,7 +128,6 @@ void vtb_status (void);
 // Operation
 prt_sta_type vtb_colorbar (prt_bool force);
 prt_sta_type vtb_pass (void);
-prt_sta_type scale (void);
 
 // EDID
 void set_edid (prt_bool user);

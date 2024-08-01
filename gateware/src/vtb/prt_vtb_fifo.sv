@@ -29,7 +29,7 @@
 
 module prt_vtb_fifo
 #(
-    parameter P_VENDOR = "none",  				// Vendor "xilinx" or "lattice"
+    parameter P_VENDOR = "none",  				// Vendor - "AMD", "ALTERA" or "LSC" 
 	parameter P_PPC = 2,						// Pixels per clock
 	parameter P_BPC = 8,						// Bits per component
     parameter P_AXIS_DAT = 48					// AXIS data width

@@ -26,13 +26,14 @@
 */
 
 // Includes
+#include <stdint.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 #include "prt_mcdp6150.h"
 #include "prt_printf.h"
 
 // Initialize
-prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -68,11 +69,11 @@ prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Enable DP retimer
-prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en)
+prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t en)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
@@ -96,11 +97,11 @@ prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en
 }
 
 // Reset
-prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
@@ -122,11 +123,11 @@ prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Initialize DPRX
-prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_DP_RT_CONFIG, &dat);
@@ -144,7 +145,7 @@ prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave)
 // GC gain 
 // This function sets the jitter filtering.
 // This reduces the power of the SSC down-spread
-prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
@@ -156,11 +157,11 @@ prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Reset DP path 
-prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_OPMODE_CONF, &dat);
@@ -182,11 +183,11 @@ prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, prt_u8 slave)
 }
 
 // Reset CR path 
-prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, 0x150, &dat);
@@ -210,11 +211,11 @@ prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave)
 // Set transparent mode
 // 0 - Pass-through mode
 // 1 - pseudo mode
-prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 pseudo)
+prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t pseudo)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_LT_CONFIG_2, &dat);
@@ -239,12 +240,12 @@ prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_
 
 // Adjust request
 // This function sets the adjust request levels
-prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
-	prt_u16 adj;
+	uint32_t dat;
+	uint16_t adj;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_LT_CONFIG_2, &dat);
@@ -330,11 +331,11 @@ prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, prt_u8 slave)
 
 // Force TX parameters
 // This function sets the TX voltage and pre-emphasis levels
-prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre)
+prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_LT_CONFIG_2, &dat);
@@ -383,10 +384,10 @@ prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8
 }
 
 // This function calculates the adjust value for the link training config
-prt_u16 prt_mcdp6150_set_adj_val (prt_u8 volt, prt_u8 pre)
+uint16_t prt_mcdp6150_set_adj_val (uint8_t volt, uint8_t pre)
 {
 	// Variables
-	prt_u16 dat;
+	uint16_t dat;
 
 	// Adjust swing req LN0
 	dat = (volt << PRT_MCDP6150_ADJ_SWING_REG_LN0_SHIFT);
@@ -416,11 +417,11 @@ prt_u16 prt_mcdp6150_set_adj_val (prt_u8 volt, prt_u8 pre)
 }
 
 // PHY repeater mode
-prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en)
+prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t en)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Set DPCD values related to LTTPR to zero
 	dat = 0;
@@ -449,11 +450,11 @@ prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_
 }
 
 // Enable reference clock output
-prt_sta_type prt_mcdp6150_refclk_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_refclk_en (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, PRT_MCDP6150_IC_RT_CONFIG, &dat);
@@ -470,11 +471,11 @@ prt_sta_type prt_mcdp6150_refclk_en (prt_i2c_ds_struct *i2c, prt_u8 slave)
 
 // PRBS7 generator
 // This function enables the PRBS7 generator
-prt_sta_type prt_mcdp6150_prbs7 (prt_i2c_ds_struct *i2c, prt_u8 slave)
+prt_sta_type prt_mcdp6150_prbs7 (prt_i2c_ds_struct *i2c, uint8_t slave)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Modify register 0x150
 	sta = prt_mcdp6150_rd (i2c, slave, 0x150, &dat);
@@ -517,11 +518,11 @@ prt_sta_type prt_mcdp6150_prbs7 (prt_i2c_ds_struct *i2c, prt_u8 slave)
 
 // Set rate
 // This function sets the linerate (only in PRBS7 mode)
-prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 rate)
+prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t rate)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register 0x630
 	sta = prt_mcdp6150_rd (i2c, slave, 0x630, &dat);
@@ -541,11 +542,11 @@ prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8
 
 // Set voltage and pre-emphasis
 // This function sets the voltage and pre-emphasis levels (only in PRBS7 mode)
-prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre)
+prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register 0x720
 	sta = prt_mcdp6150_rd (i2c, slave, 0x720, &dat);
@@ -593,7 +594,7 @@ prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 
 }
 
 // Read register
-prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 *dat)
+prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -641,7 +642,7 @@ prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Write register
-prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 dat)
+prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -678,11 +679,11 @@ prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offs
 }
 
 // Dump register
-void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset)
+void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset)
 {
 	// Variables
 	prt_sta_type sta;
-	prt_u32 dat;
+	uint32_t dat;
 
 	// Read register
 	sta = prt_mcdp6150_rd (i2c, slave, offset, &dat);

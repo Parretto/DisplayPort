@@ -5,7 +5,7 @@
 
 
     Module: I2C Peripheral driver
-    (c) 2021, 2022 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -26,11 +26,13 @@
 */
 
 // Includes
+#include <stdint.h>
+#include <stdbool.h>
 #include "prt_types.h"
 #include "prt_i2c.h"
 
 // Initialize
-void prt_i2c_init (prt_i2c_ds_struct *i2c, prt_u32 base, prt_u32 beat)
+void prt_i2c_init (prt_i2c_ds_struct *i2c, uint32_t base, uint32_t beat)
 {
 	// Base address
 	i2c->dev = (prt_i2c_dev_struct *) base;
@@ -126,7 +128,7 @@ prt_sta_type prt_i2c_wr (prt_i2c_ds_struct *i2c)
 prt_sta_type prt_i2c_rd (prt_i2c_ds_struct *i2c)
 {
 	// Variables
-	prt_u8 cmd;
+	uint8_t cmd;
 	prt_sta_type sta;
 
 	// Start condition
@@ -154,7 +156,7 @@ prt_sta_type prt_i2c_rd (prt_i2c_ds_struct *i2c)
 	if (i2c->dev->sta & PRT_I2C_STA_ACK)
 	{
 		// Read data
-		for (prt_u8 i = 0; i < i2c->len; i++)
+		for (uint8_t i = 0; i < i2c->len; i++)
 		{
 			cmd = PRT_I2C_CTL_RUN | PRT_I2C_CTL_RD;
 			
@@ -205,13 +207,19 @@ prt_sta_type prt_i2c_rd (prt_i2c_ds_struct *i2c)
 }
 
 // DIA mode
-prt_sta_type prt_i2c_dia (prt_i2c_ds_struct *i2c, prt_u8 dia)
+prt_sta_type prt_i2c_dia (prt_i2c_ds_struct *i2c, bool dia, bool tentiva)
 {
+	// Variables
+	uint8_t dat = 0;
+
 	// Enable dia mode 
 	if (dia)
-		i2c->dev->ctl = PRT_I2C_CTL_RUN | PRT_I2C_CTL_DIA;
+		dat = PRT_I2C_CTL_RUN | PRT_I2C_CTL_DIA;
 
-	// Disable
-	else
-		i2c->dev->ctl = 0;
+	// This flag controls which Tentiva revision is used (0 - Rev. C / 1 - Rev. D)
+	if (tentiva)
+		dat |= PRT_I2C_CTL_TENTIVA;
+
+	// Write control register
+	i2c->dev->ctl = dat;
 }

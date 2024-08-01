@@ -61,22 +61,22 @@
 #define PRT_MCDP6150_OPMODE_CONF_DP_SOFT_RST           (1 << 10)
 
 // Prototypes
-prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en);
-prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 pseudo);
-prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre);
-prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_u16 prt_mcdp6150_set_adj_val (prt_u8 volt, prt_u8 pre);
-prt_sta_type prt_mcdp6150_refclk_en (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 en);
-prt_sta_type prt_mcdp6150_prbs7 (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 rate);
-prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u8 volt, prt_u8 pre);
-prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 *dat);
-prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset, prt_u32 dat);
-void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, prt_u8 slave, prt_u16 offset);
-prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, prt_u8 slave);
-prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, prt_u8 slave);
+prt_sta_type prt_mcdp6150_init (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_dp_en (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t en);
+prt_sta_type prt_mcdp6150_rst (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_dprx_init (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_gc_gain (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_trans_mode (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t pseudo);
+prt_sta_type prt_mcdp6150_tx_force (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre);
+prt_sta_type prt_mcdp6150_adj_req (prt_i2c_ds_struct *i2c, uint8_t slave);
+uint16_t prt_mcdp6150_set_adj_val (uint8_t volt, uint8_t pre);
+prt_sta_type prt_mcdp6150_refclk_en (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_lttpr_mode (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t en);
+prt_sta_type prt_mcdp6150_prbs7 (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_set_rate (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t rate);
+prt_sta_type prt_mcdp6150_set_vap (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t volt, uint8_t pre);
+prt_sta_type prt_mcdp6150_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t *dat);
+prt_sta_type prt_mcdp6150_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset, uint32_t dat);
+void prt_mcdp6150_dump (prt_i2c_ds_struct *i2c, uint8_t slave, uint16_t offset);
+prt_sta_type prt_mcdp6150_rst_dp (prt_i2c_ds_struct *i2c, uint8_t slave);
+prt_sta_type prt_mcdp6150_rst_cr (prt_i2c_ds_struct *i2c, uint8_t slave);
