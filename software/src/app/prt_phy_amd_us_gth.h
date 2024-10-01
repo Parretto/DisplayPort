@@ -140,3 +140,4 @@ void prt_phy_amd_pio_dat_clr (prt_phy_amd_ds_struct *phy, prt_u32 dat);
 void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 msk);
 prt_u32 prt_phy_amd_pio_dat_get (prt_phy_amd_ds_struct *phy);
 void prt_phy_amd_cdr_dump (prt_phy_amd_ds_struct *phy);
+void prt_phy_amd_qpll_dump (prt_phy_amd_ds_struct *phy);

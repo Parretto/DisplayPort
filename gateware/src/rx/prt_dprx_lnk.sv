@@ -13,6 +13,7 @@
     v1.1 - Initial MST support
     v1.2 - Added training TPS4
     v1.3 - Added 10-bits video support
+    v1.4 - Added secondary data packet 
 
     License
     =======
@@ -36,6 +37,7 @@ module prt_dprx_lnk
     parameter               P_VENDOR      = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
     parameter               P_SIM         = 0,       // Simulation
     parameter               P_MST         = 0,       // MST support
+    parameter               P_SDP         = 0,       // SDP support
 
     // Link
     parameter               P_LANES       = 2,       // Lanes
@@ -82,7 +84,10 @@ module prt_dprx_lnk
     // Video source
     input wire              VID_RST_IN,         // Reset
     input wire              VID_CLK_IN,         // Clock
-    prt_dp_axis_if.src      VID_SRC_IF          // Interface
+    prt_dp_axis_if.src      VID_SRC_IF,         // Interface
+
+    // Secondary data packet
+    prt_dp_rx_sdp_if.src    SDP_SRC_IF          // Source
 );
 
 // Localparam
@@ -155,6 +160,14 @@ prt_dp_rx_lnk_if
 lnk_from_msa();
 
 wire irq_from_msa;
+
+// SDP
+prt_dp_rx_lnk_if
+#(
+  .P_LANES  (P_LANES),
+  .P_SPL    (P_SPL)
+)
+lnk_from_sdp();
 
 // video
 wire vid_en_from_vid;
@@ -366,8 +379,8 @@ generate
         assign lnk_to_pars_lane[i].sol[0]   = 0;
         assign lnk_to_pars_lane[i].eol[0]   = 0;
         assign lnk_to_pars_lane[i].vid[0]   = 0;
-        assign lnk_to_pars_lane[i].sec[0]   = 0;
         assign lnk_to_pars_lane[i].msa[0]   = 0;
+        assign lnk_to_pars_lane[i].sdp[0]   = 0;
         assign lnk_to_pars_lane[i].vbid[0]  = 0;
 
         prt_dprx_pars
@@ -424,8 +437,8 @@ generate
         assign lnk_from_scrm.sol[i]  = lnk_from_pars_lane[i].sol[0];
         assign lnk_from_scrm.eol[i]  = lnk_from_pars_lane[i].eol[0];
         assign lnk_from_scrm.vid[i]  = lnk_from_pars_lane[i].vid[0];
-        assign lnk_from_scrm.sec[i]  = lnk_from_pars_lane[i].sec[0];
         assign lnk_from_scrm.msa[i]  = lnk_from_pars_lane[i].msa[0];
+        assign lnk_from_scrm.sdp[i]  = lnk_from_pars_lane[i].sdp[0];
         assign lnk_from_scrm.vbid[i] = lnk_from_pars_lane[i].vbid[0];
     end
 
@@ -523,6 +536,60 @@ endgenerate
         .IRQ_OUT            (irq_from_msa)
     );
 
+// SDP
+generate
+    if (P_SDP)
+    begin : gen_sdp
+        prt_dprx_sdp
+        #(
+                // System
+                .P_VENDOR           (P_VENDOR),         // Vendor
+                
+                // Link
+                .P_LANES            (P_LANES),          // Lanes
+                .P_SPL              (P_SPL)             // Symbols per lane
+        )
+        SDP_INST
+        (
+            // Reset and clock
+            .RST_IN                 (LNK_RST_IN),       // Reset
+            .CLK_IN                 (LNK_CLK_IN),       // Clock  
+ 
+            // Control
+            .CTL_LANES_IN           (lanes_from_ctl),   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+
+            // Link
+            .LNK_SNK_IF             (lnk_from_msa),     // Sink
+            .LNK_SRC_IF             (lnk_from_sdp),     // Source
+
+            // Secondary data packet
+            .SDP_SRC_IF             (SDP_SRC_IF)        // Source
+        );
+    end
+
+    else
+    begin : gen_no_sdp
+        assign lnk_from_sdp.lock = lnk_from_msa.lock;
+        
+        for (i = 0; i < P_LANES; i++)
+        begin
+            assign lnk_from_sdp.sol[i]      = lnk_from_msa.sol[i];
+            assign lnk_from_sdp.eol[i]      = lnk_from_msa.eol[i];
+            assign lnk_from_sdp.vid[i]      = lnk_from_msa.vid[i];
+            assign lnk_from_sdp.sdp[i]      = 0;
+            assign lnk_from_sdp.msa[i]      = lnk_from_msa.msa[i];
+            assign lnk_from_sdp.vbid[i]     = lnk_from_msa.vbid[i];
+            assign lnk_from_sdp.k[i]        = lnk_from_msa.k[i];
+            assign lnk_from_sdp.dat[i]      = lnk_from_msa.dat[i];
+        end
+
+        assign SDP_SRC_IF.sop = 0;
+        assign SDP_SRC_IF.eop = 0;
+        assign SDP_SRC_IF.dat = 0;
+        assign SDP_SRC_IF.vld = 0;
+    end
+endgenerate
+
 // Video
     prt_dprx_vid
     #(
@@ -557,7 +624,7 @@ endgenerate
         // Link sink
         .LNK_RST_IN         (LNK_RST_IN),           // Reset
         .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
-        .LNK_SNK_IF         (lnk_from_msa),         // Interface
+        .LNK_SNK_IF         (lnk_from_sdp),         // Interface
         .LNK_VBID_OUT       (LNK_VBID_OUT),         // VB-ID 
         
         // Video source

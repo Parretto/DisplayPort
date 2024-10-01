@@ -37,10 +37,20 @@
 #include "prt_dp_drv.h"
 
 // Set base address
-void prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base)
+// This function returns true when the DP peripheral is found.
+uint8_t prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base)
 {
-	// Base address
+	// Variables
+	uint8_t sta = PRT_FALSE;
+
+	// Set base address
 	dp->dev = (prt_dp_dev_struct *) base;
+
+	// Check if we can read the identificaiton register
+	if (dp->dev->id == 0x00004d47)
+		sta = PRT_TRUE;
+
+	return sta;
 }
 
 // Set event callback
@@ -107,7 +117,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
     		// Enable aux boxes for dptx
 		if (id == PRT_DPTX_ID)
     			dat |= PRT_DP_CTL_AUX_EN; 
-    	#endif
+    #endif
 
     	// Write control
 	dp->dev->ctl = dat;
@@ -1208,7 +1218,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			break;
 
 		default:
-			prt_printf ("Unknown token (%x)\n", dp->mail_in.dat[0]);
+			//prt_printf ("Unknown token (%x)\n", dp->mail_in.dat[0]);
 			break;	
 	}
 

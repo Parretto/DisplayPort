@@ -57,8 +57,8 @@
 #include "tentiva_phy_clk.h"
 #include "tentiva_vid_clk.h"
 
-// AMD ZCU102 board 
-#if (BOARD == BOARD_AMD_ZCU102)
+// AMD ZCU102 board and Alinx AXAU15 board
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
      #include "prt_phy_amd_us_gth.h"
 
 // Lattice LFCPNX board
@@ -112,11 +112,6 @@ prt_dp_ds_struct dprx;
 
 // VTB data structure
 prt_vtb_ds_struct vtb[2];
-
-// Scaler data structure
-#ifdef SCALER
-     prt_scaler_ds_struct scaler;
-#endif 
 
 // Tentiva data structure
 prt_tentiva_ds_struct tentiva;
@@ -191,8 +186,8 @@ int main (void)
      // Reset DPRX
      dp_reset (PRT_DPRX_ID);
 
-// AMD ZCU102 board 
-#if (BOARD == BOARD_AMD_ZCU102)
+// AMD ZCU102 board and Alinx AXAU15 board
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
      // Initialize PHY
      prt_phy_amd_init (&phy, &tmr, PRT_PHY_BASE);
 
@@ -218,10 +213,18 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
+#ifdef SCALER
+     // Assign scaler base address
+     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
+#endif
+
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
      prt_printf ("Board: AMD ZCU102\n");
+
+#elif (BOARD == BOARD_ALINX_AXAU15)
+     prt_printf ("Board: Alinx AXAU15\n");
 
 // Lattice CertusPro-NX
 #elif (BOARD == BOARD_LSC_LFCPNX)
@@ -311,7 +314,7 @@ int main (void)
           return -1;
      }
 
-#if (BOARD == BOARD_AMD_ZCU102)
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
      // Set the TX card select
      if (prt_tentiva_get_slot_id (&tentiva, 1) == PRT_TENTIVA_DP21TX_ID)
           prt_pio_dat_set (&pio, PIO_OUT_TX_CARD);
@@ -445,8 +448,6 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
-// If the advanced option is not defined, then the DP is pre-configured.
-#ifndef ADVANCED
 
      /*
           DPTX
@@ -465,7 +466,7 @@ int main (void)
      // Config
      prt_printf ("DPTX: Config...");
 
-     #if (BOARD == BOARD_AMD_ZCU102)
+     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
@@ -514,7 +515,7 @@ int main (void)
      // Config
      prt_printf ("DPRX: Config...");
 
-     #if (BOARD == BOARD_AMD_ZCU102)
+     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
@@ -561,7 +562,6 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
-#endif
 
      // Menu
      show_menu ();
@@ -596,6 +596,33 @@ int main (void)
                     case 'e' :
                          prt_printf ("DPTX: Status\n");
                          prt_dp_sta (&dptx);
+                         break;
+
+                    // Force training
+                    case 'r' :
+                         prt_printf ("DPTX: Training\n");
+                         prt_printf ("Select maximum line rate:\n");
+                         prt_printf (" 1 - 1.62 Gbps\n");
+                         prt_printf (" 2 - 2.7 Gbps\n");
+                         prt_printf (" 3 - 5.4 Gbps\n");
+                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
+                              prt_printf (" 4 - 8.1 Gbps\n");
+                         #endif
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
+                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
+                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
+                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
+                         }
+
+                         // Set max rate
+                         prt_dp_set_lnk_max_rate (&dptx, dat);
+
+                         // Force training
+                         prt_dptx_trn (&dptx);
                          break;
 
                     // MST enable / disable
@@ -650,7 +677,6 @@ int main (void)
                               }
                          }
                          break;
-
 
                     /*
                          DPRX
@@ -871,7 +897,7 @@ int main (void)
                //prt_tentiva_mcdp6xx0_rst_dp (&tentiva);
 
                //prt_printf ("cr\n\r");
-               #if (BOARD == BOARD_AMD_ZCU102)
+               #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
                     prt_phy_amd_rx_rst (&phy);
                #endif
                
@@ -1110,11 +1136,22 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("w - Config\n");
+     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
+     #ifdef ADVANCED
+         prt_printf ("t - PHY test\n");
+         prt_printf ("y - AUX test\n");
+         prt_printf ("u - Force HPD\n");
+     #endif
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("s - Config\n");
+     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1126,6 +1163,13 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
+     #ifdef SCALER
+         prt_printf ("v - scale\n");
+     #endif
+
+     #ifdef ADVANCED
+         prt_printf ("b - PRBS\n");
+     #endif
          prt_printf ("\n");
      }
 
@@ -1136,7 +1180,7 @@ int main (void)
 // PHY TX line rate
 void phy_set_tx_linerate (uint8_t linerate)
 {
-#if (BOARD == BOARD_AMD_ZCU102)
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
 
      // Variables
      uint8_t phy_linerate;
@@ -1279,7 +1323,7 @@ void phy_set_tx_vap (uint8_t volt, uint8_t pre)
 void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 {
 // AMD ZCU102
-#if (BOARD == BOARD_AMD_ZCU102)
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
 
      // Variables
      uint8_t phy_linerate;
@@ -1297,7 +1341,6 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
           case PRT_DP_PHY_LINERATE_8100 : phy_linerate = PRT_PHY_AMD_LINERATE_8100; break;
           default : phy_linerate = PRT_PHY_AMD_LINERATE_1620; break;
      }
-
 
      // Set PHY RX line rate 
      prt_phy_amd_rx_rate (&phy, phy_linerate, ssc);
@@ -1685,6 +1728,11 @@ prt_sta_type vtb_colorbar (prt_bool force)
                bpc = 8;
           }          
 
+     #ifdef SCALER
+          prt_printf ("Scaler: stop\n");
+          prt_scaler_stp (&scaler);
+     #endif
+
           // Start test pattern
           prt_printf ("VTB: Start test pattern\n");
           prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_FULL);
@@ -1740,6 +1788,7 @@ prt_sta_type vtb_pass (void)
      prt_dp_tp_struct dp_tp;
      prt_vtb_tp_struct vtb_tp;
      uint32_t tentiva_clk;
+     uint8_t scaler_flag = false;
      uint8_t vtb_preset;
 
      // MST
@@ -1789,6 +1838,12 @@ prt_sta_type vtb_pass (void)
      prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
      prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
 
+     // Scaler
+#ifdef SCALER
+     prt_printf ("Scaler: stop\n");
+     prt_scaler_stp (&scaler);
+#endif
+
      // Enable direct I2C access mode
      prt_printf ("I2C: enable direct access mode\n");
      prt_i2c_dia (&i2c, true, prt_tentiva_has_sc(&tentiva));
@@ -1830,7 +1885,6 @@ prt_sta_type vtb_pass (void)
 
      return PRT_STA_OK;
 }
-
 
 /*
      EDID

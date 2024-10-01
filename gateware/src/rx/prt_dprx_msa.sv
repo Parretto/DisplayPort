@@ -95,7 +95,7 @@ typedef struct {
     logic   [P_SPL-1:0]         sol[0:P_LANES-1];               // Start of line
     logic   [P_SPL-1:0]         eol[0:P_LANES-1];               // End of line
     logic   [P_SPL-1:0]         vid[0:P_LANES-1];               // Video packet
-    logic   [P_SPL-1:0]         sec[0:P_LANES-1];               // Secondary packet
+    logic   [P_SPL-1:0]         sdp[0:P_LANES-1];               // Secondary data packet
     logic   [P_SPL-1:0]         msa[0:P_LANES-1];               // Main stream attributes (msa)
     logic   [P_SPL-1:0]         vbid[0:P_LANES-1];              // VB-ID
     logic   [P_SPL-1:0]         k[0:P_LANES-1];                 // k character
@@ -137,7 +137,7 @@ genvar i, j;
             clk_lnk.sol[i]  = LNK_SNK_IF.sol[i];     // Start of line
             clk_lnk.eol[i]  = LNK_SNK_IF.eol[i];     // End of line
             clk_lnk.vid[i]  = LNK_SNK_IF.vid[i];     // Video
-            clk_lnk.sec[i]  = LNK_SNK_IF.sec[i];     // Secondary
+            clk_lnk.sdp[i]  = LNK_SNK_IF.sdp[i];     // Secondary data packet
             clk_lnk.msa[i]  = LNK_SNK_IF.msa[i];     // MSA
             clk_lnk.vbid[i] = LNK_SNK_IF.vbid[i];    // VB-ID
             clk_lnk.k[i]    = LNK_SNK_IF.k[i];       // k character
@@ -819,7 +819,7 @@ generate
             assign LNK_SRC_IF.sol[i][j]   = clk_lnk.sol[i][j]; 
             assign LNK_SRC_IF.eol[i][j]   = clk_lnk.eol[i][j]; 
             assign LNK_SRC_IF.vid[i][j]   = clk_lnk.vid[i][j]; 
-            assign LNK_SRC_IF.sec[i][j]   = 0;                  // Not used 
+            assign LNK_SRC_IF.sdp[i][j]   = clk_lnk.sdp[i][j];      
             assign LNK_SRC_IF.msa[i][j]   = 0;                  // The MSA is not passed 
             assign LNK_SRC_IF.vbid[i][j]  = clk_lnk.vbid[i][j]; 
             assign LNK_SRC_IF.k[i][j]     = clk_lnk.k[i][j];

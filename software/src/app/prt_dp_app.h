@@ -37,7 +37,9 @@
 #define BOARD_INT_C10GX                 2
 #define BOARD_INT_A10GX                 3
 #define BOARD_TB_A7_200T_IMG            4
+#define BOARD_ALINX_AXAU15              5
 
+//#define ADVANCED
 #define AUTO_COLORBAR
 
 #define SYS_CLK_FREQ                    50000000
@@ -131,10 +133,6 @@ prt_sta_type vtb_pass (void);
 
 // EDID
 void set_edid (prt_bool user);
-
-// PRBS
-void prbs (void);
-void prbs_menu (void);
 
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)

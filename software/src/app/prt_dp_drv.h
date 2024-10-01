@@ -118,6 +118,7 @@ typedef enum {
 
 // Device structure
 typedef struct {
+  uint32_t id; 				// ID
   uint32_t ctl; 			// Control
   uint32_t sta; 			// Status
   uint32_t mail_out;		// Mail out (pm -> host)
@@ -252,7 +253,7 @@ typedef struct {
 
 // Prototypes
 // Shared
-void prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base);
+uint8_t prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base);
 void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handler);
 void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom);
 void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram);

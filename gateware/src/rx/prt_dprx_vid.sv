@@ -5,7 +5,7 @@
 
 
     Module: DP RX Video
-    (c) 2021- 2024 by Parretto B.V.
+    (c) 2021 - 2024 by Parretto B.V.
 
     History
     =======
@@ -160,7 +160,6 @@ typedef struct {
 } vid_map_struct;
 
 typedef struct {
-    logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
     logic [7:0]                     run_pipe;   
     logic                           run;        // Run
     logic [15:0]                    hwidth;
@@ -349,7 +348,6 @@ endgenerate
         .FE_OUT    ()                       // Falling edge
     );
 
-
 // Start toggle
 // The start of line is used to reset some processes in both the link and video clock domains.
 // In the link clock domain this signal is only one clock.
@@ -506,7 +504,7 @@ endgenerate
 // Last phase
 // This register captures the phase of the last data
 // The easiest way is to look at the last alignment write.
-/// However using this approach when idle time between the video packets is small, 
+// However using this approach when idle time between the video packets is small, 
 // the last phase is updated after the first phase has been set. 
 // This results in an incorrect alignment select. 
 // To solve this issue, the last phase is derived from the last phase of the (unaligned) incoming data 

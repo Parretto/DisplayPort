@@ -265,17 +265,7 @@ wire [31:0]     dat_from_aqua;
         .LB_UP_IF           (lb_to_mux),
 
         // Down stream
-        .LB_DWN_IF0         (lb_from_mux[0]),
-        .LB_DWN_IF1         (lb_from_mux[1]),
-        .LB_DWN_IF2         (lb_from_mux[2]),
-        .LB_DWN_IF3         (lb_from_mux[3]),
-        .LB_DWN_IF4         (lb_from_mux[4]),
-        .LB_DWN_IF5         (lb_from_mux[5]),
-        .LB_DWN_IF6         (lb_from_mux[6]),
-        .LB_DWN_IF7         (lb_from_mux[7]),
-        .LB_DWN_IF8         (lb_from_mux[8]),
-        .LB_DWN_IF9         (lb_from_mux[9]),
-        .LB_DWN_IF10        (lb_from_mux[10])
+        .LB_DWN_IF          (lb_from_mux)
     );
    
     // Upstream

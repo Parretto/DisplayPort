@@ -13,6 +13,7 @@
     v1.1 - Initial MST support
     v1.2 - Added training TPS4 
     v1.3 - Added VB-ID register output
+    v1.4 - Added secondary data packet 
 
     License
     =======
@@ -36,6 +37,7 @@ module prt_dprx_top
     parameter                                   P_VENDOR    = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
     parameter                                   P_BEAT      = 'd125,        // Beat value
     parameter                                   P_MST       = 0,            // MST support
+    parameter                                   P_SDP       = 0,       // SDP support
 
     // Link
     parameter                                   P_LANES     = 4,            // Lanes
@@ -76,7 +78,13 @@ module prt_dprx_top
     output wire                                 VID_SOF_OUT,        // Start of frame
     output wire                                 VID_EOL_OUT,        // End of line
     output wire [P_VID_DAT-1:0]                 VID_DAT_OUT,        // Data
-    output wire                                 VID_VLD_OUT         // Valid
+    output wire                                 VID_VLD_OUT,        // Valid
+
+    // Secondary data packet
+    output wire                                 SDP_SOP_OUT,        // Start of packet
+    output wire                                 SDP_EOP_OUT,        // End of packet
+    output wire [31:0]                          SDP_DAT_OUT,        // Data
+    output wire                                 SDP_VLD_OUT         // Valid
 );
 
 // Parameters
@@ -133,8 +141,6 @@ wire [1:0]                      irq_to_pm;
 wire [P_PIO_IN_WIDTH-1:0]       pio_to_pm;
 wire [P_PIO_OUT_WIDTH-1:0]      pio_from_pm;
 
-// Link
-
 // Link interface
 prt_dp_rx_lnk_if
 #(
@@ -143,11 +149,17 @@ prt_dp_rx_lnk_if
 )
 lnk_if();
 
+// Video interface
 prt_dp_axis_if
 #(
     .P_DAT_WIDTH (P_VID_DAT)
 )
 vid_if();
+
+// Secondary data packet interface
+prt_dp_rx_sdp_if
+sdp_if();
+
 
 wire lnk_clkdet_from_lnk;
 wire cdr_lock_from_lnk;
@@ -254,6 +266,7 @@ genvar i, j;
         .P_VENDOR           (P_VENDOR),         // Vendor
         .P_SIM              (P_SIM),            // Simulation
         .P_MST              (P_MST),            // MST support
+        .P_SDP              (P_SDP),            // Secondary Data Packet
 
         // Link
         .P_LANES            (P_LANES),          // Lanes
@@ -301,7 +314,10 @@ genvar i, j;
         // Video source
         .VID_RST_IN         (rst_from_vid_rst),     // Reset
         .VID_CLK_IN         (VID_CLK_IN),           // Clock
-        .VID_SRC_IF         (vid_if)                // Interface
+        .VID_SRC_IF         (vid_if),               // Interface
+
+        // Secondary data packet
+        .SDP_SRC_IF         (sdp_if)                // Interface
     );
 
     // Video ready
@@ -314,7 +330,7 @@ genvar i, j;
             for (j = 0; j < P_SPL; j++)
             begin
                 assign lnk_if.vid[i][j] = 0;        // Not used
-                assign lnk_if.sec[i][j] = 0;        // Not used
+                assign lnk_if.sdp[i][j] = 0;        // Not used
                 assign lnk_if.msa[i][j] = 0;        // Not used              
                 assign lnk_if.k[i][j]   = LNK_DAT_IN[(i*P_SPL*9)+(j*9)+8];
                 assign lnk_if.dat[i][j] = LNK_DAT_IN[((i*P_SPL*9)+(j*9))+:8];
@@ -332,6 +348,11 @@ assign VID_SOF_OUT = vid_if.sof;
 assign VID_EOL_OUT = vid_if.eol;
 assign VID_DAT_OUT = vid_if.dat;
 assign VID_VLD_OUT = vid_if.vld;
+
+assign SDP_SOP_OUT = sdp_if.sop;
+assign SDP_EOP_OUT = sdp_if.eop;
+assign SDP_DAT_OUT = sdp_if.dat;
+assign SDP_VLD_OUT = sdp_if.vld;
 
 // Debug tap
 generate 

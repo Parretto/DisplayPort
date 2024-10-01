@@ -353,7 +353,7 @@ endmodule
 */
 module prt_dp_lib_cdc_gray
 #(
-	parameter                      	P_VENDOR    	= "none",  		// Vendor "xilinx" or "lattice"
+	parameter                      	P_VENDOR    	= "none",  	
 	parameter 						P_WIDTH = 8
 )
 (
@@ -364,7 +364,7 @@ module prt_dp_lib_cdc_gray
 );
 
 generate
-	if (P_VENDOR == "xilinx")
+	if (P_VENDOR == "amd")
 	begin : gen_xpm_gray
 		xpm_cdc_gray 
 		#(

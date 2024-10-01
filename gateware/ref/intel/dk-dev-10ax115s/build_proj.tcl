@@ -74,6 +74,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE $src_path/app/dp_app_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid_vmap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid_fifo.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_vid.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_sdp.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_trn_lane.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_trn.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $src_path/rx/prt_dprx_top.sv

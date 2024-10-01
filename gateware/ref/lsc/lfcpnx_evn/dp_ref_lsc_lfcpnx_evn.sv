@@ -505,7 +505,13 @@ wire                            led_from_vid_hb;
         .VID_SOF_OUT        (vid_sof_from_dprx),    // Start of frame
         .VID_EOL_OUT        (vid_eol_from_dprx),    // End of line
         .VID_DAT_OUT        (vid_dat_from_dprx),    // Data
-        .VID_VLD_OUT        (vid_vld_from_dprx)     // Valid
+        .VID_VLD_OUT        (vid_vld_from_dprx),    // Valid
+
+        // Secondary data packet
+        .SDP_SOP_OUT        (),                     // Start of packet
+        .SDP_EOP_OUT        (),                     // End of packet
+        .SDP_DAT_OUT        (),                     // Data
+        .SDP_VLD_OUT        ()                      // Valid
     );
 
 // Video toolbox (stream 0)

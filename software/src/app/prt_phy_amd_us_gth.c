@@ -36,39 +36,66 @@
 #include "prt_phy_amd_us_gth.h"
 #include "prt_printf.h"
 
-// PHY TX PLL configuration data
-prt_u32 qpll_cfg_drp_array[4][4] = {
+// PHY QPLL configuration data
+prt_u32 qpll_cfg_drp_array[4][5] = {
 
   	// Configuration 1.62 Gbps
   	{
-		0x00110fc3, /* DRP address=0x11, data=0xfc3e */
-		0x0014005e, /* DRP address=0x14, data=0x5e */
-		0x00180020, /* DRP address=0x18, data=0x020 */
-		0x0019021f  /* DRP address=0x19, data=0x21f */
+	//	0x00110fc3, /* DRP address=0x11, data=0xfc3e */
+	//	0x0014005e, /* DRP address=0x14, data=0x5e */
+	//	0x00180020, /* DRP address=0x18, data=0x020 */
+	//	0x0019021f  /* DRP address=0x19, data=0x21f */
+
+		0x001187c1, /* DRP address=0x11, data=0xfc3e */
+		0x0014002e, /* DRP address=0x14, data=0x5e */
+		0x00180808, /* DRP address=0x18, data=0x020 */
+		0x0019037f,  /* DRP address=0x19, data=0x21f */
+		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+
 	},
 
   	// Configuration 2.7 Gbps
   	{
-		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
-		0x0014004e, /* DRP address=0x14, data=0x4e */
-		0x00180020, /* DRP address=0x18, data=0x020 */
-		0x0019021f  /* DRP address=0x19, data=0x21f */
+//		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
+//		0x0014004e, /* DRP address=0x14, data=0x4e */
+//		0x00180020, /* DRP address=0x18, data=0x020 */
+//		0x0019021f  /* DRP address=0x19, data=0x21f */
+
+		0x001187c1, /* DRP address=0x11, data=0xfc3e */
+		0x00140026, /* DRP address=0x14, data=0x5e */
+		0x00180808, /* DRP address=0x18, data=0x020 */
+		0x0019037f,  /* DRP address=0x19, data=0x21f */
+		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+
 	},
 
   	// Configuration 5.4 Gbps
   	{
-		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
-		0x0014004e, /* DRP address=0x14, data=0x4e */
-		0x00180020, /* DRP address=0x18, data=0x020 */
-		0x0019021f  /* DRP address=0x19, data=0x21f */
+//		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
+//		0x0014004e, /* DRP address=0x14, data=0x4e */
+//		0x00180020, /* DRP address=0x18, data=0x020 */
+//		0x0019021f  /* DRP address=0x19, data=0x21f */
+
+		0x001187c1, /* DRP address=0x11, data=0xfc3e */
+		0x00140026, /* DRP address=0x14, data=0x5e */
+		0x00180808, /* DRP address=0x18, data=0x020 */
+		0x0019037f,  /* DRP address=0x19, data=0x21f */
+		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+
 	},
 
   	// Configuration 8.1 Gbps
 	{
-		0x00110fc0, /* DRP address=0x11, data=0xfc0 */
-		0x0014003a, /* DRP address=0x14, data=0x3a */
-		0x00180820, /* DRP address=0x18, data=0x820 */
-		0x0019031d  /* DRP address=0x19, data=0x31d */
+//		0x00110fc0, /* DRP address=0x11, data=0xfc0 */
+//		0x0014003a, /* DRP address=0x14, data=0x3a */
+//		0x00180820, /* DRP address=0x18, data=0x820 */
+//		0x0019031d  /* DRP address=0x19, data=0x31d */
+
+		0x001187c0, /* DRP address=0x11, data=0xfc3e */
+		0x0014003a, /* DRP address=0x14, data=0x5e */
+		0x00180808, /* DRP address=0x18, data=0x020 */
+		0x0019031d,  /* DRP address=0x19, data=0x21f */
+		0x001b87c0  /* DRP address=0x1b, data=0x21f */
 	}
 };
 
@@ -1245,4 +1272,21 @@ void prt_phy_amd_cdr_dump (prt_phy_amd_ds_struct *phy)
 	prt_printf ("0x11c = %x\n", dat);
 	dat = prt_phy_amd_drp_rd (phy, 0, 0xa4);
 	prt_printf ("0xa4 = %x\n", dat);
+}
+
+// Dump QPLL registers
+void prt_phy_amd_qpll_dump (prt_phy_amd_ds_struct *phy)
+{
+	// Variables
+	prt_u16 dat;
+	
+	prt_printf ("\n=====\n");
+	prt_printf ("DRP QPLL dump\n");
+	prt_printf ("=====\n");
+
+	for (prt_u8 i = 0x11; i < 0x20; i++)
+	{
+		dat = prt_phy_amd_drp_rd (phy, 4, i);
+		prt_printf ("%x = %x\n", i, dat);
+	}
 }

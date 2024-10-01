@@ -4,7 +4,7 @@
 ###
 
 # Create project
-create_project dp_ref_amd_zcu102 -part xczu9eg-ffvb1156-2-e -force
+create_project dp_ref_alinx_axau15 -part xcau15p-ffvb676-2-i -force
 
 # Add sources
 set SRC "../../src"
@@ -88,27 +88,25 @@ add_files $SRC/misc/prt_hb.sv
 add_files $SRC/misc/prt_uart.sv
 
 # Top
-add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.sv
+add_files ../../ref/amd/axau15/dp_ref_alinx_axau15.sv
 
 # Constraint
-add_files ../../ref/amd/zcu102/dp_ref_amd_zcu102.xdc
+add_files ../../ref/amd/axau15/dp_ref_alinx_axau15.xdc
 
 # Memory
-add_files ../../../software/build/bin/dp_app_amd_zcu102_rom.mem
-add_files ../../../software/build/bin/dp_app_amd_zcu102_ram.mem
+add_files ../../../software/build/bin/dp_app_alinx_axau15_rom.mem
+add_files ../../../software/build/bin/dp_app_alinx_axau15_ram.mem
 
 # IPs
-import_ip ../../ref/amd/zcu102/sys_pll/sys_pll.xci 
-import_ip ../../ref/amd/zcu102/zcu102_gth_2spl/zcu102_gth_2spl.xci 
-import_ip ../../ref/amd/zcu102/zcu102_gth_4spl/zcu102_gth_4spl.xci 
+import_ip ../../ref/amd/axau15/sys_pll/sys_pll.xci 
+import_ip ../../ref/amd/axau15/gth_2spl/gth_2spl.xci 
 
 # Update IPs 
 upgrade_ip [get_ips]
 
 # Create IP design files
 # We need to execute the command per individual IPs. 
-create_ip_run -force [get_ips zcu102_gth_2spl]
-create_ip_run -force [get_ips zcu102_gth_4spl]
+create_ip_run -force [get_ips gth_2spl]
 create_ip_run -force [get_ips sys_pll]
 
 # Launch synthesis

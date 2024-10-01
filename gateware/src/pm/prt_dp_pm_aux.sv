@@ -31,7 +31,7 @@
 module prt_dp_pm_aux
 #(
      // System
-     parameter              P_VENDOR = "none"  // Vendor "xilinx" or "lattice"
+     parameter              P_VENDOR = "none"  // Vendor - "AMD", "ALTERA" or "LSC"
 )
 (
 	// Reset and clock

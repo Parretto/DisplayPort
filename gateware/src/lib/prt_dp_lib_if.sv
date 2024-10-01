@@ -89,7 +89,7 @@ interface prt_dp_axil_if
 	parameter P_ADR_WIDTH = 32				// Address width
 );
 	logic 						arst;
-	logic	[P_ADR_WIDTH-1:0] 		awadr;
+	logic	[P_ADR_WIDTH-1:0] 	awadr;
 	logic						awvalid;
 	logic						awready;
 	logic	[31:0]				wdata;
@@ -98,7 +98,7 @@ interface prt_dp_axil_if
 	logic	[1:0]				bresp;
 	logic						bvalid;
 	logic						bready;
-	logic	[P_ADR_WIDTH-1:0] 		aradr;
+	logic	[P_ADR_WIDTH-1:0] 	aradr;
 	logic						arvalid;
 	logic						arready;
 	logic	[31:0]				rdata;
@@ -119,6 +119,31 @@ interface prt_dp_axil_if
 					output bresp, output bvalid, input bready,
 					input aradr, input arvalid, output arready,
 					output rdata, output rresp, output rvalid, input rready);
+endinterface
+
+/*
+	APB interface
+*/
+interface prt_dp_apb_if
+#(
+	parameter P_ADR_WIDTH = 32				// Address width
+);
+	logic 						psel;
+	logic	[P_ADR_WIDTH-1:0] 	paddr;
+	logic 						pwrite;
+	logic	[31:0]				pwdata;
+	logic	[31:0]				prdata;
+	logic 						pready;
+	logic 						penable;
+
+	modport mst (	output psel, output penable, output paddr, output pwrite, 
+					output pwdata, input prdata, input pready
+					);
+
+	modport slv (	input psel, input penable, input paddr, input pwrite, 
+					input pwdata, output prdata, output pready
+					);
+
 endinterface
 
 /*
@@ -222,14 +247,29 @@ interface prt_dp_rx_lnk_if
 	logic 	[P_SPL-1:0]		sol[0:P_LANES-1];				// Start of line
 	logic 	[P_SPL-1:0]		eol[0:P_LANES-1];				// End of line
 	logic 	[P_SPL-1:0] 	vid[0:P_LANES-1];				// Video packet
-	logic 	[P_SPL-1:0] 	sec[0:P_LANES-1];				// Secondary packet
+	logic 	[P_SPL-1:0] 	sdp[0:P_LANES-1];				// Secondary data packet
 	logic 	[P_SPL-1:0] 	msa[0:P_LANES-1];				// Main stream attributes (msa)
 	logic 	[P_SPL-1:0] 	vbid[0:P_LANES-1];				// VB-ID
 	logic	[P_SPL-1:0]		k[0:P_LANES-1];					// k character
 	logic 	[7:0]			dat[0:P_LANES-1][0:P_SPL-1];	// Data
 
-	modport snk	(input lock, input sol, input eol, input vid, input sec, input msa, input vbid, input k, input dat);
-	modport src	(output lock, output sol, output eol, output vid, output sec, output msa, output vbid, output k, output dat);
+	modport snk	(input lock, input sol, input eol, input vid, input sdp, input msa, input vbid, input k, input dat);
+	modport src	(output lock, output sol, output eol, output vid, output sdp, output msa, output vbid, output k, output dat);
+
+endinterface
+
+/*
+	RX SDP interface
+*/
+interface prt_dp_rx_sdp_if
+#();
+	logic   			sop;		// Start of packet
+	logic   			eop;		// End of packet
+	logic	[31:0]		dat;		// Data
+	logic   			vld;		// Valid
+
+	modport snk	(input sop, input eop, input dat, input vld);
+	modport src	(output sop, output eop, output dat, output vld);
 
 endinterface
 

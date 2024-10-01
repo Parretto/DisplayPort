@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added support for secondary data packet
 
     License
     =======
@@ -52,42 +53,48 @@ typedef struct {
     logic                   efm;
     logic                   lock;
     logic   [8:0]           dat[0:P_SPL-1];    // Data
-} lnk_struct;
+} snk_struct;
 
 // Structures
 typedef struct {
     logic   [P_SPL-1:0]     be_det;
-    logic   [P_SPL-1:0]     be_det_reg;
+    logic   [P_SPL-1:0]     be_det_reg[2];
     logic   [P_SPL-1:0]     bs_det;
-    logic   [P_SPL-1:0]     bs_det_reg[0:1];
+    logic   [P_SPL-1:0]     bs_det_reg[3];
     logic   [P_SPL-1:0]     bf_det;
-    logic   [P_SPL-1:0]     bf_det_reg[0:1];
+    logic   [P_SPL-1:0]     bf_det_reg[3];
     logic   [P_SPL-1:0]     fs_det;
-    logic   [P_SPL-1:0]     fs_det_reg;
+    logic   [P_SPL-1:0]     fs_det_reg[2];
     logic   [P_SPL-1:0]     fe_det;
-    logic   [P_SPL-1:0]     fe_det_reg;
+    logic   [P_SPL-1:0]     fe_det_reg[2];
     logic   [P_SPL-1:0]     ss_det;
-    logic   [P_SPL-1:0]     ss_det_reg[0:1];
+    logic   [P_SPL-1:0]     ss_det_reg[3];
     logic   [P_SPL-1:0]     se_det;
-    logic   [P_SPL-1:0]     se_det_reg;
+    logic   [P_SPL-1:0]     se_det_reg[2];
     logic   [P_SPL-1:0]     vid;
-    logic   [P_SPL-1:0]     sec;
+    logic   [P_SPL-1:0]     sdp;
     logic   [P_SPL-1:0]     msa;
     logic   [P_SPL-1:0]     vbid;
     logic   [P_SPL-1:0]     sol;
     logic   [P_SPL-1:0]     eol;
 } pars_struct;
 
+typedef struct {
+    logic   [8:0]           dat[0:P_SPL-1];    // Data
+} src_struct;
+
+
 // Signals
-lnk_struct   clk_lnk;
+snk_struct   clk_snk;
 pars_struct  clk_pars;
+src_struct   clk_src;
 
 genvar i;
 
 // Control
     always_ff @ (posedge CLK_IN)
     begin
-        clk_lnk.efm <= CTL_EFM_IN;
+        clk_snk.efm <= CTL_EFM_IN;
     end
 
 // Inputs 
@@ -95,7 +102,7 @@ genvar i;
     always_comb
     begin
         for (int i = 0; i < P_SPL; i++)
-            clk_lnk.dat[i] = {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
+            clk_snk.dat[i] = {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
     end
 
 // Locked 
@@ -104,10 +111,10 @@ genvar i;
     begin
         // Reset
         if (RST_IN)
-            clk_lnk.lock <= 0;
+            clk_snk.lock <= 0;
 
         else
-            clk_lnk.lock <= LNK_SNK_IF.lock;
+            clk_snk.lock <= LNK_SNK_IF.lock;
     end
 
 // BE symbol detector
@@ -116,7 +123,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_BE)
+            if (clk_snk.dat[i] == P_SYM_BE)
                 clk_pars.be_det[i] = 1;
             else
                 clk_pars.be_det[i] = 0;
@@ -127,7 +134,13 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        clk_pars.be_det_reg <= clk_pars.be_det;
+        for (int i = 0; i < $size(clk_pars.be_det_reg); i++)        
+        begin
+            if (i == 0)
+                clk_pars.be_det_reg[i] <= clk_pars.be_det;
+            else
+                clk_pars.be_det_reg[i] <= clk_pars.be_det_reg[i-1];
+        end            
     end
 
 // BS symbol detector
@@ -136,7 +149,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if ((clk_lnk.dat[i] == P_SYM_BS) || (clk_lnk.dat[i] == P_SYM_SR))
+            if ((clk_snk.dat[i] == P_SYM_BS) || (clk_snk.dat[i] == P_SYM_SR))
                 clk_pars.bs_det[i] = 1;
             else
                 clk_pars.bs_det[i] = 0;
@@ -147,7 +160,7 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        for (int i = 0; i < 2; i++)        
+        for (int i = 0; i < $size(clk_pars.bs_det_reg); i++)        
         begin
             if (i == 0)
                 clk_pars.bs_det_reg[i] <= clk_pars.bs_det;
@@ -162,7 +175,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_BF)
+            if (clk_snk.dat[i] == P_SYM_BF)
                 clk_pars.bf_det[i] = 1;
             else
                 clk_pars.bf_det[i] = 0;
@@ -173,7 +186,7 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        for (int i = 0; i < 2; i++)        
+        for (int i = 0; i < $size(clk_pars.bf_det_reg); i++)        
         begin
             if (i == 0)
                 clk_pars.bf_det_reg[i] <= clk_pars.bf_det;
@@ -188,7 +201,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_FS)
+            if (clk_snk.dat[i] == P_SYM_FS)
                 clk_pars.fs_det[i] = 1;
             else
                 clk_pars.fs_det[i] = 0;
@@ -199,7 +212,13 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        clk_pars.fs_det_reg <= clk_pars.fs_det;
+        for (int i = 0; i < $size(clk_pars.fs_det_reg); i++)        
+        begin
+            if (i == 0)
+                clk_pars.fs_det_reg[i] <= clk_pars.fs_det;
+            else 
+                clk_pars.fs_det_reg[i] <= clk_pars.fs_det_reg[i-1];
+        end
     end
 
 // FE symbol detector
@@ -208,7 +227,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_FE)
+            if (clk_snk.dat[i] == P_SYM_FE)
                 clk_pars.fe_det[i] = 1;
             else
                 clk_pars.fe_det[i] = 0;
@@ -219,7 +238,13 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        clk_pars.fe_det_reg <= clk_pars.fe_det;
+        for (int i = 0; i < $size(clk_pars.fe_det_reg); i++)        
+        begin
+            if (i == 0)
+                clk_pars.fe_det_reg[i] <= clk_pars.fe_det;
+            else
+                clk_pars.fe_det_reg[i] <= clk_pars.fe_det_reg[i-1];
+        end
     end
 
 // SS symbol detector
@@ -228,7 +253,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_SS)
+            if (clk_snk.dat[i] == P_SYM_SS)
                 clk_pars.ss_det[i] = 1;
             else
                 clk_pars.ss_det[i] = 0;
@@ -239,7 +264,7 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        for (int i = 0; i < 2; i++)        
+        for (int i = 0; i < $size(clk_pars.ss_det_reg); i++)        
         begin
             if (i == 0)
                 clk_pars.ss_det_reg[i] <= clk_pars.ss_det;
@@ -254,7 +279,7 @@ genvar i;
     begin
         for (int i = 0; i < P_SPL; i++)
         begin 
-            if (clk_lnk.dat[i] == P_SYM_SE)
+            if (clk_snk.dat[i] == P_SYM_SE)
                 clk_pars.se_det[i] = 1;
             else
                 clk_pars.se_det[i] = 0;
@@ -265,7 +290,13 @@ genvar i;
 // Must be registered
     always_ff @ (posedge CLK_IN)
     begin
-        clk_pars.se_det_reg <= clk_pars.se_det;
+        for (int i = 0; i < $size(clk_pars.se_det_reg); i++)        
+        begin
+            if (i == 0)
+                clk_pars.se_det_reg[i] <= clk_pars.se_det;
+            else
+                clk_pars.se_det_reg[i] <= clk_pars.se_det_reg[i-1];
+        end
     end
 
 // Video 
@@ -279,38 +310,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear blanking start in sublane 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                // Clear - blanking start in sublane 0
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[0] <= 0;
 
-                // Clear blanking start in sublane 1
-                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[1])
+                // Clear - blanking start in sublane 1
+                else if (clk_pars.bs_det_reg[1][1] || clk_pars.fs_det_reg[1][1])
                     clk_pars.vid[0] <= 0;
 
-                // Clear blanking start in sublane 2
-                else if (clk_pars.bs_det_reg[0][2] || clk_pars.fs_det_reg[2])
+                // Clear - blanking start in sublane 2
+                else if (clk_pars.bs_det_reg[1][2] || clk_pars.fs_det_reg[1][2])
                     clk_pars.vid[0] <= 0;
 
-                // Clear blanking start in sublane 3
-                else if (clk_pars.bs_det_reg[0][3] || clk_pars.fs_det_reg[3])
+                // Clear - blanking start in sublane 3
+                else if (clk_pars.bs_det_reg[1][3] || clk_pars.fs_det_reg[1][3])
                     clk_pars.vid[0] <= 0;
 
-                // Set video starts in sublane 0
-                else if (clk_pars.be_det_reg[3] || clk_pars.fe_det_reg[3])
+                // Set - video starts in sublane 0
+                else if (clk_pars.be_det_reg[1][3] || clk_pars.fe_det_reg[1][3])
                     clk_pars.vid[0] <= 1;
                 
-                // Set video starts in sublane 1
-                else if (clk_pars.be_det_reg[0] || clk_pars.fe_det_reg[0])
+                // Set - video starts in sublane 1
+                else if (clk_pars.be_det_reg[1][0] || clk_pars.fe_det_reg[1][0])
                     clk_pars.vid[0] <= 1;
 
-                // Set video starts in sublane 2
-                else if (clk_pars.be_det_reg[1] || clk_pars.fe_det_reg[1])
+                // Set - video starts in sublane 2
+                else if (clk_pars.be_det_reg[1][1] || clk_pars.fe_det_reg[1][1])
                     clk_pars.vid[0] <= 1;
 
-                // Set video starts in sublane 3
-                else if (clk_pars.be_det_reg[2] || clk_pars.fe_det_reg[2])
+                // Set - video starts in sublane 3
+                else if (clk_pars.be_det_reg[1][2] || clk_pars.fe_det_reg[1][2])
                     clk_pars.vid[0] <= 1;
             end
 
@@ -323,38 +354,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear blanking start in sublane 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                // Clear - blanking start in sublane 0
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[1] <= 0;
 
-                // Clear blanking start in sublane 1
-                else if (clk_pars.bs_det[1] || clk_pars.fs_det[1])
+                // Clear - blanking start in sublane 1
+                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[0][1])
                     clk_pars.vid[1] <= 0;
 
-                // Clear blanking start in sublane 2
-                else if (clk_pars.bs_det_reg[0][2] || clk_pars.fs_det_reg[2])
+                // Clear - blanking start in sublane 2
+                else if (clk_pars.bs_det_reg[1][2] || clk_pars.fs_det_reg[1][2])
                     clk_pars.vid[1] <= 0;
 
-                // Clear blanking start in sublane 3
-                else if (clk_pars.bs_det_reg[0][3] || clk_pars.fs_det_reg[3])
+                // Clear - blanking start in sublane 3
+                else if (clk_pars.bs_det_reg[1][3] || clk_pars.fs_det_reg[1][3])
                     clk_pars.vid[1] <= 0;
 
-                // Set video starts in sublane 0
-                else if (clk_pars.be_det_reg[3] || clk_pars.fe_det_reg[3])
+                // Set - video starts in sublane 0
+                else if (clk_pars.be_det_reg[1][3] || clk_pars.fe_det_reg[1][3])
                     clk_pars.vid[1] <= 1;
                 
-                // Set video starts in sublane 1
-                else if (clk_pars.be_det[0] || clk_pars.fe_det[0])
+                // Set - video starts in sublane 1
+                else if (clk_pars.be_det_reg[0][0] || clk_pars.fe_det_reg[0][0])
                     clk_pars.vid[1] <= 1;
 
-                // Set video starts in sublane 2
-                else if (clk_pars.be_det_reg[1] || clk_pars.fe_det_reg[1])
+                // Set - video starts in sublane 2
+                else if (clk_pars.be_det_reg[1][1] || clk_pars.fe_det_reg[1][1])
                     clk_pars.vid[1] <= 1;
 
-                // Set video starts in sublane 3
-                else if (clk_pars.be_det_reg[2] || clk_pars.fe_det_reg[2])
+                // Set - video starts in sublane 3
+                else if (clk_pars.be_det_reg[1][2] || clk_pars.fe_det_reg[1][2])
                     clk_pars.vid[1] <= 1;
             end
 
@@ -367,38 +398,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear blanking start in sublane 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                // Clear - blanking start in sublane 0
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[2] <= 0;
 
-                // Clear blanking start in sublane 1
-                else if (clk_pars.bs_det[1] || clk_pars.fs_det[1])
+                // Clear - blanking start in sublane 1
+                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[0][1])
                     clk_pars.vid[2] <= 0;
 
-                // Clear blanking start in sublane 2
-                else if (clk_pars.bs_det[2] || clk_pars.fs_det[2])
+                // Clear - blanking start in sublane 2
+                else if (clk_pars.bs_det_reg[0][2] || clk_pars.fs_det_reg[0][2])
                     clk_pars.vid[2] <= 0;
 
-                // Clear blanking start in sublane 3
-                else if (clk_pars.bs_det_reg[0][3] || clk_pars.fs_det_reg[3])
+                // Clear - blanking start in sublane 3
+                else if (clk_pars.bs_det_reg[1][3] || clk_pars.fs_det_reg[1][3])
                     clk_pars.vid[2] <= 0;
 
-                // Set video starts in sublane 0
-                else if (clk_pars.be_det_reg[3] || clk_pars.fe_det_reg[3])
+                // Set - video starts in sublane 0
+                else if (clk_pars.be_det_reg[1][3] || clk_pars.fe_det_reg[1][3])
                     clk_pars.vid[2] <= 1;
                 
-                // Set video starts in sublane 1
-                else if (clk_pars.be_det[0] || clk_pars.fe_det[0])
+                // Set - video starts in sublane 1
+                else if (clk_pars.be_det_reg[0][0] || clk_pars.fe_det_reg[0][0])
                     clk_pars.vid[2] <= 1;
 
-                // Set video starts in sublane 2
-                else if (clk_pars.be_det[1] || clk_pars.fe_det[1])
+                // Set - video starts in sublane 2
+                else if (clk_pars.be_det_reg[0][1] || clk_pars.fe_det_reg[0][1])
                     clk_pars.vid[2] <= 1;
 
-                // Set video starts in sublane 3
-                else if (clk_pars.be_det_reg[2] || clk_pars.fe_det_reg[2])
+                // Set - video starts in sublane 3
+                else if (clk_pars.be_det_reg[1][2] || clk_pars.fe_det_reg[1][2])
                     clk_pars.vid[2] <= 1;
             end
 
@@ -411,38 +442,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Clear blanking start in sublane 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[3] <= 0;
 
                 // Clear blanking start in sublane 1
-                else if (clk_pars.bs_det[1] || clk_pars.fs_det[1])
+                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[0][1])
                     clk_pars.vid[3] <= 0;
 
                 // Clear blanking start in sublane 2
-                else if (clk_pars.bs_det[2] || clk_pars.fs_det[2])
+                else if (clk_pars.bs_det_reg[0][2] || clk_pars.fs_det_reg[0][2])
                     clk_pars.vid[3] <= 0;
 
                 // Clear blanking start in sublane 3
-                else if (clk_pars.bs_det[3] || clk_pars.fs_det[3])
+                else if (clk_pars.bs_det_reg[0][3] || clk_pars.fs_det_reg[0][3])
                     clk_pars.vid[3] <= 0;
 
                 // Set video starts in sublane 0
-                else if (clk_pars.be_det_reg[3] || clk_pars.fe_det_reg[3])
+                else if (clk_pars.be_det_reg[1][3] || clk_pars.fe_det_reg[1][3])
                     clk_pars.vid[3] <= 1;
                 
                 // Set video starts in sublane 1
-                else if (clk_pars.be_det[0] || clk_pars.fe_det[0])
+                else if (clk_pars.be_det_reg[0][0] || clk_pars.fe_det_reg[0][0])
                     clk_pars.vid[3] <= 1;
 
                 // Set video starts in sublane 2
-                else if (clk_pars.be_det[1] || clk_pars.fe_det[1])
+                else if (clk_pars.be_det_reg[0][1] || clk_pars.fe_det_reg[0][1])
                     clk_pars.vid[3] <= 1;
 
                 // Set video starts in sublane 3
-                else if (clk_pars.be_det[2] || clk_pars.fe_det[2])
+                else if (clk_pars.be_det_reg[0][2] || clk_pars.fe_det_reg[0][2])
                     clk_pars.vid[3] <= 1;
             end
 
@@ -460,22 +491,22 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Clear phase 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[0] <= 0;
 
                 // Clear phase 1
-                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[1])
+                else if (clk_pars.bs_det_reg[1][1] || clk_pars.fs_det_reg[1][1])
                     clk_pars.vid[0] <= 0;
 
                 // Set phase 0
-                else if (clk_pars.be_det_reg[0] || clk_pars.fe_det_reg[0])
+                else if (clk_pars.be_det_reg[1][0] || clk_pars.fe_det_reg[1][0])
                     clk_pars.vid[0] <= 1;
                 
                 // Set phase 1
-                else if (clk_pars.be_det_reg[1] || clk_pars.fe_det_reg[1])
+                else if (clk_pars.be_det_reg[1][1] || clk_pars.fe_det_reg[1][1])
                     clk_pars.vid[0] <= 1;
             end
 
@@ -488,22 +519,22 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Clear phase 0
-                if (clk_pars.bs_det[0] || clk_pars.fs_det[0])
+                if (clk_pars.bs_det_reg[0][0] || clk_pars.fs_det_reg[0][0])
                     clk_pars.vid[1] <= 0;
 
                 // Clear phase 1
-                else if (clk_pars.bs_det[1] || clk_pars.fs_det[1])
+                else if (clk_pars.bs_det_reg[0][1] || clk_pars.fs_det_reg[0][1])
                     clk_pars.vid[1] <= 0;
 
                 // Set phase 0
-                else if (clk_pars.be_det[0] || clk_pars.fe_det[0])
+                else if (clk_pars.be_det_reg[0][0] || clk_pars.fe_det_reg[0][0])
                     clk_pars.vid[1] <= 1;
                 
                 // Set phase 1
-                else if (clk_pars.be_det_reg[1] || clk_pars.fe_det_reg[1])
+                else if (clk_pars.be_det_reg[1][1] || clk_pars.fe_det_reg[1][1])
                     clk_pars.vid[1] <= 1;
             end
 
@@ -525,38 +556,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear - MSA ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[0] <= 0;
 
-                // Clear MSA ends in sublane 1
-                else if (clk_pars.se_det_reg[1])
+                // Clear - MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[1][1])
                     clk_pars.msa[0] <= 0;
 
-                // Clear MSA ends in sublane 2
-                else if (clk_pars.se_det_reg[2])
+                // Clear - MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[1][2])
                     clk_pars.msa[0] <= 0;
 
-                // Clear MSA ends in sublane 3
-                else if (clk_pars.se_det_reg[3])
+                // Clear - MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
                     clk_pars.msa[0] <= 0;
 
-                // Set MSA starts in sublane 0
-                else if (clk_pars.ss_det_reg[0] == 'b0011)
+                // Set - MSA starts in sublane 0
+                else if (clk_pars.ss_det_reg[1] == 'b0011)
                     clk_pars.msa[0] <= 1;
                 
-                // Set MSA starts in sublane 1
-                else if (clk_pars.ss_det_reg[0] == 'b0110)
+                // Set - MSA starts in sublane 1
+                else if (clk_pars.ss_det_reg[1] == 'b0110)
                     clk_pars.msa[0] <= 1;
 
-                // Set MSA starts in sublane 2
-                else if (clk_pars.ss_det_reg[0] == 'b1100)
+                // Set - MSA starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b1100)
                     clk_pars.msa[0] <= 1;
 
-                // Set MSA starts in sublane 3
-                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det_reg[1] == 'b1000))
+                // Set - MSA starts in sublane 3
+                else if ((clk_pars.ss_det_reg[1] == 'b0001) && (clk_pars.ss_det_reg[2] == 'b1000))
                     clk_pars.msa[0] <= 1;
             end
 
@@ -569,38 +600,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear - MSA ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[1] <= 0;
 
-                // Clear MSA ends in sublane 1
-                else if (clk_pars.se_det[1])
+                // Clear - MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
                     clk_pars.msa[1] <= 0;
 
-                // Clear MSA ends in sublane 2
-                else if (clk_pars.se_det_reg[2])
+                // Clear - MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[1][2])
                     clk_pars.msa[1] <= 0;
 
-                // Clear MSA ends in sublane 3
-                else if (clk_pars.se_det_reg[3])
+                // Clear - MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
                     clk_pars.msa[1] <= 0;
 
-                // Set MSA starts in sublane 0
-                else if (clk_pars.ss_det_reg[0] == 'b0011)
+                // Set - MSA starts in sublane 0
+                else if (clk_pars.ss_det_reg[1] == 'b0011)
                     clk_pars.msa[1] <= 1;
                 
-                // Set MSA starts in sublane 1
-                else if (clk_pars.ss_det_reg[0] == 'b0110)
+                // Set - MSA starts in sublane 1
+                else if (clk_pars.ss_det_reg[1] == 'b0110)
                     clk_pars.msa[1] <= 1;
 
-                // Set MSA starts in sublane 2
-                else if (clk_pars.ss_det_reg[0] == 'b1100)
+                // Set - MSA starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b1100)
                     clk_pars.msa[1] <= 1;
 
-                // Set MSA starts in sublane 3
-                else if ((clk_pars.ss_det == 'b0001) && (clk_pars.ss_det_reg[0] == 'b1000))
+                // Set - MSA starts in sublane 3
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det_reg[1] == 'b1000))
                     clk_pars.msa[1] <= 1;
             end
 
@@ -613,38 +644,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear - MSA ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[2] <= 0;
 
-                // Clear MSA ends in sublane 1
-                else if (clk_pars.se_det[1])
+                // Clear - MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
                     clk_pars.msa[2] <= 0;
 
-                // Clear MSA ends in sublane 2
-                else if (clk_pars.se_det[2])
+                // Clear - MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[0][2])
                     clk_pars.msa[2] <= 0;
 
-                // Clear MSA ends in sublane 3
-                else if (clk_pars.se_det_reg[3])
+                // Clear - MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
                     clk_pars.msa[2] <= 0;
 
-                // Set MSA starts in sublane 0
-                else if (clk_pars.ss_det == 'b0011)
+                // Set - MSA starts in sublane 0
+                else if (clk_pars.ss_det_reg[0] == 'b0011)
                     clk_pars.msa[2] <= 1;
                 
-                // Set MSA starts in sublane 1
-                else if (clk_pars.ss_det_reg[0] == 'b0110)
+                // Set - MSA starts in sublane 1
+                else if (clk_pars.ss_det_reg[1] == 'b0110)
                     clk_pars.msa[2] <= 1;
 
-                // Set MSA starts in sublane 2
-                else if (clk_pars.ss_det_reg[0] == 'b1100)
+                // Set - MSA starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b1100)
                     clk_pars.msa[2] <= 1;
 
-                // Set MSA starts in sublane 3
-                else if ((clk_pars.ss_det == 'b0001) && (clk_pars.ss_det_reg[0] == 'b1000))
+                // Set - MSA starts in sublane 3
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det_reg[1] == 'b1000))
                     clk_pars.msa[2] <= 1;
             end
 
@@ -657,38 +688,38 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear - MSA ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[3] <= 0;
 
-                // Clear MSA ends in sublane 1
-                else if (clk_pars.se_det[1])
+                // Clear - MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
                     clk_pars.msa[3] <= 0;
 
-                // Clear MSA ends in sublane 2
-                else if (clk_pars.se_det[2])
+                // Clear - MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[0][2])
                     clk_pars.msa[3] <= 0;
 
-                // Clear MSA ends in sublane 3
-                else if (clk_pars.se_det[3])
+                // Clear - MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[0][3])
                     clk_pars.msa[3] <= 0;
 
-                // Set MSA starts in sublane 0
-                else if (clk_pars.ss_det == 'b0011)
+                // Set - MSA starts in sublane 0
+                else if (clk_pars.ss_det_reg[0] == 'b0011)
                     clk_pars.msa[3] <= 1;
                 
-                // Set MSA starts in sublane 1
-                else if (clk_pars.ss_det == 'b0110)
+                // Set - MSA starts in sublane 1
+                else if (clk_pars.ss_det_reg[0] == 'b0110)
                     clk_pars.msa[3] <= 1;
 
-                // Set MSA starts in sublane 2
-                else if (clk_pars.ss_det_reg[0] == 'b1100)
+                // Set - MSA starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b1100)
                     clk_pars.msa[3] <= 1;
 
-                // Set MSA starts in sublane 3
-                else if ((clk_pars.ss_det == 'b0001) && (clk_pars.ss_det_reg[0] == 'b1000))
+                // Set - MSA starts in sublane 3
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det_reg[1] == 'b1000))
                     clk_pars.msa[3] <= 1;
             end
 
@@ -696,10 +727,9 @@ generate
             else
                 clk_pars.msa[3] <= 0;
         end
-
     end
 
-    // Two symbosl per lane
+    // Two symbols per lane
     else
     begin : gen_msa_2spl
     
@@ -707,22 +737,22 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Clear phase 0
-                if (clk_pars.se_det[0])
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[0] <= 0;
 
                 // Clear phase 1
-                else if (clk_pars.se_det_reg[1])
+                else if (clk_pars.se_det_reg[1][1])
                     clk_pars.msa[0] <= 0;
 
                 // Set phase 0
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b11) && (clk_pars.ss_det_reg[1] == 'b00))
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b11) && (clk_pars.ss_det_reg[2] == 'b00))
                     clk_pars.msa[0] <= 1;
                 
                 // Set phase 1
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b01) && (clk_pars.ss_det_reg[1] == 'b10))
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b01) && (clk_pars.ss_det_reg[2] == 'b10))
                     clk_pars.msa[0] <= 1;
             end
 
@@ -736,22 +766,22 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Clear phase 0
-                if (clk_pars.se_det[0])
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.msa[1] <= 0;
 
                 // Clear phase 1
-                else if (clk_pars.se_det[1])
+                else if (clk_pars.se_det_reg[0][1])
                     clk_pars.msa[1] <= 0;
 
                 // Set phase 0
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b11) && (clk_pars.ss_det_reg[1] == 'b00))
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b11) && (clk_pars.ss_det_reg[2] == 'b00))
                     clk_pars.msa[1] <= 1;
                 
                 // Set phase 1
-                else if ((clk_pars.ss_det == 'b01) && (clk_pars.ss_det_reg[0] == 'b10) && (clk_pars.ss_det_reg[1] == 'b00))
+                else if ((clk_pars.ss_det_reg[0] == 'b01) && (clk_pars.ss_det_reg[1] == 'b10) && (clk_pars.ss_det_reg[2] == 'b00))
                     clk_pars.msa[1] <= 1;
             end
 
@@ -762,75 +792,256 @@ generate
     end
 endgenerate
 
-// Secondary
+// Secondary Data Packet
 generate
     // Four symbols per lane
     if (P_SPL == 4)
-    begin : gen_sec_4spl
-        // Not implemented yet in four symbols per lane
-        for (i = 0; i < P_SPL; i++)
-            assign clk_pars.sec[i] =  0;
-    end
-
-    // Two symbols per lane
-    else
-    begin : gen_sec_2spl
+    begin : gen_sdp_4spl
 
     // Sublane 0
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear phase 0
+                // Clear SDP ends in sublane 0
                 if (clk_pars.se_det[0])
-                    clk_pars.sec[0] <= 0;
+                    clk_pars.sdp[0] <= 0;
 
-                // Clear phase 1
-                else if (clk_pars.se_det_reg[1])
-                    clk_pars.sec[0] <= 0;
+                // Clear SDP ends in sublane 1
+                else if (clk_pars.se_det_reg[1][1])
+                    clk_pars.sdp[0] <= 0;
 
-                // Set phase 0
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b01) && (clk_pars.ss_det_reg[1] == 'b00))
-                    clk_pars.sec[0] <= 1;
+                // Clear SDP ends in sublane 2
+                else if (clk_pars.se_det_reg[1][2])
+                    clk_pars.sdp[0] <= 0;
+
+                // Clear SDP ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
+                    clk_pars.sdp[0] <= 0;
+
+                // Set - SDP starts in sublane 0
+                // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[1] == 'b0001) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[0] <= 1;
                 
-                // Set phase 1
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b10) && (clk_pars.ss_det_reg[1] == 'b00))
-                    clk_pars.sec[0] <= 1;
+                // Set - SDP starts in sublane 1
+                else if (clk_pars.ss_det_reg[1] == 'b0010)
+                    clk_pars.sdp[0] <= 1;
+
+                // Set - SDP starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b0100)
+                    clk_pars.sdp[0] <= 1;
+
+                // Set - SDP starts in sublane 3
+                // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[0] <= 1;
             end
 
             // Not locked
             else
-                clk_pars.sec[0] <= 0;
+                clk_pars.sdp[0] <= 0;
         end
 
-    // Secondary 
     // Sublane 1
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
-                // Clear phase 0
+                // Clear - SDP ends in sublane 0
                 if (clk_pars.se_det[0])
-                    clk_pars.sec[1] <= 0;
+                    clk_pars.sdp[1] <= 0;
 
-                // Clear phase 1
-                else if (clk_pars.se_det[1])
-                    clk_pars.sec[1] <= 0;
+                // Clear - SDP ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
+                    clk_pars.sdp[1] <= 0;
 
-                // Set phase 0
-                else if ((clk_pars.ss_det == 'b01) && (clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b00))
-                    clk_pars.sec[1] <= 1;
+                // Clear - SDP ends in sublane 2
+                else if (clk_pars.se_det_reg[1][2])
+                    clk_pars.sdp[1] <= 0;
+
+                // Clear - SDP ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
+                    clk_pars.sdp[1] <= 0;
+
+                // Set - SDP starts in sublane 0
+                // Here we need to check if there is no SS symbol in sublane 3, no to false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[1] <= 1;
                 
-                // Set phase 1
-                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b10) && (clk_pars.ss_det_reg[1] == 'b00))
-                    clk_pars.sec[1] <= 1;
+                // Set - SDP starts in sublane 1
+                else if (clk_pars.ss_det_reg[1] == 'b0010)
+                    clk_pars.sdp[1] <= 1;
+
+                // Set - SDP starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b0100)
+                    clk_pars.sdp[1] <= 1;
+
+                // Set - SDP starts in sublane 3
+                // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[1] <= 1;
             end
 
             // Not locked
             else
-                clk_pars.sec[1] <= 0;
+                clk_pars.sdp[1] <= 0;
+        end
+
+    // Sublane 2
+        always_ff @ (posedge CLK_IN)
+        begin
+            // Locked
+            if (clk_snk.lock)
+            begin
+                // Clear MSA ends in sublane 0
+                if (clk_pars.se_det[0])
+                    clk_pars.sdp[2] <= 0;
+
+                // Clear MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
+                    clk_pars.sdp[2] <= 0;
+
+                // Clear MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[0][2])
+                    clk_pars.sdp[2] <= 0;
+
+                // Clear MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[1][3])
+                    clk_pars.sdp[2] <= 0;
+
+                // Set - SDP starts in sublane 0
+                // Here we need to check if there is no SS symbol in sublane 3, no to false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[2] <= 1;
+                
+                // Set - SDP starts in sublane 1
+                else if (clk_pars.ss_det_reg[0] == 'b0010)
+                    clk_pars.sdp[2] <= 1;
+
+                // Set - SDP starts in sublane 2
+                else if (clk_pars.ss_det_reg[1] == 'b0100)
+                    clk_pars.sdp[2] <= 1;
+
+                // Set - SDP starts in sublane 3
+                // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[2] <= 1;
+            end
+
+            // Not locked
+            else
+                clk_pars.sdp[2] <= 0;
+        end
+
+    // Sublane 3
+        always_ff @ (posedge CLK_IN)
+        begin
+            // Locked
+            if (clk_snk.lock)
+            begin
+                // Clear MSA ends in sublane 0
+                if (clk_pars.se_det[0])
+                    clk_pars.sdp[3] <= 0;
+
+                // Clear MSA ends in sublane 1
+                else if (clk_pars.se_det_reg[0][1])
+                    clk_pars.sdp[3] <= 0;
+
+                // Clear MSA ends in sublane 2
+                else if (clk_pars.se_det_reg[0][2])
+                    clk_pars.sdp[3] <= 0;
+
+                // Clear MSA ends in sublane 3
+                else if (clk_pars.se_det_reg[0][3])
+                    clk_pars.sdp[3] <= 0;
+
+                // Set - SDP starts in sublane 0
+                // Here we need to check if there is no SS symbol in sublane 3, no to false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b0001) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[3] <= 1;
+                
+                // Set - SDP starts in sublane 1
+                else if (clk_pars.ss_det_reg[0] == 'b0010)
+                    clk_pars.sdp[3] <= 1;
+
+                // Set - SDP starts in sublane 2
+                else if (clk_pars.ss_det_reg[0] == 'b0100)
+                    clk_pars.sdp[3] <= 1;
+
+                // Set - SDP starts in sublane 3
+                // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
+                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                    clk_pars.sdp[3] <= 1;
+            end
+
+            // Not locked
+            else
+                clk_pars.sdp[3] <= 0;
+        end
+
+    end
+
+    // Two symbols per lane
+    else
+    begin : gen_sdp_2spl
+
+    // Sublane 0
+        always_ff @ (posedge CLK_IN)
+        begin
+            // Locked
+            if (clk_snk.lock)
+            begin
+                // Clear phase 0
+                if (clk_pars.se_det_reg[0][0])
+                    clk_pars.sdp[0] <= 0;
+
+                // Clear phase 1
+                else if (clk_pars.se_det_reg[1][1])
+                    clk_pars.sdp[0] <= 0;
+
+                // Set phase 0
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b01) && (clk_pars.ss_det_reg[2] == 'b00))
+                    clk_pars.sdp[0] <= 1;
+                
+                // Set phase 1
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b10) && (clk_pars.ss_det_reg[2] == 'b00))
+                    clk_pars.sdp[0] <= 1;
+            end
+
+            // Not locked
+            else
+                clk_pars.sdp[0] <= 0;
+        end
+
+    // Sublane 1
+        always_ff @ (posedge CLK_IN)
+        begin
+            // Locked
+            if (clk_snk.lock)
+            begin
+                // Clear phase 0
+                if (clk_pars.se_det_reg[0][0])
+                    clk_pars.sdp[1] <= 0;
+
+                // Clear phase 1
+                else if (clk_pars.se_det_reg[0][1])
+                    clk_pars.sdp[1] <= 0;
+
+                // Set phase 0
+                else if ((clk_pars.ss_det == 'b00) && (clk_pars.ss_det_reg[0] == 'b01) && (clk_pars.ss_det_reg[1] == 'b00))
+                    clk_pars.sdp[1] <= 1;
+                
+                // Set phase 1
+                else if ((clk_pars.ss_det_reg[0] == 'b00) && (clk_pars.ss_det_reg[1] == 'b10) && (clk_pars.ss_det_reg[2] == 'b00))
+                    clk_pars.sdp[1] <= 1;
+            end
+
+            // Not locked
+            else
+                clk_pars.sdp[1] <= 0;
         end
     end
 endgenerate
@@ -849,19 +1060,19 @@ generate
             clk_pars.vbid[0] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det_reg[0] == 'b1001) && (clk_pars.bf_det_reg[0] == 'b0110))
+                    if ((clk_pars.bs_det_reg[1] == 'b1001) && (clk_pars.bf_det_reg[1] == 'b0110))
                         clk_pars.vbid[0] <= 1;
                 end
 
                 // Normal framing mode
                 else
                 begin
-                    if (clk_pars.bs_det_reg[1] == 'b1000)
+                    if (clk_pars.bs_det_reg[2] == 'b1000)
                         clk_pars.vbid[0] <= 1;
                 end
             end
@@ -874,12 +1085,12 @@ generate
             clk_pars.vbid[1] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det == 'b0001) && (clk_pars.bs_det_reg[0] == 'b0010) && (clk_pars.bf_det_reg[0] == 'b1100))
+                    if ((clk_pars.bs_det_reg[0] == 'b0001) && (clk_pars.bs_det_reg[1] == 'b0010) && (clk_pars.bf_det_reg[1] == 'b1100))
                         clk_pars.vbid[1] <= 1;
                 end
 
@@ -899,19 +1110,19 @@ generate
             clk_pars.vbid[2] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det == 'b0010) && (clk_pars.bs_det_reg[0] == 'b0100) && (clk_pars.bf_det == 'b0001) && (clk_pars.bf_det_reg[0] == 'b1000))
+                    if ((clk_pars.bs_det_reg[0] == 'b0010) && (clk_pars.bs_det_reg[1] == 'b0100) && (clk_pars.bf_det_reg[0] == 'b0001) && (clk_pars.bf_det_reg[1] == 'b1000))
                         clk_pars.vbid[2] <= 1;
                 end
 
                 // Normal framing mode
                 else
                 begin
-                    if (clk_pars.bs_det_reg[0] == 'b0010)
+                    if (clk_pars.bs_det_reg[1] == 'b0010)
                         clk_pars.vbid[2] <= 1;
                 end
             end
@@ -924,19 +1135,19 @@ generate
             clk_pars.vbid[3] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det == 'b0100) && (clk_pars.bs_det_reg[0] == 'b1000) && (clk_pars.bf_det == 'b0011))
+                    if ((clk_pars.bs_det_reg[0] == 'b0100) && (clk_pars.bs_det_reg[1] == 'b1000) && (clk_pars.bf_det_reg[0] == 'b0011))
                         clk_pars.vbid[3] <= 1;
                 end
 
                 // Normal framing mode
                 else
                 begin
-                    if (clk_pars.bs_det_reg[0] == 'b0100)
+                    if (clk_pars.bs_det_reg[1] == 'b0100)
                         clk_pars.vbid[3] <= 1;
                 end
             end
@@ -955,19 +1166,19 @@ generate
             clk_pars.vbid[0] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det_reg[1] == 'b01) && (clk_pars.bf_det_reg[1] == 'b10) && (clk_pars.bs_det_reg[0] == 'b10) && (clk_pars.bf_det_reg[0] == 'b01))
+                    if ((clk_pars.bs_det_reg[2] == 'b01) && (clk_pars.bf_det_reg[2] == 'b10) && (clk_pars.bs_det_reg[1] == 'b10) && (clk_pars.bf_det_reg[1] == 'b01))
                         clk_pars.vbid[0] <= 1;
                 end
 
                 // Normal framing mode
                 else
                 begin
-                    if (clk_pars.bs_det_reg[0] == 'b10)
+                    if (clk_pars.bs_det_reg[1] == 'b10)
                         clk_pars.vbid[0] <= 1;
                 end
             end
@@ -980,19 +1191,19 @@ generate
             clk_pars.vbid[1] <= 0;
 
             // Locked
-            if (clk_lnk.lock)
+            if (clk_snk.lock)
             begin
                 // Enhanced framing mode
-                if (clk_lnk.efm)
+                if (clk_snk.efm)
                 begin
-                    if ((clk_pars.bs_det_reg[1] == 'b10) && (clk_pars.bf_det_reg[0] == 'b11) && (clk_pars.bs_det == 'b01))
+                    if ((clk_pars.bs_det_reg[2] == 'b10) && (clk_pars.bf_det_reg[1] == 'b11) && (clk_pars.bs_det_reg[0] == 'b01))
                         clk_pars.vbid[1] <= 1;
                 end
 
                 // Normal framing mode
                 else
                 begin
-                    if (clk_pars.bs_det == 'b01)
+                    if (clk_pars.bs_det_reg[0] == 'b01)
                         clk_pars.vbid[1] <= 1;
                 end
             end
@@ -1001,98 +1212,104 @@ generate
 endgenerate
 
 // Start of line
-// Must be combinatorial
-    assign clk_pars.sol = (clk_lnk.lock) ? clk_pars.be_det : 1'b0;
+// This bit is asserted before teh video starts. 
+// It used by the video module to align the incoming data.
+    always_ff @ (posedge CLK_IN)
+    begin
+        if (clk_snk.lock)
+            clk_pars.sol <= clk_pars.be_det;
+        else
+            clk_pars.sol <= 0;
+    end
 
 // End of line
 // This bit is asserted during the last active pixel
-// Must be combinatorial
 generate
     // Four symbols per lane
     if (P_SPL == 4)
     begin : gen_eol_4spl
     
     // Sublane 0
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
             // Default
-            clk_pars.eol[0] = 0;
+            clk_pars.eol[0] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
                 if ((clk_pars.bs_det == 'b0001) && (clk_pars.bs_det_reg[0] == 'b0010) && (clk_pars.bf_det == 'b0000) && (clk_pars.bf_det_reg[0] == 'b1100))
-                    clk_pars.eol[0] = 1;
+                    clk_pars.eol[0] <= 1;
             end
 
             // Normal mode
             else 
             begin
                 if (clk_pars.bs_det == 'b0010) 
-                    clk_pars.eol[0] = 1;
+                    clk_pars.eol[0] <= 1;
             end
         end
 
     // Sublane 1
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
             // Default
-            clk_pars.eol[1] = 0;
+            clk_pars.eol[1] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
                 if ((clk_pars.bs_det == 'b0010) && (clk_pars.bs_det_reg[0] == 'b0100) && (clk_pars.bf_det == 'b0001) && (clk_pars.bf_det_reg[0] == 'b1000))
-                    clk_pars.eol[1] = 1;
+                    clk_pars.eol[1] <= 1;
             end
 
             // Normal mode
             else 
             begin
                 if (clk_pars.bs_det == 'b0100) 
-                    clk_pars.eol[1] = 1;
+                    clk_pars.eol[1] <= 1;
             end
         end
 
     // Sublane 2
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
             // Default
-            clk_pars.eol[2] = 0;
+            clk_pars.eol[2] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
                 if ((clk_pars.bs_det == 'b0100) && (clk_pars.bs_det_reg[0] == 'b1000) && (clk_pars.bf_det == 'b0011))
-                    clk_pars.eol[2] = 1;
+                    clk_pars.eol[2] <= 1;
             end
 
             // Normal mode
             else 
             begin
                 if (clk_pars.bs_det == 'b1000) 
-                    clk_pars.eol[2] = 1;
+                    clk_pars.eol[2] <= 1;
             end
         end
 
     // Sublane 3
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
             // Default
-            clk_pars.eol[3] = 0;
+            clk_pars.eol[3] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
                 if ((clk_pars.bs_det == 'b1001) && (clk_pars.bf_det == 'b0110))
-                    clk_pars.eol[3] = 1;
+                    clk_pars.eol[3] <= 1;
             end
 
             // Normal mode
             else 
             begin
                 if (clk_pars.bs_det == 'b0001) 
-                    clk_pars.eol[3] = 1;
+                    clk_pars.eol[3] <= 1;
             end
         end
 
@@ -1102,58 +1319,65 @@ generate
     else
     begin : gen_eol_2spl
     // Sublane 0
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
             // Default
-            clk_pars.eol[0] = 0;
+            clk_pars.eol[0] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
-                if ((clk_pars.bs_det_reg[0] == 'b10) && (clk_pars.bf_det_reg[0] == 'b00))
-                    clk_pars.eol[0] = 1;
+                if ((clk_pars.bs_det_reg[1] == 'b10) && (clk_pars.bf_det_reg[1] == 'b00))
+                    clk_pars.eol[0] <= 1;
             end
 
             // Normal mode
             else 
             begin
-                if (clk_pars.bs_det_reg[0] == 'b10) 
-                    clk_pars.eol[0] = 1;
+                if (clk_pars.bs_det_reg[1] == 'b10) 
+                    clk_pars.eol[0] <= 1;
             end
         end
 
     // Sublane 1
-        always_comb
+        always_ff @ (posedge CLK_IN)
         begin
         // Default
-            clk_pars.eol[1] = 0;
+            clk_pars.eol[1] <= 0;
 
             // Enhanced framing mode
-            if (clk_lnk.efm)
+            if (clk_snk.efm)
             begin
-                if ((clk_pars.bs_det == 'b01) && (clk_pars.bf_det == 'b10))
-                    clk_pars.eol[1] = 1;
+                if ((clk_pars.bs_det_reg[0] == 'b01) && (clk_pars.bf_det_reg[0] == 'b10))
+                    clk_pars.eol[1] <= 1;
             end
 
             // Normal mode
             else
             begin
-                if (clk_pars.bs_det == 'b01) 
-                    clk_pars.eol[1] = 1;
+                if (clk_pars.bs_det_reg[0] == 'b01) 
+                    clk_pars.eol[1] <= 1;
             end
         end
     end
 endgenerate
 
-// Outputs
+// Source
+// The data needs to be delayed for one clock to compensate for the detector logic.
+    always_ff @ (posedge CLK_IN)
+    begin
+        for (int i = 0; i < P_SPL; i++)
+            clk_src.dat[i] <= clk_snk.dat[i];
+    end
 
+// Outputs
 generate
     for (i = 0; i < P_SPL; i++)
-        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_lnk.dat[i];
+        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_src.dat[i];
 endgenerate
 
     // Lock
-    assign LNK_SRC_IF.lock = clk_lnk.lock;
+    assign LNK_SRC_IF.lock = clk_snk.lock;
 
     // Parser
     // Note: these signals have one clock latency related to the passed link data. 
@@ -1161,7 +1385,7 @@ endgenerate
     assign LNK_SRC_IF.sol[0]    = clk_pars.sol;         // Start of line (the start of line is leading the first pixel)
     assign LNK_SRC_IF.eol[0]    = clk_pars.eol;         // End of line (the end of line is aligned with the last pixel. This output is also active during the blanking)
     assign LNK_SRC_IF.vid[0]    = clk_pars.vid;         // Video packet
-    assign LNK_SRC_IF.sec[0]    = clk_pars.sec;         // Secondary packet
+    assign LNK_SRC_IF.sdp[0]    = clk_pars.sdp;         // Secondary data packet
     assign LNK_SRC_IF.msa[0]    = clk_pars.msa;         // Main stream attribute packet
     assign LNK_SRC_IF.vbid[0]   = clk_pars.vbid;        // VB-ID
 

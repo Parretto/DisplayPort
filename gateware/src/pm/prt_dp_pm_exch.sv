@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added ID register
 
     License
     =======
@@ -53,65 +54,66 @@ module prt_dp_pm_exch
 );
 
 // Parameters
-localparam P_RAM_WRDS		= 32;
-localparam P_RAM_ADR		= $clog2(P_RAM_WRDS);
-localparam P_RAM_DAT		= 9;
-localparam P_BOXES			= 3;
-localparam P_BOX_WRDS		= P_RAM_WRDS;
-localparam P_BOX_ADR 		= P_RAM_ADR;
+localparam P_RAM_WRDS			= 32;
+localparam P_RAM_ADR			= $clog2(P_RAM_WRDS);
+localparam P_RAM_DAT			= 9;
+localparam P_BOXES				= 3;
+localparam P_BOX_WRDS			= P_RAM_WRDS;
+localparam P_BOX_ADR 			= P_RAM_ADR;
 
-localparam P_HOST_CTL_RUN	= 0;
+localparam P_HOST_CTL_RUN		= 0;
 localparam P_HOST_CTL_IE		= 1;
 localparam P_HOST_CTL_MEM_STR	= 2;
 localparam P_HOST_CTL_MEM_SEL	= 3;
 localparam P_HOST_CTL_BOX_EN	= 4;
 localparam P_HOST_CTL_WIDTH 	= 7;
 
-localparam P_HOST_STA_IRQ	= 0;
+localparam P_HOST_STA_IRQ		= 0;
 localparam P_HOST_STA_WIDTH 	= 32;
 
-localparam P_PM_CTL_IE		= 0;
-localparam P_PM_CTL_BOX_EN	= 1;
-localparam P_PM_CTL_WIDTH 	= 4;
+localparam P_PM_CTL_IE			= 0;
+localparam P_PM_CTL_BOX_EN		= 1;
+localparam P_PM_CTL_WIDTH 		= 4;
 
-localparam P_PM_STA_IRQ		= 0;
-localparam P_PM_STA_WIDTH 	= 8;
+localparam P_PM_STA_IRQ			= 0;
+localparam P_PM_STA_WIDTH 		= 8;
 
-localparam P_ADR_CTL 		= 0;
-localparam P_ADR_STA 		= 1;
-localparam P_ADR_BOX_MAIL_OUT	= 2;
-localparam P_ADR_BOX_MAIL_IN 	= 3;
-localparam P_ADR_BOX_AUX 	= 4;
-localparam P_ADR_MEM 		= 5;
+localparam P_ADR_ID 			= 0;
+localparam P_ADR_CTL 			= 1;
+localparam P_ADR_STA 			= 2;
+localparam P_ADR_BOX_MAIL_OUT	= 3;
+localparam P_ADR_BOX_MAIL_IN 	= 4;
+localparam P_ADR_BOX_AUX 		= 5;
+localparam P_ADR_MEM 			= 6;
 
 // Structure
 typedef struct {
-	logic	[P_RAM_ADR-1:0]		a_adr;
-	logic						a_wr;
-	logic	[P_RAM_DAT-1:0]		a_din;
-	logic	[P_RAM_ADR-1:0]		b_adr;
-	logic						b_rd;
-	logic	[P_RAM_DAT-1:0]		b_dout;
-	logic						b_vld;
+	logic	[P_RAM_ADR-1:0]			a_adr;
+	logic							a_wr;
+	logic	[P_RAM_DAT-1:0]			a_din;
+	logic	[P_RAM_ADR-1:0]			b_adr;
+	logic							b_rd;
+	logic	[P_RAM_DAT-1:0]			b_dout;
+	logic							b_vld;
 } ram_struct;
 
 typedef struct {
-	logic	[2:0]				adr;
-	logic						wr;
-	logic						rd;
-	logic	[31:0]				din;
-	logic	[31:0]				dout;
-	logic						vld;
+	logic	[2:0]					adr;
+	logic							wr;
+	logic							rd;
+	logic	[31:0]					din;
+	logic	[31:0]					dout;
+	logic							vld;
 
-	logic [P_HOST_CTL_WIDTH-1:0]		ctl_r;
-	logic  						ctl_run;
-	logic  						ctl_ie;
+	logic [P_HOST_CTL_WIDTH-1:0]	ctl_r;
+	logic  							ctl_run;
+	logic  							ctl_ie;
 	logic [P_BOXES-1:0]				ctl_box_en;
-	logic  						ctl_mem_str;
-	logic 						ctl_mem_sel;
+	logic  							ctl_mem_str;
+	logic 							ctl_mem_sel;
 
 	logic   [P_HOST_STA_WIDTH-1:0] 	sta_r;
-	logic						sta_irq;
+	logic							sta_irq;
 } host_struct;
 
 typedef struct {
@@ -123,21 +125,21 @@ typedef struct {
 	logic	[31:0]				dout;
 	logic						vld;
 
-	logic [P_PM_CTL_WIDTH-1:0]		ctl_r;
+	logic [P_PM_CTL_WIDTH-1:0]	ctl_r;
 	logic  						ctl_ie;
-	logic [P_BOXES-1:0]				ctl_box_en;
+	logic [P_BOXES-1:0]			ctl_box_en;
 
-	logic   [P_PM_STA_WIDTH-1:0] 		sta_r;
+	logic   [P_PM_STA_WIDTH-1:0] sta_r;
 	logic						sta_irq;
 } pm_struct;
 
 typedef struct {
 	logic						wr;
-	logic   [P_BOX_ADR-1:0]			wp;
+	logic   [P_BOX_ADR-1:0]		wp;
 	logic						rd;
 	logic						rd_fe;
-	logic   [P_BOX_ADR-1:0]			rp;
-	logic	[P_BOX_ADR:0]			wrds;
+	logic   [P_BOX_ADR-1:0]		rp;
+	logic	[P_BOX_ADR:0]		wrds;
 	logic						ep;		// Empty
 	logic						of;		// Overflow
 } box_struct;
@@ -182,8 +184,12 @@ genvar i;
 		// Default
 		clk_host.dout <= 0;
 
+		// ID register
+		if (clk_host.adr == P_ADR_ID)
+			clk_host.dout <= 'h00004d47;
+
 		// Control register
-		if (clk_host.adr == P_ADR_CTL)
+		else if (clk_host.adr == P_ADR_CTL)
 			clk_host.dout[0+:P_HOST_CTL_WIDTH] <= clk_host.ctl_r;
 
 		// Status register

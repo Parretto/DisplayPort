@@ -341,7 +341,7 @@ endgenerate
     assign LNK_SRC_IF.sol[0]  = 0;  // Not used
     assign LNK_SRC_IF.eol[0]  = 0;  // Not used
     assign LNK_SRC_IF.vid[0]  = 0;  // Not used
-    assign LNK_SRC_IF.sec[0]  = 0;  // Not used
+    assign LNK_SRC_IF.sdp[0]  = 0;  // Not used
     assign LNK_SRC_IF.msa[0]  = 0;  // Not used
     assign LNK_SRC_IF.vbid[0] = 0;  // Not used
 

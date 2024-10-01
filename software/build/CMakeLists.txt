@@ -7,7 +7,7 @@ message (STATUS "Board: ${BOARD}")
 
 if (("${VENDOR}" STREQUAL "") OR ("${BOARD}" STREQUAL "") OR ("${GCC}" STREQUAL ""))
     message (FATAL_ERROR "\nmissing argument\n
-        cmake . -DVENDOR={AMD|LSC|INT} -DBOARD={AMD_ZCU102|LSC_LFCPNX|INT_C10GX|INT_A10GX|TB_A7_200T_IMG} -DGCC=<gcc toolchain>")
+        cmake . -DVENDOR={AMD|LSC|INT} -DBOARD={AMD_ZCU102|LSC_LFCPNX|INT_C10GX|INT_A10GX|TB_A7_200T_IMG|ALINX_AXAU15} -DGCC=<gcc toolchain>")
 endif()
 
 project ("dp_app" C ASM)
@@ -34,7 +34,7 @@ set (CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ./bin)
 
 # Compiler flags
-set (CMAKE_C_FLAGS "-march=rv32i -mabi=ilp32 -O1 -fno-tree-loop-distribute-patterns -ffreestanding -Bstatic -fno-builtin-memset -nostdlib -fno-lto")
+set (CMAKE_C_FLAGS "-march=rv32i_zicsr -mabi=ilp32 -O1 -fno-tree-loop-distribute-patterns -ffreestanding -Bstatic -fno-builtin-memset -nostdlib -fno-lto")
 
 # Set executable sources
 set (EXE_SRC 
@@ -60,7 +60,7 @@ set (EXE_SRC
 
 # Add PHY driver
 # AMD ZCU102 
-if ("${BOARD}" STREQUAL "AMD_ZCU102")
+if (("${BOARD}" STREQUAL "AMD_ZCU102") OR ("${BOARD}" STREQUAL "ALINX_AXAU15")) 
     list (APPEND EXE_SRC ../src/app/prt_phy_amd_us_gth.c)
 
 # Lattice CertusPro-NX

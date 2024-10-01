@@ -317,7 +317,7 @@ endgenerate
             for (j = 0; j < P_SPL; j++)
             begin
                 assign LNK_SRC_IF.vid[i][j] = 0; // Not used
-                assign LNK_SRC_IF.sec[i][j] = 0; // Not used
+                assign LNK_SRC_IF.sdp[i][j] = 0; // Not used
                 assign LNK_SRC_IF.msa[i][j] = 0; // Not used
                 assign LNK_SRC_IF.k[i][j] = lnk_if_from_lane[i].k[0][j];
                 assign LNK_SRC_IF.dat[i][j] = lnk_if_from_lane[i].dat[0][j];
