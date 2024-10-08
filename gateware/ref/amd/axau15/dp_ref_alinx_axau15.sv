@@ -93,8 +93,8 @@ localparam P_PHY_DAT_WIDTH  = P_LANES * P_SPL * 8;
 
 localparam P_APP_ROM_SIZE   = 64;
 localparam P_APP_RAM_SIZE   = 64;
-localparam P_APP_ROM_INIT   = "dp_app_amd_zcu102_rom.mem";
-localparam P_APP_RAM_INIT   = "dp_app_amd_zcu102_ram.mem";
+localparam P_APP_ROM_INIT   = "dp_app_alinx_axau15_rom.mem";
+localparam P_APP_RAM_INIT   = "dp_app_alinx_axau15_ram.mem";
 
 localparam P_MST            = 0;                        // MST support
 localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
