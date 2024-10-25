@@ -83,7 +83,7 @@ localparam P_LANES              = 4;
 localparam P_SPL                = 2;      // Symbols per lane. Valid options - 2, 4. 
 localparam P_PPC                = 2;      // Pixels per clock. Valid options - 2, 4.
 localparam P_BPC                = 10;     // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH          = (P_PPC == 2) ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 128 : 96);
+localparam P_AXI_WIDTH          = (P_PPC == 2) ? ((P_BPC == 10) ? 64 : 48) : ((P_BPC == 10) ? 120 : 96);
 localparam P_PHY_DAT_WIDTH      = P_LANES * P_SPL * 8;
 localparam P_PHY_TX_MST_CLK     = 0;    // PHY TX master clock
 localparam P_PHY_RX_MST_CLK     = 0;    // PHY RX master clock

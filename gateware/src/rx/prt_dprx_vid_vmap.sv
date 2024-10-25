@@ -2717,7 +2717,6 @@ generate
         for (i = 0; i < (P_PPC * 3); i++)
             assign clk_vid.dat[(i*P_BPC)+:P_BPC] = fn_vmap_asm_out.dat[i];
     
-        assign clk_vid.dat[$high(clk_vid.dat):(P_PPC * P_BPC * 3)] = 0;
         assign clk_vid.vld = fn_vmap_asm_out.vld;
     end
 

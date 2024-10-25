@@ -94,7 +94,7 @@ localparam P_LANES              = 4;
 localparam P_SPL                = 4;
 localparam P_PPC                = 4;
 localparam P_BPC                = 10;    // Bits per component. Valid options - 8, 10
-localparam P_AXI_WIDTH          = (P_BPC == 10) ? 128 : 96;
+localparam P_AXI_WIDTH          = (P_BPC == 10) ? 120 : 96;
 
 localparam P_APP_ROM_SIZE       = 64;
 localparam P_APP_RAM_SIZE       = 64;
