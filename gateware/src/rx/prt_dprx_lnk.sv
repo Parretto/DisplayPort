@@ -5,7 +5,7 @@
 
 
     Module: DP RX Link
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -87,6 +87,7 @@ module prt_dprx_lnk
     prt_dp_axis_if.src      VID_SRC_IF,         // Interface
 
     // Secondary data packet
+    input wire              SDP_CLK_IN,         // Clock
     prt_dp_rx_sdp_if.src    SDP_SRC_IF          // Source
 );
 
@@ -543,6 +544,7 @@ generate
         prt_dprx_sdp
         #(
                 // System
+                .P_SIM              (P_SIM),            // Simulation
                 .P_VENDOR           (P_VENDOR),         // Vendor
                 
                 // Link
@@ -551,18 +553,17 @@ generate
         )
         SDP_INST
         (
-            // Reset and clock
-            .RST_IN                 (LNK_RST_IN),       // Reset
-            .CLK_IN                 (LNK_CLK_IN),       // Clock  
- 
             // Control
             .CTL_LANES_IN           (lanes_from_ctl),   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
 
             // Link
+            .LNK_RST_IN             (LNK_RST_IN),       // Reset
+            .LNK_CLK_IN             (LNK_CLK_IN),       // Clock  
             .LNK_SNK_IF             (lnk_from_msa),     // Sink
             .LNK_SRC_IF             (lnk_from_sdp),     // Source
 
             // Secondary data packet
+            .SDP_CLK_IN             (SDP_CLK_IN),       // Clock
             .SDP_SRC_IF             (SDP_SRC_IF)        // Source
         );
     end

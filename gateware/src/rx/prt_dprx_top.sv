@@ -5,7 +5,7 @@
 
 
     Module: DP RX Top
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -81,6 +81,7 @@ module prt_dprx_top
     output wire                                 VID_VLD_OUT,        // Valid
 
     // Secondary data packet
+    input wire                                  SDP_CLK_IN,         // Clock
     output wire                                 SDP_SOP_OUT,        // Start of packet
     output wire                                 SDP_EOP_OUT,        // End of packet
     output wire [31:0]                          SDP_DAT_OUT,        // Data
@@ -317,6 +318,7 @@ genvar i, j;
         .VID_SRC_IF         (vid_if),               // Interface
 
         // Secondary data packet
+        .SDP_CLK_IN         (SDP_CLK_IN),           // Clock
         .SDP_SRC_IF         (sdp_if)                // Interface
     );
 

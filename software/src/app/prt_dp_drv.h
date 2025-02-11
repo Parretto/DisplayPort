@@ -61,14 +61,15 @@
 #define PRT_DP_EVT_ERR							(1<<1)
 #define PRT_DP_EVT_HPD							(1<<2)
 #define PRT_DP_EVT_STA							(1<<3)
-#define PRT_DP_EVT_PHY_RATE						(1<<4)
-#define PRT_DP_EVT_PHY_VAP						(1<<5)
-#define PRT_DP_EVT_TRN							(1<<6)
-#define PRT_DP_EVT_LNK							(1<<7)
-#define PRT_DP_EVT_VID							(1<<8)
-#define PRT_DP_EVT_MSA							(1<<9)
-#define PRT_DP_EVT_DEBUG						(1<<10)
-#define PRT_DP_EVT_EDID							(1<<11)
+#define PRT_DP_EVT_PHY_RST						(1<<4)
+#define PRT_DP_EVT_PHY_RATE						(1<<5)
+#define PRT_DP_EVT_PHY_VAP						(1<<6)
+#define PRT_DP_EVT_TRN							(1<<7)
+#define PRT_DP_EVT_LNK							(1<<8)
+#define PRT_DP_EVT_VID							(1<<9)
+#define PRT_DP_EVT_MSA							(1<<10)
+#define PRT_DP_EVT_DEBUG						(1<<11)
+#define PRT_DP_EVT_EDID							(1<<12)
 
 // Line rate
 #define PRT_DP_PHY_LINERATE_1620		0x06
@@ -108,6 +109,7 @@ typedef enum {
 	PRT_DP_CB_HPD, 
 	PRT_DP_CB_STA, 
 	PRT_DP_CB_TRN, 
+	PRT_DP_CB_PHY_RST, 
 	PRT_DP_CB_PHY_RATE, 
 	PRT_DP_CB_PHY_VAP, 
 	PRT_DP_CB_LNK, 
@@ -221,6 +223,7 @@ typedef struct {
 	prt_dp_cb		hpd;		// HPD Callback
 	prt_dp_cb		sta;		// Status Callback
 	prt_dp_cb		trn;		// Training Callback
+	prt_dp_cb		phy_rst;	// PHY reset
 	prt_dp_cb		phy_rate;	// PHY rate Callback
 	prt_dp_cb		phy_vap;	// PHY voltage and preamble Callback
 	prt_dp_cb		lnk;		// Link Callback
@@ -282,9 +285,9 @@ uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
 
 // DPRX
+void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp);
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
-void prt_dprx_trn_cr_ack (prt_dp_ds_struct *dp);
 
 // Internal
 void prt_dp_irq_handler (prt_dp_ds_struct *dp);

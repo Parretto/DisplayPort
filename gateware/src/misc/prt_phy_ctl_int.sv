@@ -5,7 +5,7 @@
 
 
     Module: PHY controller Intel
-    (c) 2023 - 2024 by Parretto B.V.
+    (c) 2023 - 2025 by Parretto B.V.
 
     History
     =======

@@ -5,7 +5,7 @@
 
 
     Module: DP RX Scrambler
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -87,8 +87,8 @@ logic [15:0]           clk_lfsr[0:P_SPL-1];
 logic [15:0]           clk_lfsr_reg;
 logic [8:0]            clk_dout[0:P_SPL-1];
 
-logic [2:0]             clk_scrm_sidx[0:P_SPL-1];
-logic [7:0]             clk_scrm_idx[0:P_SPL-1];
+logic [2:0]            clk_scrm_sidx[0:P_SPL-1];
+logic [7:0]            clk_scrm_idx[0:P_SPL-1];
 
 genvar i;
 

@@ -42,6 +42,9 @@ typedef struct {
 } prt_phy_amd_ds_struct;
 
 // Defines
+// Reference clock frequency (MHz)
+#define PRT_PHY_AMD_REFCLK              270
+
 // Control register
 #define PRT_PHY_AMD_DEV_CTL_WR          (1 << 0)
 #define PRT_PHY_AMD_DEV_CTL_RD          (1 << 1)

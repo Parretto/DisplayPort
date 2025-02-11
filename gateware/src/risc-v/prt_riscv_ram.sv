@@ -5,12 +5,13 @@
 
 
     Module: Risc-V RAM
-    (c) 2022 - 2024 by Parretto B.V.
+    (c) 2022 - 2025 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Updated Intel memory instantiation
+    v1.2 - Updated Lattice memory instantiation
 
     License
     =======
@@ -133,20 +134,16 @@ generate
 
     else if (P_VENDOR == "LSC")
     begin : gen_ram_lsc
-        prt_riscv_ram_lat
+        prt_riscv_ram_lsc
         RAM_INST
         (
-            .rst_i              (1'b0), 
-            .dps_i              (1'b0),
             .clk_i              (CLK_IN), 
             .clk_en_i           (1'b1), 
             .wr_en_i            (clk_wr), 
             .addr_i             (clk_adr), 
             .ben_i              (~clk_be),  // The byte lane polarity is inverted
             .wr_data_i          (clk_din),
-            .rd_data_o          (RAM_IF.rd_dat),
-            .lramready_o        (), 
-            .rd_datavalid_o     ()
+            .rd_data_o          (RAM_IF.rd_dat)
         );
     end
 

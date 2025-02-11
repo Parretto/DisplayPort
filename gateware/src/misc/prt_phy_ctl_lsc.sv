@@ -5,7 +5,7 @@
 
 
     Module: Lattice LMMI Peripheral 
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======

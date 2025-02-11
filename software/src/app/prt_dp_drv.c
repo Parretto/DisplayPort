@@ -46,7 +46,7 @@ uint8_t prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base)
 	// Set base address
 	dp->dev = (prt_dp_dev_struct *) base;
 
-	// Check if we can read the identificaiton register
+	// Check if we can read the identification register
 	if (dp->dev->id == 0x00004d47)
 		sta = PRT_TRUE;
 
@@ -61,6 +61,7 @@ void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handl
 		case PRT_DP_CB_HPD 		: dp->cb.hpd = (prt_dp_cb)cb_handler; break;
 		case PRT_DP_CB_STA 		: dp->cb.sta = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_TRN 		: dp->cb.trn = (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PHY_RST 	: dp->cb.phy_rst = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_PHY_RATE : dp->cb.phy_rate = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_PHY_VAP 	: dp->cb.phy_vap = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_LNK 		: dp->cb.lnk = (prt_dp_cb)cb_handler; break; 
@@ -85,6 +86,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->cb.hpd = 0;
 	dp->cb.sta = 0;
 	dp->cb.trn = 0;
+	dp->cb.phy_rst = 0;
 	dp->cb.phy_rate = 0;
 	dp->cb.phy_vap = 0;
 	dp->cb.lnk = 0;
@@ -323,11 +325,11 @@ void prt_dp_lnk_req_ok (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 }
 
-// Training clock recovery acknowledge
-void prt_dprx_trn_cr_ack (prt_dp_ds_struct *dp)
+// PHY reset acknowledge
+void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp)
 {
 	dp->mail_out.len = 0;
-	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_TRN_CR_ACK;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_PHY_RST_ACK;
 	prt_dp_mail_send (dp);
 }
 
@@ -976,6 +978,11 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->evt |= PRT_DP_EVT_HPD;
 			break;
 
+		case PRT_DP_MAIL_PHY_RST_REQ:		
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_PHY_RST;
+			break;
+
 		case PRT_DP_MAIL_TRN_PASS:
 			// Set training pass flag
 			dp->trn.pass = PRT_TRUE;
@@ -999,20 +1006,6 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 			// Clear training cr flag
 			dp->trn.cr = PRT_FALSE;
-
-			// Set event flag
-			dp->evt |= PRT_DP_EVT_TRN;
-			break;
-
-		case PRT_DP_MAIL_TRN_CR_STR:		
-			// Clear training pass flag
-			dp->trn.pass = PRT_FALSE;
-
-			// Clear training fail flag
-			dp->trn.fail = PRT_FALSE;
-
-			// Set training clock recovery flag
-			dp->trn.cr = PRT_TRUE;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;
@@ -1237,6 +1230,13 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		{
 			// Jump callback
 			dp->cb.sta (dp);
+		}
+
+		// PHY reset
+		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST) && (dp->cb.phy_rate != 0))
+		{
+			// Jump callback
+			dp->cb.phy_rst (dp);
 		}
 
 		// PHY rate

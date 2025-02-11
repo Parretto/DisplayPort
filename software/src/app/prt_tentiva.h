@@ -5,7 +5,7 @@
 
 
     Module: Tentiva Header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -26,6 +26,9 @@
 */
 
 #pragma once
+
+// Includes 
+#include "prt_rc22504a.h"
 
 // Data structure
 typedef struct {
@@ -70,6 +73,10 @@ typedef struct {
 #define PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR		0x57
 #define PRT_TENTIVA_I2C_TDP2004_SLOT0_ADR		0x1a
 #define PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR		0x18
+#define PRT_TENTIVA_I2C_TDP1204_SLOT0_ADR		0x5d
+#define PRT_TENTIVA_I2C_TDP1204_SLOT1_ADR		0x5e
+#define PRT_TENTIVA_I2C_TMDS1204_SLOT0_ADR		0x5b
+#define PRT_TENTIVA_I2C_TMDS1204_SLOT1_ADR		0x5c
 #define PRT_TENTIVA_I2C_PS8483_SLOT0_ADR		0x10
 #define PRT_TENTIVA_I2C_PS8483_SLOT1_ADR		0x20
 
@@ -78,10 +85,11 @@ typedef struct {
 #define PRT_TENTIVA_DP14TX_ID				    0x78
 #define PRT_TENTIVA_DP14RX_ID				    0x45
 #define PRT_TENTIVA_EDPTX_ID					0x94
-#define PRT_TENTIVA_HDMITX_ID					0x34
 #define PRT_TENTIVA_DP21TX_ID				    0x79
 #define PRT_TENTIVA_DP21RX_ID				    0x46
 #define PRT_TENTIVA_DP14RX_MCDP6000_ID		    0x99
+#define PRT_TENTIVA_HDMI21TX_ID					0x63
+#define PRT_TENTIVA_HDMI21RX_ID					0x51
 
 #define PRT_TENTIVA_LOCK_TIMEOUT				10000 	// 10 ms
 

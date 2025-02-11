@@ -15,6 +15,7 @@
 	v1.3 - Added PIO
     v1.4 - Updated PHY reset controller
 	v1.5 - Added RX CDR configuration
+	v1.6 - Added support for 135 MHz reference clock
 
     License
     =======
@@ -37,67 +38,90 @@
 #include "prt_printf.h"
 
 // PHY QPLL configuration data
-prt_u32 qpll_cfg_drp_array[4][5] = {
+// Reference clock 135 MHz
+#if (PRT_PHY_AMD_REFCLK == 135)
+	prt_u32 qpll_cfg_drp_array[4][5] = {
 
-  	// Configuration 1.62 Gbps
-  	{
-	//	0x00110fc3, /* DRP address=0x11, data=0xfc3e */
-	//	0x0014005e, /* DRP address=0x14, data=0x5e */
-	//	0x00180020, /* DRP address=0x18, data=0x020 */
-	//	0x0019021f  /* DRP address=0x19, data=0x21f */
+		// Configuration 1.62 Gbps (Not supported)
+		{
+			0x00110000, /* DRP address=0x11, data=0x0 */
+			0x00140000, /* DRP address=0x14, data=0x0 */
+			0x00180000, /* DRP address=0x18, data=0x0 */
+			0x00190000, /* DRP address=0x19, data=0x0 */
+			0x001b0000  /* DRP address=0x1b, data=0x0 */
+		},
 
-		0x001187c1, /* DRP address=0x11, data=0xfc3e */
-		0x0014002e, /* DRP address=0x14, data=0x5e */
-		0x00180808, /* DRP address=0x18, data=0x020 */
-		0x0019037f,  /* DRP address=0x19, data=0x21f */
-		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		// Configuration 2.7 Gbps
+		{
+			0x001187c3, /* DRP address=0x11, data=0x87c3 */
+			0x0014004e, /* DRP address=0x14, data=0x4e */
+			0x00180808, /* DRP address=0x18, data=0x020 */
+			0x0019021f,  /* DRP address=0x19, data=0x21f */
+			0x001b87c3  /* DRP address=0x1b, data=0x87c3 */
+		},
 
-	},
+		// Configuration 5.4 Gbps
+		{
+			0x001187c3,  /* DRP address=0x11, data=0x87c3 */
+			0x0014004e,  /* DRP address=0x14, data=0x4e */
+			0x00180808,  /* DRP address=0x18, data=0x0808 */
+			0x0019021f,  /* DRP address=0x19, data=0x21f */
+			0x001b87c3   /* DRP address=0x1b, data=0x87c3 */
 
-  	// Configuration 2.7 Gbps
-  	{
-//		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
-//		0x0014004e, /* DRP address=0x14, data=0x4e */
-//		0x00180020, /* DRP address=0x18, data=0x020 */
-//		0x0019021f  /* DRP address=0x19, data=0x21f */
+		},
 
-		0x001187c1, /* DRP address=0x11, data=0xfc3e */
-		0x00140026, /* DRP address=0x14, data=0x5e */
-		0x00180808, /* DRP address=0x18, data=0x020 */
-		0x0019037f,  /* DRP address=0x19, data=0x21f */
-		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		// Configuration 8.1 Gbps (Not supported)
 
-	},
+		{
+			0x00110000,  /* DRP address=0x11, data=0x0 */
+			0x00140000,  /* DRP address=0x14, data=0x0 */
+			0x00180000,  /* DRP address=0x18, data=0x0 */
+			0x00190000,  /* DRP address=0x19, data=0x0 */
+			0x001b0000   /* DRP address=0x1b, data=0x0 */
+		}
+	};
 
-  	// Configuration 5.4 Gbps
-  	{
-//		0x00110fc3, /* DRP address=0x11, data=0xfc3 */
-//		0x0014004e, /* DRP address=0x14, data=0x4e */
-//		0x00180020, /* DRP address=0x18, data=0x020 */
-//		0x0019021f  /* DRP address=0x19, data=0x21f */
+// Reference clock 270 MHz
+#else
+	prt_u32 qpll_cfg_drp_array[4][5] = {
 
-		0x001187c1, /* DRP address=0x11, data=0xfc3e */
-		0x00140026, /* DRP address=0x14, data=0x5e */
-		0x00180808, /* DRP address=0x18, data=0x020 */
-		0x0019037f,  /* DRP address=0x19, data=0x21f */
-		0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		// Configuration 1.62 Gbps
+		{
+			0x001187c1, /* DRP address=0x11, data=0xfc3e */
+			0x0014002e, /* DRP address=0x14, data=0x5e */
+			0x00180808, /* DRP address=0x18, data=0x020 */
+			0x0019037f,  /* DRP address=0x19, data=0x21f */
+			0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		},
 
-	},
+		// Configuration 2.7 Gbps
+		{
+			0x001187c1, /* DRP address=0x11, data=0xfc3e */
+			0x00140026, /* DRP address=0x14, data=0x5e */
+			0x00180808, /* DRP address=0x18, data=0x020 */
+			0x0019037f,  /* DRP address=0x19, data=0x21f */
+			0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		},
 
-  	// Configuration 8.1 Gbps
-	{
-//		0x00110fc0, /* DRP address=0x11, data=0xfc0 */
-//		0x0014003a, /* DRP address=0x14, data=0x3a */
-//		0x00180820, /* DRP address=0x18, data=0x820 */
-//		0x0019031d  /* DRP address=0x19, data=0x31d */
+		// Configuration 5.4 Gbps
+		{
+			0x001187c1, /* DRP address=0x11, data=0xfc3e */
+			0x00140026, /* DRP address=0x14, data=0x5e */
+			0x00180808, /* DRP address=0x18, data=0x020 */
+			0x0019037f,  /* DRP address=0x19, data=0x21f */
+			0x001b87c1  /* DRP address=0x1b, data=0x21f */
+		},
 
-		0x001187c0, /* DRP address=0x11, data=0xfc3e */
-		0x0014003a, /* DRP address=0x14, data=0x5e */
-		0x00180808, /* DRP address=0x18, data=0x020 */
-		0x0019031d,  /* DRP address=0x19, data=0x21f */
-		0x001b87c0  /* DRP address=0x1b, data=0x21f */
-	}
-};
+		// Configuration 8.1 Gbps
+		{
+			0x001187c0, /* DRP address=0x11, data=0xfc3e */
+			0x0014003a, /* DRP address=0x14, data=0x5e */
+			0x00180808, /* DRP address=0x18, data=0x020 */
+			0x0019031d,  /* DRP address=0x19, data=0x21f */
+			0x001b87c0  /* DRP address=0x1b, data=0x21f */
+		}
+	};
+#endif
 
 // PHY RX CDR configuration data (No spread spectrum clocking)
 prt_u32 rx_cdr_cfg_drp_array_no_ssc[4][3] = {
@@ -280,6 +304,16 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	prt_u16 dat;
 	prt_sta_type sta;
 
+	// Check line rate for 135 reference clock
+	// 8.1 Gbps and 1.62 Gbps are not supported
+	#if (PRT_PHY_AMD_REFCLK == 135)
+		if ((rate == PRT_PHY_AMD_LINERATE_8100) || (rate == PRT_PHY_AMD_LINERATE_1620))
+		{
+			prt_printf ("PHYTX: linerate not supported!\n");
+			return PRT_STA_FAIL;
+		}
+	#endif
+
 	// Assert PHY TX reset
 	sta = prt_phy_amd_txrst_set (phy);
 
@@ -289,24 +323,48 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	switch (rate)
 	{
 		// 2.7 Gbps
+		
 		// Reference clock is 270 MHz.
 		// VCO frequency = 270 * (4 * 5 / 2) = 2.7 GHz
 		// Linerate = 2.7 * 2 / 2 = 2.7 Gbps
+
+		// Reference clock is 135 MHz.
+		// VCO frequency = 135 * (4 * 5 / 1) = 2.7 GHz
+		// Linerate = 2.7 * 2 / 2 = 2.7 Gbps
+
 		case PRT_PHY_AMD_LINERATE_2700 :
 			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4); 
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (5);
-			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
+
+			#if (PRT_PHY_AMD_REFCLK == 135)
+				cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
+			#else
+				cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
+			#endif
+
 			txout_div = prt_phy_amd_encode_txout_div (2);
 			break;
 
 		// 5.4 Gbps
+
 		// Reference clock is 270 MHz.
 		// VCO frequency = 270 * (4 * 5 / 2) = 2.7 GHz
 		// Linerate = 2.7 * 2 / 1 = 5.4 Gbps
+
+		// Reference clock is 135 MHz.
+		// VCO frequency = 135 * (4 * 5 / 1) = 2.7 GHz
+		// Linerate = 2.7 * 2 / 1 = 5.4 Gbps
+
 		case PRT_PHY_AMD_LINERATE_5400 :
 			cpll_fbdiv = prt_phy_amd_encode_cpll_fbdiv (4);
 			cpll_fbdiv_45 = prt_phy_amd_encode_cpll_fbdiv_45 (5);
-			cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
+
+			#if (PRT_PHY_AMD_REFCLK == 135)
+				cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (1);
+			#else
+				cpll_refclk_div = prt_phy_amd_encode_cpll_refclk_div (2);
+			#endif
+
 			txout_div = prt_phy_amd_encode_txout_div (1);
 			break;
 
@@ -482,6 +540,16 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 	prt_u16 drp_adr;
 	prt_u16 drp_dat;
 	prt_sta_type sta;
+
+	// Check line rate for 135 reference clock
+	// 8.1 Gbps and 1.62 Gbps are not supported
+	#if (PRT_PHY_AMD_REFCLK == 135)
+		if ((rate == PRT_PHY_AMD_LINERATE_8100) || (rate == PRT_PHY_AMD_LINERATE_1620))
+		{
+			prt_printf ("PHYRX: linerate not supported!\n");
+			return PRT_STA_FAIL;
+		}
+	#endif
 
 	// Assert PHY RX reset
 	sta = prt_phy_amd_rxrst_set (phy);

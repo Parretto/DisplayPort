@@ -50,6 +50,9 @@
 #define DPTX_IRQ_HANDLER
 #define DPRX_IRQ_HANDLER
 
+// The scaler only operates in 4 pixel per clock
+//#define SCALER
+
 // MST
 //#define MST              
 
@@ -100,6 +103,8 @@ typedef struct {
      uint8_t bpc;
      uint8_t vtb_cr_p_gain;
      uint16_t vtb_cr_i_gain;
+     prt_bool tentiva_dp21tx;
+     prt_bool tentiva_dp21rx;
 } prt_dp_app_struct;
 
 // Prototypes
@@ -110,6 +115,7 @@ void show_menu (void);
 // Callback functions
 void dptx_hpd_cb (prt_dp_ds_struct *dp);
 void dp_sta_cb (prt_dp_ds_struct *dp);
+void dprx_phy_rst_cb (prt_dp_ds_struct *dp);
 void dptx_phy_rate_cb (prt_dp_ds_struct *dp);
 void dprx_phy_rate_cb (prt_dp_ds_struct *dp);
 void dptx_phy_vap_cb (prt_dp_ds_struct *dp);
@@ -130,9 +136,14 @@ void vtb_status (void);
 // Operation
 prt_sta_type vtb_colorbar (prt_bool force);
 prt_sta_type vtb_pass (void);
+prt_sta_type scale (void);
 
 // EDID
 void set_edid (prt_bool user);
+
+// PRBS
+void prbs (void);
+void prbs_menu (void);
 
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)

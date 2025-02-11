@@ -5,7 +5,7 @@
 
 
     Module: Tentiva Driver
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -15,6 +15,8 @@
 	v1.3 - Removed DP Application header dependency
 	v1.4 - Added multiple clock configurations support
 	v1.5 - Added DP21TX card (TDP2004)
+	v1.6 - Added TDP1204 and TMDS1204 drivers
+	
 
     License
     =======
@@ -42,6 +44,8 @@
 #include "prt_mcdp6000.h"
 #include "prt_tdp142.h"
 #include "prt_tdp2004.h"
+#include "prt_tdp1204.h"
+#include "prt_tmds1204.h"
 #include "prt_dp_drv.h"
 #include "prt_printf.h"
 #include "prt_tentiva.h"
@@ -126,59 +130,108 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 	}
 
 	/*
-		TDP142 initialize
+		Slot 0 - Initialize
 	*/
-	if (tentiva->slot_id[1] == PRT_TENTIVA_DP14TX_ID)
+	
+	switch (tentiva->slot_id[0])
 	{
-		sta = prt_tdp142_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP142_SLOT1_ADR, 1);
 
-		if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
-		{
-			prt_printf ("-- TDP142 config error -- ");
-			return sta;
-		}	
+		// MCDP6150 
+		case PRT_TENTIVA_DP14RX_ID : 
+			sta = prt_mcdp6150_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR);
+
+			if (sta != PRT_STA_OK)
+			{
+				if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+				{
+					prt_printf ("-- MCDP6150 config error -- ");
+					return sta;
+				}
+			}	
+			break;
+
+		// MCDP6000 
+		case PRT_TENTIVA_DP14RX_MCDP6000_ID :
+			sta = prt_mcdp6000_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6000_SLOT0_ADR);
+
+			if (sta != PRT_STA_OK)
+			{
+				if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+				{
+					prt_printf ("-- MCDP6000 config error -- ");
+					return sta;
+				}
+			}	
+			break;
+
+
+		// PS8483
+		case PRT_TENTIVA_DP21RX_ID :
+			// No initialization is needed
+			break;
+
+		// TMDS1204 
+		case PRT_TENTIVA_HDMI21RX_ID :
+			sta = prt_tmds1204_init (tentiva->i2c, PRT_TENTIVA_I2C_TMDS1204_SLOT0_ADR);
+
+			if (sta != PRT_STA_OK)
+			{
+				if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+				{
+					prt_printf ("-- TMDS1204 config error -- ");
+					return sta;
+				}
+			}	
+			break;
+	
+		default : 
+			prt_printf ("-- Unknow PHY card -- ");
+			return PRT_STA_FAIL;
+			break;
 	}
 
 	/*
-		TDP2004 initialize
+		Slot 1 - Initialize
 	*/
-	else if (tentiva->slot_id[1] == PRT_TENTIVA_DP21TX_ID)
+	
+	switch (tentiva->slot_id[1])
 	{
-		sta = prt_tdp2004_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR);
-	}
+		// TDP142 
+		case PRT_TENTIVA_DP14TX_ID :
+			sta = prt_tdp142_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP142_SLOT1_ADR, 1);
 
-	/*
-		MCDP6150 initialize
-	*/
-	if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_ID)
-	{
-		sta = prt_mcdp6150_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6150_SLOT0_ADR);
-
-		if (sta != PRT_STA_OK)
-		{
 			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
 			{
-				prt_printf ("-- MCDP6150 config error -- ");
+				prt_printf ("-- TDP142 config error -- ");
 				return sta;
-			}
-		}	
-	}
-
-	/*
-		MCDP6000 initialize
-	*/
-	else if (tentiva->slot_id[0] == PRT_TENTIVA_DP14RX_MCDP6000_ID)
-	{
-		sta = prt_mcdp6000_init (tentiva->i2c, PRT_TENTIVA_I2C_MCDP6000_SLOT0_ADR);
-
-		if (sta != PRT_STA_OK)
-		{
+			}	
+			break;
+		
+		// TDP2004
+		case PRT_TENTIVA_DP21TX_ID :
+			sta = prt_tdp2004_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP2004_SLOT1_ADR);
+	
 			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
 			{
-				prt_printf ("-- MCDP6000 config error -- ");
+				prt_printf ("-- TDP2004 config error -- ");
 				return sta;
-			}
-		}	
+			}	
+			break;
+
+		// TDP1204
+		case PRT_TENTIVA_HDMI21TX_ID :
+			sta = prt_tdp1204_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP1204_SLOT1_ADR);
+
+			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
+			{
+				prt_printf ("-- TDP1204 config error -- ");
+				return sta;
+			}	
+			break;
+
+		default : 
+			prt_printf ("-- Unknow PHY card -- ");
+			return PRT_STA_FAIL;
 	}
 
 	// Force status if ignore error flag is set
@@ -557,12 +610,13 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 
 			switch (tentiva->slot_id[i])
 			{
-				case PRT_TENTIVA_DP14TX_ID : prt_printf ("DP14TX\n"); break;
-				case PRT_TENTIVA_DP21TX_ID : prt_printf ("DP21TX\n"); break;
-				case PRT_TENTIVA_DP14RX_ID : prt_printf ("DP14RX\n"); break;
-				case PRT_TENTIVA_DP21RX_ID : prt_printf ("DP21RX\n"); break;
-				case PRT_TENTIVA_HDMITX_ID : prt_printf ("HDMITX\n"); break;
-				case PRT_TENTIVA_EDPTX_ID : prt_printf ("EDPTX\n"); break;
+				case PRT_TENTIVA_DP14TX_ID 		: prt_printf ("DP14TX\n"); break;
+				case PRT_TENTIVA_DP21TX_ID 		: prt_printf ("DP21TX\n"); break;
+				case PRT_TENTIVA_DP14RX_ID 		: prt_printf ("DP14RX\n"); break;
+				case PRT_TENTIVA_DP21RX_ID 		: prt_printf ("DP21RX\n"); break;
+				case PRT_TENTIVA_HDMI21TX_ID 	: prt_printf ("HDMI21TX\n"); break;
+				case PRT_TENTIVA_HDMI21RX_ID 	: prt_printf ("HDMI21RX\n"); break;
+				case PRT_TENTIVA_EDPTX_ID 		: prt_printf ("EDPTX\n"); break;
 				default : prt_printf ("unknown\n"); break;
 			}
 		}
@@ -642,10 +696,16 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, uint8_t id)
 			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_EDPTX_ID);
 			break;
 
-		// HDMITX
-		case PRT_TENTIVA_HDMITX_ID : 
-			prt_printf ("HDMITX...");
-			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_HDMITX_ID);
+		// HDMI21TX
+		case PRT_TENTIVA_HDMI21TX_ID : 
+			prt_printf ("HDMI21TX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT1_ADR, PRT_TENTIVA_HDMI21TX_ID);
+			break;
+
+		// HDMI21RX
+		case PRT_TENTIVA_HDMI21RX_ID : 
+			prt_printf ("HDMI21RX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_HDMI21RX_ID);
 			break;
 
 		// FMC board Rev. C

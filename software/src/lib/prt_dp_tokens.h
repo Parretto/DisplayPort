@@ -44,13 +44,13 @@
 
   #define PRT_DP_MAIL_PHY_TST          0x21    // PHY test
   #define PRT_DP_MAIL_AUX_TST          0x22    // AUX test
+  #define PRT_DP_MAIL_PHY_RST_REQ      0x23    // PHY reset request / RX Only
+  #define PRT_DP_MAIL_PHY_RST_ACK      0x24    // PHY reset acknowledge / RX Only 
   
   #define PRT_DP_MAIL_TRN_STR          0x30    // Training start / TX only
   #define PRT_DP_MAIL_TRN_PASS         0x31    // Training pass
   #define PRT_DP_MAIL_TRN_ERR          0x32    // Training error
-  #define PRT_DP_MAIL_TRN_CR_STR       0x33    // Training clock recovery start / RX Only 
-  #define PRT_DP_MAIL_TRN_CR_ACK       0x34    // Training clock recovery acknowledge / RX Only 
-
+  
   #define PRT_DP_MAIL_LNK_RATE_REQ     0x40    // Link rate request
   #define PRT_DP_MAIL_LNK_VAP_REQ      0x41    // Link voltage and pre-amble request
   #define PRT_DP_MAIL_LNK_REQ_OK       0x42    // Link request ok

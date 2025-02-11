@@ -5,7 +5,7 @@
 
 
     Module: DP RX Parser
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -52,7 +52,7 @@ import prt_dp_pkg::*;
 typedef struct {
     logic                   efm;
     logic                   lock;
-    logic   [8:0]           dat[0:P_SPL-1];    // Data
+    logic   [8:0]           dat[P_SPL];    // Data
 } snk_struct;
 
 // Structures
@@ -80,7 +80,7 @@ typedef struct {
 } pars_struct;
 
 typedef struct {
-    logic   [8:0]           dat[0:P_SPL-1];    // Data
+    logic   [8:0]           dat[P_SPL];    // Data
 } src_struct;
 
 
@@ -805,7 +805,7 @@ generate
             if (clk_snk.lock)
             begin
                 // Clear SDP ends in sublane 0
-                if (clk_pars.se_det[0])
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.sdp[0] <= 0;
 
                 // Clear SDP ends in sublane 1
@@ -822,7 +822,7 @@ generate
 
                 // Set - SDP starts in sublane 0
                 // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
-                else if ((clk_pars.ss_det_reg[1] == 'b0001) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                else if ((clk_pars.ss_det_reg[1] == 'b0001) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[2] == 'b0000))
                     clk_pars.sdp[0] <= 1;
                 
                 // Set - SDP starts in sublane 1
@@ -835,7 +835,7 @@ generate
 
                 // Set - SDP starts in sublane 3
                 // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
-                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                else if ((clk_pars.ss_det_reg[1] == 'b1000) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[2] == 'b0000))
                     clk_pars.sdp[0] <= 1;
             end
 
@@ -851,7 +851,7 @@ generate
             if (clk_snk.lock)
             begin
                 // Clear - SDP ends in sublane 0
-                if (clk_pars.se_det[0])
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.sdp[1] <= 0;
 
                 // Clear - SDP ends in sublane 1
@@ -881,7 +881,7 @@ generate
 
                 // Set - SDP starts in sublane 3
                 // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
-                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                else if ((clk_pars.ss_det_reg[1] == 'b1000) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[2] == 'b0000))
                     clk_pars.sdp[1] <= 1;
             end
 
@@ -896,19 +896,19 @@ generate
             // Locked
             if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear SDP ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.sdp[2] <= 0;
 
-                // Clear MSA ends in sublane 1
+                // Clear SDP ends in sublane 1
                 else if (clk_pars.se_det_reg[0][1])
                     clk_pars.sdp[2] <= 0;
 
-                // Clear MSA ends in sublane 2
+                // Clear SDP ends in sublane 2
                 else if (clk_pars.se_det_reg[0][2])
                     clk_pars.sdp[2] <= 0;
 
-                // Clear MSA ends in sublane 3
+                // Clear SDP ends in sublane 3
                 else if (clk_pars.se_det_reg[1][3])
                     clk_pars.sdp[2] <= 0;
 
@@ -927,7 +927,7 @@ generate
 
                 // Set - SDP starts in sublane 3
                 // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
-                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                else if ((clk_pars.ss_det_reg[1] == 'b1000) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[2] == 'b0000))
                     clk_pars.sdp[2] <= 1;
             end
 
@@ -942,19 +942,19 @@ generate
             // Locked
             if (clk_snk.lock)
             begin
-                // Clear MSA ends in sublane 0
-                if (clk_pars.se_det[0])
+                // Clear SDP ends in sublane 0
+                if (clk_pars.se_det_reg[0][0])
                     clk_pars.sdp[3] <= 0;
 
-                // Clear MSA ends in sublane 1
+                // Clear SDP ends in sublane 1
                 else if (clk_pars.se_det_reg[0][1])
                     clk_pars.sdp[3] <= 0;
 
-                // Clear MSA ends in sublane 2
+                // Clear SDP ends in sublane 2
                 else if (clk_pars.se_det_reg[0][2])
                     clk_pars.sdp[3] <= 0;
 
-                // Clear MSA ends in sublane 3
+                // Clear SDP ends in sublane 3
                 else if (clk_pars.se_det_reg[0][3])
                     clk_pars.sdp[3] <= 0;
 
@@ -973,7 +973,7 @@ generate
 
                 // Set - SDP starts in sublane 3
                 // Here we need to check if there are no SS symbols in the other sublanes, to prevent a false trigger on a MSA packet
-                else if ((clk_pars.ss_det_reg[0] == 'b1000) && (clk_pars.ss_det == 'b0000) && (clk_pars.ss_det_reg[1] == 'b0000))
+                else if ((clk_pars.ss_det_reg[1] == 'b1000) && (clk_pars.ss_det_reg[0] == 'b0000) && (clk_pars.ss_det_reg[2] == 'b0000))
                     clk_pars.sdp[3] <= 1;
             end
 

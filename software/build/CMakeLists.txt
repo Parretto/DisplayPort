@@ -51,6 +51,8 @@ set (EXE_SRC
     ../src/app/prt_mcdp6000.c
     ../src/app/prt_tdp142.c
     ../src/app/prt_tdp2004.c
+    ../src/app/prt_tdp1204.c
+    ../src/app/prt_tmds1204.c
     ../src/app/prt_tentiva.c
     ../src/vtb/prt_vtb.c
     ../src/app/prt_dp_edid.c

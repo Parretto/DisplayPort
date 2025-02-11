@@ -5,7 +5,7 @@
 
 
     Module: RISC-V ROM
-    (c) 2022 - 2024 by Parretto B.V.
+    (c) 2022 - 2025 by Parretto B.V.
 
     History
     =======
@@ -129,20 +129,16 @@ generate
 
     else if (P_VENDOR == "LSC")
     begin : gen_rom_lsc
-        prt_riscv_rom_lat
+        prt_riscv_rom_lsc
         ROM_INST
         (
-            .rst_i              (1'b0), 
-            .dps_i              (1'b0),
             .clk_i              (CLK_IN), 
             .clk_en_i           (clk_en), 
             .wr_en_i            (clk_wr), 
             .addr_i             (clk_adr), 
             .wr_data_i          (clk_din),
-            .rdout_clken_i      (clk_en),  
-            .rd_data_o          (ROM_IF.dat),
-            .lramready_o        (), 
-            .rd_datavalid_o     ()
+            .rd_out_clk_en_i    (clk_en),  
+            .rd_data_o          (ROM_IF.dat)
         );
     end
 

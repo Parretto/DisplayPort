@@ -5,7 +5,7 @@
 
 
     Module: DP PM Top
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -530,7 +530,8 @@ endgenerate
 // AUX
     prt_dp_pm_aux
     #(
-        .P_VENDOR               (P_VENDOR)         // Vendor
+        .P_VENDOR               (P_VENDOR),         // Vendor
+        .P_SIM                  (P_SIM)
     )
     AUX_INST
     (

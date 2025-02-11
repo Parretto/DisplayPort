@@ -1,18 +1,21 @@
 <?xml version="1.0" ?>
-<RadiantModule architecture="LFCPNX" date="2023 08 16 17:24:36" device="LFCPNX-100" gen_platform="Radiant" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.2.0">
+<RadiantModule architecture="jd5d00" date="2024 12 04 09:51:45" device="LFCPNX-100" device_int="jd5d80" family="LFCPNX" gen_platform="Radiant" gen_platform_version="2024.1.1.259.1" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lat" operation="Commercial" package="LFG672" package_int="LFG672" partnumber="LFCPNX-100-9LFG672C" source_format="Verilog" speed="9_High-Performance_1.0V" speed_int="12" vendor="latticesemi.com" version="1.2.0">
  <Package>
-  <File modified="2023 08 16 17:24:36" name="rtl/prt_riscv_rom_lat_bb.v" type="black_box_verilog"/>
-  <File modified="2023 08 16 17:24:36" name="prt_riscv_rom_lat.cfg" type="cfg"/>
-  <File modified="2023 08 16 17:24:36" name="misc/prt_riscv_rom_lat_tmpl.v" type="template_verilog"/>
-  <File modified="2023 08 16 17:24:36" name="misc/prt_riscv_rom_lat_tmpl.vhd" type="template_vhdl"/>
-  <File modified="2023 08 16 17:24:36" name="rtl/prt_riscv_rom_lat.v" type="top_level_verilog"/>
-  <File modified="2023 08 16 17:24:36" name="testbench/dut_params.v" type="dependency_file"/>
-  <File modified="2023 08 16 17:24:36" name="testbench/dut_inst.v" type="dependency_file"/>
-  <File modified="2023 08 16 17:24:36" name="component.xml" type="IP-XACT_component"/>
-  <File modified="2023 08 16 17:24:36" name="design.xml" type="IP-XACT_design"/>
+  <File modified="2024 12 04 09:51:45" name="rtl/prt_riscv_rom_lat_bb.v" type="black_box_verilog"/>
+  <File modified="2024 12 04 09:51:45" name="prt_riscv_rom_lat.cfg" type="cfg"/>
+  <File modified="2024 12 04 09:51:45" name="misc/prt_riscv_rom_lat_tmpl.v" type="template_verilog"/>
+  <File modified="2024 12 04 09:51:45" name="misc/prt_riscv_rom_lat_tmpl.vhd" type="template_vhdl"/>
+  <File modified="2024 12 04 09:51:45" name="rtl/prt_riscv_rom_lat.v" type="top_level_verilog"/>
+  <File modified="2024 12 04 09:51:45" name="testbench/dut_params.v" type="dependency_file"/>
+  <File modified="2024 12 04 09:51:45" name="testbench/dut_inst.v" type="dependency_file"/>
+  <File modified="2024 12 04 09:51:45" name="eval/dut_params.v" type="dependency_file"/>
+  <File modified="2024 12 04 09:51:45" name="eval/dut_inst.v" type="dependency_file"/>
+  <File modified="2024 12 04 09:51:45" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2024 12 04 09:51:45" name="design.xml" type="IP-XACT_design"/>
   <File modified="2020 02 19 20:11:38" name="testbench/lscc_rstclk_gen.v" type="testbench_verilog"/>
   <File modified="2021 05 31 19:50:16" name="testbench/lram_mem_master.v" type="testbench_verilog"/>
   <File modified="2021 05 31 19:53:24" name="testbench/tb_top.v" type="testbench_verilog"/>
   <File modified="2020 02 26 19:33:35" name="testbench/lram_mem_model.v" type="testbench_verilog"/>
+  <File modified="2023 09 28 02:24:10" name="eval/constraint.pdc" type="eval"/>
  </Package>
 </RadiantModule>

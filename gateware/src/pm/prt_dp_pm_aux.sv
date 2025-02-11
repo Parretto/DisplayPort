@@ -5,11 +5,12 @@
 
 
     Module: DP PM AUX
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added RX input filter
 
     License
     =======
@@ -31,7 +32,8 @@
 module prt_dp_pm_aux
 #(
      // System
-     parameter              P_VENDOR = "none"  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter              	P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+	parameter 				P_SIM = 0
 )
 (
 	// Reset and clock
@@ -179,6 +181,9 @@ typedef struct {
 typedef struct {
 	rx_sm_state					sm_cur;
 	rx_sm_state					sm_nxt;
+	logic [1:0]					flt_cnt;
+	logic 						flt_shft;
+	logic [4:0]					flt;
 	logic						rx_en;		// Enable
 	logic						rx;			// RX
 	logic						rx_re;		// RX rising edge
@@ -1170,11 +1175,91 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
         endcase
 	end
 
-// RX Input register
+// RX filter counter
 	always_ff @ (posedge CLK_IN)
 	begin
-		clk_rx_aux.rx <= AUX_RX_IN;
+		// Default
+		clk_rx_aux.flt_shft <= 0;
+
+		// Run
+		if (clk_ctl.run)
+		begin
+			if (&clk_rx_aux.flt_cnt)
+			begin
+				clk_rx_aux.flt_shft <= 1;
+				clk_rx_aux.flt_cnt <= 0;
+			end
+
+			else
+				clk_rx_aux.flt_cnt <= clk_rx_aux.flt_cnt + 'd1;
+		end
+
+		// Idle
+		else
+			clk_rx_aux.flt_cnt <= 0;
 	end
+
+// RX Input filter
+	always_ff @ (posedge CLK_IN)
+	begin
+		// Shift
+		if (clk_rx_aux.flt_shft)
+			clk_rx_aux.flt <= {clk_rx_aux.flt[$high(clk_rx_aux.flt)-1:0], AUX_RX_IN};
+	end
+
+// RX
+generate 
+	// In simulation the AUX transactions are running much faster.
+	// The filter will break the AUX transaction. 
+	// Therefore in simulation, just pass the RX input.
+	if (P_SIM)
+	begin : gen_sim_rx
+		assign clk_rx_aux.rx = AUX_RX_IN;
+	end
+
+	// In synthesis use majority voting to filter the RX signal.
+	else
+	begin
+		// Majority voting (LUT)
+		always_ff @ (posedge CLK_IN)
+		begin
+			case (clk_rx_aux.flt)
+				'b00000 : clk_rx_aux.rx <= 0;
+				'b00001 : clk_rx_aux.rx <= 0;
+				'b00010 : clk_rx_aux.rx <= 0;
+				'b00011 : clk_rx_aux.rx <= 0;
+				'b00100 : clk_rx_aux.rx <= 0;
+				'b00101 : clk_rx_aux.rx <= 0;
+				'b00110 : clk_rx_aux.rx <= 0;
+				'b00111 : clk_rx_aux.rx <= 1;
+				'b01000 : clk_rx_aux.rx <= 0;
+				'b01001 : clk_rx_aux.rx <= 0;
+				'b01010 : clk_rx_aux.rx <= 0;
+				'b01011 : clk_rx_aux.rx <= 1;
+				'b01100 : clk_rx_aux.rx <= 0;
+				'b01101 : clk_rx_aux.rx <= 1;
+				'b01110 : clk_rx_aux.rx <= 1;
+				'b01111 : clk_rx_aux.rx <= 1;
+				'b10000 : clk_rx_aux.rx <= 0;
+				'b10001 : clk_rx_aux.rx <= 0;
+				'b10010 : clk_rx_aux.rx <= 0;
+				'b10011 : clk_rx_aux.rx <= 1;
+				'b10100 : clk_rx_aux.rx <= 0;
+				'b10101 : clk_rx_aux.rx <= 1;
+				'b10110 : clk_rx_aux.rx <= 1;
+				'b10111 : clk_rx_aux.rx <= 1;
+				'b11000 : clk_rx_aux.rx <= 0;
+				'b11001 : clk_rx_aux.rx <= 1;
+				'b11010 : clk_rx_aux.rx <= 1;
+				'b11011 : clk_rx_aux.rx <= 1;
+				'b11100 : clk_rx_aux.rx <= 1;
+				'b11101 : clk_rx_aux.rx <= 1;
+				'b11110 : clk_rx_aux.rx <= 1;
+				'b11111 : clk_rx_aux.rx <= 1;
+			endcase
+		end
+	end
+endgenerate
 
 // RX edge
 	prt_dp_lib_edge

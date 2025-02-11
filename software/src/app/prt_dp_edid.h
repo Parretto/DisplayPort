@@ -27,7 +27,7 @@
 */
 #pragma once
 
-extern prt_u8 edid_dat[1024];
+extern prt_u8 edid_dat[512];
 
 // Defines
 #define PRT_EDID_ALL            0

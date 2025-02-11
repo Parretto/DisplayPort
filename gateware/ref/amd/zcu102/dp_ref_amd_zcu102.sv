@@ -5,7 +5,7 @@
 
 
     Module: DP reference design running on Xilinx ZCU102
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -102,6 +102,8 @@ localparam P_APP_RAM_INIT   = "dp_app_amd_zcu102_ram.mem";
 
 localparam P_MST            = 0;                        // MST support
 localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
+
+localparam P_SDP            = 1;                        // SDP support
 
 localparam P_PHY_CTL_DRP_PORTS  = 5;
 localparam P_PHY_CTL_PIO_IN     = 7;
@@ -214,6 +216,10 @@ wire                                    vid_sof_from_dprx;   // Start of frame
 wire                                    vid_eol_from_dprx;   // End of line
 wire [P_AXI_WIDTH-1:0]                  vid_dat_from_dprx;   // Data
 wire                                    vid_vld_from_dprx;   // Valid
+wire                                    sdp_sop_from_dprx;
+wire                                    sdp_eop_from_dprx;
+wire [31:0]                             sdp_dat_from_dprx;
+wire                                    sdp_vld_from_dprx;
 
 // VTB
 wire [1:0]                              lock_from_vtb;
@@ -550,11 +556,12 @@ endgenerate
         .VID_DAT_OUT        (vid_dat_from_dprx),    // Data
         .VID_VLD_OUT        (vid_vld_from_dprx),    // Valid
 
-        // Secondary data packet
-        .SDP_SOP_OUT        (),                     // Start of packet
-        .SDP_EOP_OUT        (),                     // End of packet
-        .SDP_DAT_OUT        (),                     // Data
-        .SDP_VLD_OUT        ()                      // Valid
+        // Secondary Data Packet
+        .SDP_CLK_IN         (sys_clk_from_pll),     // Clock
+        .SDP_SOP_OUT        (sdp_sop_from_dprx),    // Start of packet
+        .SDP_EOP_OUT        (sdp_eop_from_dprx),    // End of packet
+        .SDP_DAT_OUT        (sdp_dat_from_dprx),    // Data
+        .SDP_VLD_OUT        (sdp_vld_from_dprx)     // Valid
     );
 
     // Map data
