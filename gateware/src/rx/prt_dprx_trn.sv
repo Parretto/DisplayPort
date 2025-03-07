@@ -11,7 +11,8 @@
     =======
     v1.0 - Initial release
     v1.1 - Added training TPS4
-
+    v1.2 - Improved training
+    
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -87,8 +88,8 @@ msg_egr_struct      clk_msg_egr;
 msg_ing_struct      clk_msg_ing;
 wire [P_LANES-1:0]  cfg_set_to_lane;
 wire [2:0]          cfg_tps_to_lane[0:P_LANES-1];
+wire [15:0]         sta_cycle_from_lane[0:P_LANES-1];
 wire [15:0]         sta_match_from_lane[0:P_LANES-1];
-wire [7:0]          sta_err_from_lane[0:P_LANES-1];
 logic [2:0]         clk_act_lanes;             // Active lanes
 
 // Scrambler
@@ -175,58 +176,37 @@ genvar i, j;
         clk_msg_ing.dat = 0;
 
         case (clk_msg_ing.idx)
-            // Match lane 0
+            // Cycles lane 0
             'd0 :
+            begin
+                clk_msg_ing.dat = sta_cycle_from_lane[0];
+            end
+
+            // Match lane 0
+            'd1 :
             begin
                 clk_msg_ing.dat = sta_match_from_lane[0];
             end
 
             // Match lane 1
-            'd1 :
+            'd2 :
             begin
                 if ((P_LANES == 2) || (P_LANES == 4))
                     clk_msg_ing.dat = sta_match_from_lane[1];
             end
 
             // Match lane 2
-            'd2 :
+            'd3 :
             begin
                 if (P_LANES == 4)
                     clk_msg_ing.dat = sta_match_from_lane[2];
             end
 
             // Match lane 3
-            'd3 :
+            'd4 :
             begin
                 if (P_LANES == 4)
                     clk_msg_ing.dat = sta_match_from_lane[3];
-            end
-
-            // Error lane 0
-            'd4 :
-            begin
-                clk_msg_ing.dat[0+:$size(sta_err_from_lane[0])] = sta_err_from_lane[0];
-            end
-
-            // Error lane 1
-            'd5 :
-            begin
-                if ((P_LANES == 2) || (P_LANES == 4))
-                    clk_msg_ing.dat[0+:$size(sta_err_from_lane[1])] = sta_err_from_lane[1];
-            end
-
-            // Error lane 2
-            'd6 :
-            begin
-                if (P_LANES == 4)
-                    clk_msg_ing.dat[0+:$size(sta_err_from_lane[2])] = sta_err_from_lane[2];
-            end
-
-            // Error lane 3
-            'd7 :
-            begin
-                if (P_LANES == 4)
-                    clk_msg_ing.dat[0+:$size(sta_err_from_lane[3])] = sta_err_from_lane[3];
             end
 
             default : ;
@@ -253,8 +233,8 @@ generate
             .CFG_TPS_IN         (cfg_tps_to_lane[i]),
 
             // Status
+            .STA_CYCLE_OUT      (sta_cycle_from_lane[i]),   // Cycles
             .STA_MATCH_OUT      (sta_match_from_lane[i]),   // Match
-            .STA_ERR_OUT        (sta_err_from_lane[i]),     // Error
 
             // Scrambler
             .SCRM_SNK_IF        (scrm_if_to_lane[i]),       // Sink

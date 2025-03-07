@@ -5,7 +5,7 @@
 
 
     Module: DP Application 
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -57,10 +57,6 @@
 #include "prt_dp_edid.h"
 #include "tentiva_phy_clk.h"
 #include "tentiva_vid_clk.h"
-
-#ifdef SCALER
-     #include "prt_scaler.h"
-#endif
 
 // AMD ZCU102 board and Alinx AXAU15 board
 #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
@@ -118,11 +114,6 @@ prt_dp_ds_struct dprx;
 // VTB data structure
 prt_vtb_ds_struct vtb[2];
 
-// Scaler data structure
-#ifdef SCALER
-     prt_scaler_ds_struct scaler;
-#endif 
-
 // Tentiva data structure
 prt_tentiva_ds_struct tentiva;
 
@@ -171,8 +162,8 @@ int main (void)
      prt_printf ("   |__)  /\\  |__) |__) |__   |   |  /  \\ \n");
      prt_printf ("   |    /~~\\ |  \\ |  \\ |___  |   |  \\__/ \n");
      prt_printf ("\n");
-     prt_printf ("DP v1.0\n");
-     prt_printf ("(c) 2021 - 2024 by Parretto B.V.\n");
+     prt_printf ("DisplayPort reference design v1.0\n");
+     prt_printf ("(c) 2021 - 2025 by Parretto B.V.\n");
      prt_printf ("www.parretto.com\n");
      prt_printf ("Date: '%s'\n", __DATE__);
      prt_printf ("Time: '%s'\n", __TIME__);
@@ -223,11 +214,6 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
-#ifdef SCALER
-     // Assign scaler base address
-     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
-#endif
-
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -272,10 +258,6 @@ int main (void)
           dp_app.bpc = 8;
 
      prt_printf ("Bits per component: %d\n", dp_app.bpc);
-
-#ifdef SCALER
-     prt_printf ("Scaler enabled\n");
-#endif
 
 // ZCU102 FMC I2C mux
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -504,9 +486,6 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
-// If the advanced option is not defined, then the DP is pre-configured.
-#ifndef ADVANCED
-
      /*
           DPTX
      */
@@ -620,7 +599,6 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
-#endif
 
      // Menu
      show_menu ();
@@ -650,54 +628,6 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
-#ifdef ADVANCED
-                    // Config
-                    case 'w' :
-                         prt_printf ("DPTX: Config...\n");
-
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dptx, dat);
-
-                         prt_printf ("Select maximum number of lanes:\n");
-                         prt_printf (" 1 - 1 lanes\n");
-                         prt_printf (" 2 - 2 lanes\n");
-                         prt_printf (" 3 - 4 lanes\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = 1; break;
-                              case '2' : dat = 2; break;
-                              default  : dat = 4; break;
-                         }
-
-                         // Set max lanes
-                         prt_dp_set_lnk_max_lanes (&dptx, dat);
-
-                         if (prt_dp_cfg (&dptx))
-                              prt_printf ("DPTX: ok\n");
-                         else
-                              prt_printf ("DPTX: error\n");
-
-                         break;
-#endif
 
                     // Status
                     case 'e' :
@@ -785,25 +715,6 @@ int main (void)
                          }
                          break;
 
-                    // AUX test
-                    case 'y' :
-                         prt_printf ("DPTX: AUX TX test...\n");
-                         prt_printf ("Select AUX TX test pattern\n");
-                         prt_printf (" 0 - off\n");
-                         prt_printf (" 1 - on\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = true; break;
-                              default  : dat = false; break;
-                         }
-
-                         if (prt_dptx_aux_test (&dptx, dat))
-                              prt_printf ("DPTX: ok\n");
-                         else
-                              prt_printf ("DPTX: error\n");
-                         break;
 
                     /*
                          DPRX
@@ -818,54 +729,6 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
-#ifdef ADVANCED
-                    // Config
-                    case 's' :
-                         prt_printf ("DPRX: Config...\n");
-
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if (BOARD == BOARD_AMD_ZCU102)
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dprx, dat);
-
-                         prt_printf ("Select maximum number of lanes:\n");
-                         prt_printf (" 1 - 2 lanes\n");
-                         prt_printf (" 2 - 4 lanes\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = 2; break;
-                              default  : dat = 4; break;
-                         }
-
-                         // Set max lanes
-                         prt_dp_set_lnk_max_lanes (&dprx, dat);
-
-                         if (prt_dp_cfg (&dprx))
-                              prt_printf ("DPRX: ok\n");
-                         else
-                              prt_printf ("DPRX: error\n");
-
-                         // Set edid
-                         //set_edid ();
-                         break;
-#endif
 
                     // Status
                     case 'd' :
@@ -924,127 +787,6 @@ int main (void)
                     case 'c' :
                          set_edid (true);
                          break;
-
-#ifdef SCALER
-                    // Scaler
-                    case 'v' :
-                         scale ();
-                         break;
-
-                    case '+' :
-                         prt_printf ("Scaler: enable test pattern\n");
-                         prt_scaler_tp (&scaler, true);
-                         break;
-
-                    case '-' :
-                         prt_printf ("Scaler: disable test pattern\n");
-                         prt_scaler_tp (&scaler, false);
-                         break;
-#endif
-
-                    case '.' :
-                         prt_printf ("Tentiva write ID:\n");
-                         prt_printf (" 1 - FMC Rev. C\n");
-                         prt_printf (" 2 - FMC Rev. D\n");
-                         prt_printf (" 3 - DP14RX\n");
-                         prt_printf (" 4 - DP14TX\n");
-                         prt_printf (" 5 - EDPTX\n");
-                         prt_printf (" 6 - DP21RX\n");
-                         prt_printf (" 7 - DP21TX\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = PRT_TENTIVA_FMC_REVC_ID; break;
-                              case '2' : dat = PRT_TENTIVA_FMC_REVD_ID; break;
-                              case '3' : dat = PRT_TENTIVA_DP14RX_ID; break;
-                              case '4' : dat = PRT_TENTIVA_DP14TX_ID; break;
-                              case '5' : dat = PRT_TENTIVA_EDPTX_ID; break;
-                              case '6' : dat = PRT_TENTIVA_DP21RX_ID; break;
-                              case '7' : dat = PRT_TENTIVA_DP21TX_ID; break;
-                              default : dat = 0; break;
-                         }
-
-                         if (dat)
-                              prt_tentiva_id_wr (&tentiva, dat);
-                         break;
-
-                    case ':' :
-                         prt_printf ("Tentiva write IDs: \n");
-                         prt_tentiva_id_wr (&tentiva, PRT_TENTIVA_FMC_REVD_ID);
-                         prt_tentiva_id_wr (&tentiva, PRT_TENTIVA_DP21RX_ID);
-                         prt_tentiva_id_wr (&tentiva, PRT_TENTIVA_DP21TX_ID);
-                         break;
-
-/*
-#if ((BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_AMD_ZCU102))
-
-                    case '1' :
-                         prt_printf ("tentiva 270 MHz\n\r");
-                         prt_tentiva_set_phy_freq (&tentiva, 270000);
-                         break;
-
-                    case '2' :
-                         prt_printf ("8.1 gbps\n\r");
-                         prt_phy_amd_rx_rate (&phy, PRT_PHY_AMD_LINERATE_8100, 0);
-                    break;
-
-                    case '3' :
-                         prt_printf ("5.4 gbps\n\r");
-                         prt_phy_amd_rx_rate (&phy, PRT_PHY_AMD_LINERATE_5400, 0);
-                    break;
-
-                    case '4' :
-                         prt_printf ("2.7 gbps\n\r");
-                         prt_phy_amd_rx_rate (&phy, PRT_PHY_AMD_LINERATE_2700, 0);
-                    break;
-
-                    case '5' :
-                         prt_printf ("1.62 gbps\n\r");
-                         prt_phy_amd_rx_rate (&phy, PRT_PHY_AMD_LINERATE_1620, 0);
-                    break;
-
-                    case '9' :
-                         prt_phy_amd_qpll_dump (&phy);
-                         break;
-               
-#endif
-*/
-/*
-
-
-
-                    case 'n' :
-                         prt_printf ("DPCD read:\n");
-                         prt_printf ("Enter address (hex): ");
-                         dpcd_adr = prt_uart_get_hex_val ();                    
-                         prt_dptx_dpcd_rd (&dptx, dpcd_adr, &dpcd_dat);
-                         prt_printf ("\ndat: %x\n", dpcd_dat);
-                         break;
-
-                    case 'm' :
-                         prt_printf ("DPCD write:\n");
-                         prt_printf ("Enter address (hex): ");
-                         dpcd_adr = prt_uart_get_hex_val ();
-                         prt_printf ("\nEnter data (hex): ");
-                         dpcd_dat = prt_uart_get_hex_val ();
-                         prt_printf ("\n");
-                         prt_dptx_dpcd_wr (&dptx, dpcd_adr, dpcd_dat);
-                         break;
-                    #endif
-*/
-
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
-                    case '1' :
-                         prt_printf ("PHY reset\n\r");
-                         prt_phy_amd_rx_rst (&phy);
-                         break;
-
-                    case 'p' :
-//                         prt_phy_amd_cdr_dump (&phy);
-                         prt_phy_amd_qpll_dump (&phy);
-                         break;
-#endif
 
                     default :
                          prt_printf ("Unknown command\n");
@@ -1135,9 +877,15 @@ int main (void)
      // PHY RX reset
      void dprx_phy_rst_cb (prt_dp_ds_struct *dp)
      {
-          //#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
-          //     prt_phy_amd_rx_rst (&phy);
-          //#endif
+          #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+          
+               // Training pattern 1
+               if (prt_dprx_get_trn_tps (&dprx) == 1)
+               {
+                    // Reset PHY datapath
+                    prt_phy_amd_rx_dp_rst (&phy);
+               }
+          #endif
           
           // Send acknowledge
           prt_dprx_phy_rst_ack (dp);
@@ -1154,6 +902,9 @@ int main (void)
           
           // Set linerate
           phy_set_tx_linerate (linerate);
+          
+          // For debug only
+          //phy_set_rx_linerate (linerate, 0);
 
           // Send link request ok
           prt_dp_lnk_req_ok (dp);
@@ -1424,22 +1175,11 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("w - Config\n");
-     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
-     #ifdef ADVANCED
-         prt_printf ("t - PHY test\n");
-         prt_printf ("y - AUX test\n");
-         prt_printf ("u - Force HPD\n");
-     #endif
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("s - Config\n");
-     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1451,13 +1191,6 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
-     #ifdef SCALER
-         prt_printf ("v - scale\n");
-     #endif
-
-     #ifdef ADVANCED
-         prt_printf ("b - PRBS\n");
-     #endif
          prt_printf ("\n");
      }
 
@@ -2016,11 +1749,6 @@ prt_sta_type vtb_colorbar (prt_bool force)
                bpc = 8;
           }          
 
-     #ifdef SCALER
-          prt_printf ("Scaler: stop\n");
-          prt_scaler_stp (&scaler);
-     #endif
-
           // Start test pattern
           prt_printf ("VTB: Start test pattern\n");
           prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_FULL);
@@ -2076,9 +1804,29 @@ prt_sta_type vtb_pass (void)
      prt_dp_tp_struct dp_tp;
      prt_vtb_tp_struct vtb_tp;
      uint32_t tentiva_clk;
-     uint8_t scaler_flag = false;
      uint8_t vtb_preset;
 
+     // Check if DP sink is connected
+     if (!prt_dp_is_hpd (&dptx))
+     {
+          prt_printf ("No DP sink device is connected.\n");
+          return PRT_STA_FAIL;
+     }
+
+     // Check if a DP TX is up and running
+     if (!prt_dp_is_lnk_up (&dptx))
+     {
+          prt_printf ("DPTX link is not up.\n");
+          return PRT_STA_FAIL;
+     }
+
+     // Check if a DP RX is up and running
+     if (!prt_dp_is_lnk_up (&dprx))
+     {
+          prt_printf ("DPRX link is not up.\n");
+          return PRT_STA_FAIL;
+     }
+     
      // MST
      if (dp_app.tx.mst)
      {
@@ -2126,12 +1874,6 @@ prt_sta_type vtb_pass (void)
      prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
      prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
 
-     // Scaler
-#ifdef SCALER
-     prt_printf ("Scaler: stop\n");
-     prt_scaler_stp (&scaler);
-#endif
-
      // Enable direct I2C access mode
      prt_printf ("I2C: enable direct access mode\n");
      prt_i2c_dia (&i2c, true, prt_tentiva_has_sc(&tentiva));
@@ -2174,311 +1916,6 @@ prt_sta_type vtb_pass (void)
      return PRT_STA_OK;
 }
 
-/*
-     Scale
-*/
-#ifdef SCALER
-prt_sta_type scale (void)
-{
-     // Variables
-     uint8_t cmd;
-     prt_vtb_tp_struct vtb_tp;
-     uint8_t vtb_preset;
-     prt_scaler_tp_struct scaler_tp;
-     uint8_t scaler_cr; 
-     uint8_t scaler_mode; 
-     prt_dp_tp_struct dp_tp;
-     uint8_t tentiva_clk;
-
-     // MST
-     if (dp_app.tx.mst)
-     {
-          prt_printf ("Scaler not supported in MST.\n");
-          return PRT_STA_FAIL;
-     }
-
-     prt_printf ("\nScale\n");
-     prt_printf ("Scaler: stop\n");
-     prt_scaler_stp (&scaler);
-
-     if (prt_dp_is_vid_up (&dptx, 0) == false)
-     {
-          prt_printf ("No DPTX video\n");
-          return PRT_STA_FAIL;
-     }
-
-     // Get video timing parameters
-     vtb_tp = prt_vtb_get_tp (&vtb[0]);
-
-     // Find preset
-     vtb_preset = prt_vtb_find_preset (vtb_tp.htotal, vtb_tp.vtotal);
-
-     prt_printf ("Scale options:\n");
-     switch (vtb_preset)
-     {
-          case VTB_PRESET_1280X720P50 :
-               prt_printf (" 1 - 1280 x 720p50 -> 1920 x 1080p50\n");
-               prt_printf (" 2 - 1280 x 720p50 -> 2560 x 1440p50\n");
-               prt_printf (" 3 - 1280 x 720p50 -> 3840 x 2160p50\n");        
-          break;
-
-          case VTB_PRESET_1920X1080P50 :
-               prt_printf (" 4 - 1920 x 1080p50 -> 2560 x 1440p50\n");
-               prt_printf (" 5 - 1920 x 1080p50 -> 3840 x 2160p50\n");
-               //prt_printf (" 7 - 1920 x 1080p50 -> 2880 x 1620p50\n");
-          break;
-
-          case VTB_PRESET_2560X1440P50 :
-               prt_printf (" 6 - 2560 x 1440p50 -> 3840 x 2160p50\n");
-          break;
-
-          default : 
-               prt_printf ("No scaling options available\n");
-               return PRT_STA_FAIL;
-          break;
-     }
-
-     // Read command
-     cmd = prt_uart_get_char ();
-
-     switch (cmd)
-     {
-          // 720p -> 1080p
-          case '1' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_1920X1080P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_1920X1080P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_1920X1080P50_HSTART;
-               scaler_tp.dst_hsw = VTB_1920X1080P50_HSW;
-               scaler_tp.dst_vtotal = VTB_1920X1080P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_1920X1080P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_1920X1080P50_VSTART;
-               scaler_tp.dst_vsw = VTB_1920X1080P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 2;
-               
-               // Mode - Ratio 3/2
-               scaler_mode = 5; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_37125_MHZ;
-          break;
-
-          // 720p -> 1440p
-          case '2' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_2560X1440P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_2560X1440P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_2560X1440P50_HSTART;
-               scaler_tp.dst_hsw = VTB_2560X1440P50_HSW;
-               scaler_tp.dst_vtotal = VTB_2560X1440P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_2560X1440P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_2560X1440P50_VSTART;
-               scaler_tp.dst_vsw = VTB_2560X1440P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 4;
-               
-               // Mode - Ratio 2/1
-               scaler_mode = 6; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-          break;
-
-          // 720p -> 2160p
-          case '3' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_3840X2160P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_3840X2160P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_3840X2160P50_HSTART;
-               scaler_tp.dst_hsw = VTB_3840X2160P50_HSW;
-               scaler_tp.dst_vtotal = VTB_3840X2160P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_3840X2160P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_3840X2160P50_VSTART;
-               scaler_tp.dst_vsw = VTB_3840X2160P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 8;
-               
-               // Mode - Ratio 3/1
-               scaler_mode = 7; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-          break;
-
-          // 1080p -> 1440p
-          case '4' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_2560X1440P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_2560X1440P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_2560X1440P50_HSTART;
-               scaler_tp.dst_hsw = VTB_2560X1440P50_HSW;
-               scaler_tp.dst_vtotal = VTB_2560X1440P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_2560X1440P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_2560X1440P50_VSTART;
-               scaler_tp.dst_vsw = VTB_2560X1440P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 2;
-               
-               // Mode - Ratio 4/3
-               scaler_mode = 8; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-          break;
-
-          // 1080p -> 2160p
-          case '5' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_3840X2160P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_3840X2160P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_3840X2160P50_HSTART;
-               scaler_tp.dst_hsw = VTB_3840X2160P50_HSW;
-               scaler_tp.dst_vtotal = VTB_3840X2160P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_3840X2160P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_3840X2160P50_VSTART;
-               scaler_tp.dst_vsw = VTB_3840X2160P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 4;
-               
-               // Mode - Ratio 2/1
-               scaler_mode = 6; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-          break;
-
-          // 1440p -> 2160p
-          case '6' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_3840X2160P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_3840X2160P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_3840X2160P50_HSTART;
-               scaler_tp.dst_hsw = VTB_3840X2160P50_HSW;
-               scaler_tp.dst_vtotal = VTB_3840X2160P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_3840X2160P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_3840X2160P50_VSTART;
-               scaler_tp.dst_vsw = VTB_3840X2160P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 2;
-               
-               // Mode - Ratio 3/2
-               scaler_mode = 5; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_1485_MHZ;
-          break;
-
-          // 1080p -> 1620p
-/*
-          case '7' :
-               // Set scaler timing
-               scaler_tp.src_hwidth = vtb_tp.htotal;
-               scaler_tp.src_vheight = vtb_tp.vheight;
-
-               scaler_tp.dst_htotal = VTB_2880X1620P50_HTOTAL;
-               scaler_tp.dst_hwidth = VTB_2880X1620P50_HWIDTH;
-               scaler_tp.dst_hstart = VTB_2880X1620P50_HSTART;
-               scaler_tp.dst_hsw = VTB_2880X1620P50_HSW;
-               scaler_tp.dst_vtotal = VTB_2880X1620P50_VTOTAL; 
-               scaler_tp.dst_vheight = VTB_2880X1620P50_VHEIGHT;
-               scaler_tp.dst_vstart = VTB_2880X1620P50_VSTART;
-               scaler_tp.dst_vsw = VTB_2880X1620P50_VSW;
-
-               // Clock ratio
-               scaler_cr = 2;
-               
-               // Mode - Ratio 3/2
-               scaler_mode = 5; 
-
-               // Tentiva clock
-               tentiva_clk = PRT_TENTIVA_VID_FREQ_7425_MHZ;
-          break;
-*/
-          default : 
-               prt_printf ("Unknown option\n");
-               return PRT_STA_FAIL;
-          break;
-     }
-
-     // Set scaler timing parameters
-     prt_scaler_set_tp (&scaler, &scaler_tp);
-
-     // Set dptx timing
-     dp_tp.htotal = scaler_tp.dst_htotal; 
-	dp_tp.hwidth = scaler_tp.dst_hwidth;
-	dp_tp.hstart = scaler_tp.dst_hstart;
-	dp_tp.hsw = scaler_tp.dst_hsw;
-	dp_tp.vtotal = scaler_tp.dst_vtotal;
-	dp_tp.vheight = scaler_tp.dst_vheight;
-	dp_tp.vstart = scaler_tp.dst_vstart;
-	dp_tp.vsw = scaler_tp.dst_vsw;
-
-     prt_printf ("DPTX: Stop video... ");
-     if (prt_dp_vid_stp (&dptx, 0))
-          prt_printf ("ok\n");
-     else
-     {
-          prt_printf ("error\n");
-          return PRT_STA_FAIL;
-     }
-
-     // Update tentiva video clock
-     prt_printf ("Set video clock frequency: ");
-     switch (tentiva_clk)
-     {
-          case PRT_TENTIVA_VID_FREQ_185625_MHZ    : prt_printf ("18.5625 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_37125_MHZ     : prt_printf ("37.125 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_7425_MHZ      : prt_printf ("74.25 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_1485_MHZ      : prt_printf ("148.5 MHz\n"); break;
-          case PRT_TENTIVA_VID_FREQ_297_MHZ       : prt_printf ("297 MHz\n"); break;
-          default : break;
-     }
-
-     prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
-
-     prt_printf ("DPTX: Set MSA\n");
-     prt_dptx_msa_set (&dptx, &dp_tp, 0);
-
-     prt_printf ("DPTX: Start video... ");
-     if (prt_dp_vid_str (&dptx, 0))
-          prt_printf ("ok\n");
-     else
-     {
-          prt_printf ("error\n");
-          return PRT_STA_FAIL;
-     }
-
-     // Start scaler
-     prt_scaler_str (&scaler, scaler_cr, scaler_mode);
-
-     return PRT_STA_OK;
-}
-#endif
 
 /*
      EDID
@@ -2537,280 +1974,6 @@ void set_edid (prt_bool user)
           prt_dprx_hpd (&dprx, 3);
      }
 }
-
-/*
-     PRBS
-*/
-/*
-void prbs_menu (void)
-{
-     prt_printf ("PRBS\n");
-     prt_printf ("This enables the PRBS generator in the PHY TX.\n");
-     prt_printf ("Also the PRBS checker in the PHY RX is enabled.\n");
-     prt_printf ("Options:\n");
-     prt_printf ("\t1 - Set line rate\n");
-     prt_printf ("\t2 - Set TX voltage and pre-emphasis\n");
-     prt_printf ("\t3 - Link status\n");
-
-     #if (BOARD == BOARD_LSC_LFCPNX)
-          prt_printf ("\t4 - Set RX equalization\n");
-     #endif
-     prt_printf ("-- PRBS\n");
-     #if (BOARD == BOARD_AMD_ZCU102)
-          prt_printf ("\t5 - PRBS Inject error\n");
-     #endif
-     prt_printf ("\t6 - PRBS Status\n");
-     prt_printf ("\t0 - Return to main\n");
-}
-
-// PRBS
-void prbs (void)
-{
-     // Variables
-     uint8_t cmd;
-     uint32_t dat;
-     uint32_t locked;
-     uint8_t exit_loop;
-     uint8_t rate;
-     uint8_t volt;
-     uint8_t pre;
-
-     // Show menu
-     prbs_menu ();
-
-     // Set HPD plug
-     prt_dprx_hpd (&dprx, 2);
-
-     // Set power - active
-     prt_dptx_dpcd_wr (&dptx, 0x600, 0x01);  
-
-     // Set lane count - 4 lanes
-     prt_dptx_dpcd_wr (&dptx, 0x101, 0x04);  
-
-     for (uint8_t i = 0; i < 4; i++)
-     {
-          // Set link quality lane - PRBS7
-          prt_dptx_dpcd_wr (&dptx, 0x10b + i, 0x03);  
-     }
-
-     // Enable PRBS PHY TX
-     // AMD ZCU102
-     #if (BOARD == BOARD_AMD_ZCU102)
-          prt_phy_amd_prbs_gen (&phy, true);
-     
-     // Lattice CertusPro-NX
-     #elif (BOARD == BOARD_LSC_LFCPNX)
-          prt_phy_lsc_prbs_gen (&phy, true);
-     #endif
-
-     // Enable MCDP6150 PRBS7 generator
-     //prt_tentiva_mcdp6150_prbs7 (&tentiva);
-
-     exit_loop = false;
-     do
-     {
-          // Read command
-          cmd = prt_uart_get_char ();
-
-          switch (cmd)
-          {
-               case '1' :
-                    prt_printf ("Select line rate:\n");
-                    prt_printf ("\t1 - 1.62 Gbps\n");
-                    prt_printf ("\t2 - 2.7 Gbps\n");
-                    prt_printf ("\t3 - 5.4 Gbps\n");
-                    prt_printf ("\t4 - 8.1 Gbps\n");
-                    cmd = prt_uart_get_char ();
-
-                    switch (cmd)
-                    {
-                         case '2' : rate = PRT_DP_PHY_LINERATE_2700; break;
-                         case '3' : rate = PRT_DP_PHY_LINERATE_5400; break;
-                         case '4' : rate = PRT_DP_PHY_LINERATE_8100; break;
-                         default  : rate = PRT_DP_PHY_LINERATE_1620; break;
-                    }
-                    
-                    // Set PHY TX line rate
-                    phy_set_tx_linerate (rate);
-
-                    // Set PHY RX line rate
-                    phy_set_rx_linerate (rate);
-
-                    // DPCD
-                    prt_dptx_dpcd_wr (&dptx, 0x100, rate);  
-
-                    // Set MCDP6150 rate
-                    //prt_tentiva_mcdp6150_set_rate (&tentiva, rate);
-
-                    prt_printf ("ok\n");
-                    break;
-
-               case '2' :
-                    prt_printf ("Select TX voltage swing:\n");
-                    prt_printf ("\t1 - 400 mV\n");
-                    prt_printf ("\t2 - 600 mV\n");
-                    prt_printf ("\t3 - 800 mV\n");
-                    prt_printf ("\t4 - 1200 mV\n");
-                    cmd = prt_uart_get_char ();
-
-                    switch (cmd)
-                    {
-                         case '2' : volt = 1; break;
-                         case '3' : volt = 2; break;
-                         case '4' : volt = 3; break;
-                         default  : volt = 0; break;
-                    }
-
-                    prt_printf ("Select TX pre-emphasis:\n");
-                    prt_printf ("\t1 - 0 dB\n");
-                    prt_printf ("\t2 - 3.5 dB\n");
-                    prt_printf ("\t3 - 6 dB\n");
-                    prt_printf ("\t4 - 9.5 dB\n");
-                    cmd = prt_uart_get_char ();
-
-                    switch (cmd)
-                    {
-                         case '2' : pre = 1; break;
-                         case '3' : pre = 2; break;
-                         case '4' : pre = 3; break;
-                         default  : pre = 0; break;
-                    }
-
-                    // Set PHY TX voltage and pre-emphasis
-                    phy_set_tx_vap (volt, pre);
-
-                    // Set MCDP6150 voltage and pre-emphasis
-                    //prt_tentiva_mcdp6150_set_vap (&tentiva, volt, pre);
-
-                    prt_printf ("ok\n");
-                    break;
-
-               case '3' :
-                    prt_printf ("Link status\n");
-
-                    // AMD ZCU102
-                    #if (BOARD == BOARD_AMD_ZCU102)
-                         dat = prt_phy_amd_get_txpll_lock (&phy);
-
-                    // Lattice CertusPro-NX
-                    #elif (BOARD == BOARD_LSC_LFCPNX)
-                         dat = prt_phy_lsc_get_txpll_lock (&phy);
-                    #endif
-                    prt_printf ("\tTX PLL lock: %d\n", dat);               
-
-                    // AMD ZCU102
-                    #if (BOARD == BOARD_AMD_ZCU102)
-                         dat = prt_phy_amd_get_rxpll_lock (&phy);
-                    
-                    // Lattice CertusPro-NX
-                    #elif (BOARD == BOARD_LSC_LFCPNX)
-                         dat = prt_phy_lsc_get_rxpll_lock (&phy);
-                    #endif
-                    prt_printf ("\tRX PLL lock: %d\n", dat);               
-                    
-                    break;
-
-               #if (BOARD == BOARD_LSC_LFCPNX)
-               case '4' :
-                    prt_printf ("Select RX equalization\n");
-                    prt_printf ("\t1 - SS_LMS\n");
-                    prt_printf ("\t2 - RL2plus\n");
-
-                    cmd = prt_uart_get_char ();
-                    switch (cmd)
-                    {
-                         case '2' : dat = 0x7f; break;
-                         default : dat = 0x0f; break;
-                    }
-
-                    for (uint8_t i = 0; i < 4; i++)
-                    {
-                         prt_phy_lsc_wr (&phy, i, 217, dat);
-                    }
-                    
-                    prt_printf ("ok\n");
-                    break;
-               #endif
-
-               // AMD ZCU102
-               #if (BOARD == BOARD_AMD_ZCU102)
-               case '5' :
-                         prt_printf ("PRBS Inject error\n");
-                         prt_phy_amd_prbs_err (&phy);
-                    break;
-               #endif
-
-               case '6' :
-                    prt_printf ("PRBS status\n");
-
-                    for (uint8_t i = 0; i < 4; i++)
-                    {
-                         prt_printf ("lane: %d", i);
-
-                         // AMD ZCU102
-                         #if (BOARD == BOARD_AMD_ZCU102)
-                              dat = prt_phy_amd_prbs_lock (&phy, i);
-
-                         // Lattice CertusPro-NX
-                         #elif (BOARD == BOARD_LSC_LFCPNX)
-                              dat = prt_phy_lsc_prbs_lock (&phy, i);
-                         #endif
-
-                         prt_printf (" - lock: %d", dat);
-
-                         // AMD ZCU102
-                         #if (BOARD == BOARD_AMD_ZCU102)
-                              dat = prt_phy_amd_prbs_cnt (&phy, i);
-
-                         // Lattice CertusPro-NX
-                         #elif (BOARD == BOARD_LSC_LFCPNX)
-                              dat = prt_phy_lsc_prbs_cnt (&phy, i);
-                         #endif
-
-                         prt_printf (" - count: %d\n", dat);
-                    }
-
-                    // Clear counter
-                    // AMD ZCU102
-                    #if (BOARD == BOARD_AMD_ZCU102)
-                         prt_phy_amd_prbs_clr (&phy);
-
-                    // Lattice CertusPro-NX
-                    #elif (BOARD == BOARD_LSC_LFCPNX)
-                         prt_phy_lsc_prbs_clr (&phy);
-                    #endif
-                    break;
-
-               case '0' :
-                    prt_printf ("Exit\n");
-                    #if (BOARD == BOARD_AMD_ZCU102)
-                         prt_phy_amd_prbs_gen (&phy, false);
-                    
-                    // Lattice CertusPro-NX
-                    #elif (BOARD == BOARD_LSC_LFCPNX)
-                         prt_phy_lsc_prbs_gen (&phy, false);
-                    #endif
-
-                    for (uint8_t i = 0; i < 4; i++)
-                    {
-                         // Set link quality lane - test pattern not transmitted
-                         prt_dptx_dpcd_wr (&dptx, 0x10b + i, 0x00);  
-                    }
-
-                    // Set HPD unplug
-                    prt_dprx_hpd (&dprx, 1);
-
-                    exit_loop = true;
-                    break;
-
-               default:
-                    prt_printf ("Unknown command\n");
-                    prbs_menu ();
-                    break;
-          }
-     } while (exit_loop == false);
-}
-*/
 
 /*
      ZCU102 functions

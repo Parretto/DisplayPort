@@ -93,20 +93,20 @@ typedef enum {
 } bs_op;
 
 typedef struct {
-	logic signed	[P_PC_BITS-1:0]				r[0:P_THREADS-1];	// Register
+	logic signed	[P_PC_BITS-1:0]				r[P_THREADS];		// Register
 	logic signed	[P_PC_BITS-1:0]				off;				// Offset
 	logic signed	[P_PC_BITS-1:0]				base;				// Base
 	logic signed	[P_PC_BITS-1:0]				nxt;				// Next
 } pc_struct;
 
 typedef struct {
-	logic			[P_REG_IDX_BITS-1:0]		rd_idx;						// Destination register index
-	logic			[31:0]						rd_dat;						// Destination register data
-	logic										rd_wr[P_THREADS-1:0];		// Destination register write
-	logic			[P_REG_IDX_BITS-1:0]		rs1_idx[P_THREADS-1:0];		// Source register 1 index
-	logic			[P_REG_IDX_BITS-1:0]		rs2_idx[P_THREADS-1:0];		// Source register 2 index
-	logic			[31:0]						rs1[0:P_THREADS-1];			// Source register 1
-	logic			[31:0]						rs2[0:P_THREADS-1];			// Source register 2
+	logic			[P_REG_IDX_BITS-1:0]		rd_idx;					// Destination register index
+	logic			[31:0]						rd_dat;					// Destination register data
+	logic			[P_THREADS-1:0]				rd_wr;					// Destination register write
+	logic			[P_REG_IDX_BITS-1:0]		rs1_idx[P_THREADS];		// Source register 1 index
+	logic			[P_REG_IDX_BITS-1:0]		rs2_idx[P_THREADS];		// Source register 2 index
+	logic			[31:0]						rs1[P_THREADS];			// Source register 1
+	logic			[31:0]						rs2[P_THREADS];			// Source register 2
 } reg_struct;
 
 typedef struct {

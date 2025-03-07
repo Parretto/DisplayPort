@@ -312,40 +312,24 @@ endgenerate
 	end
 
 // Data enable
-generate
-	if (P_RAM_STYLE == "distributed")
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
 	begin
-		always_comb
-		begin
-			if (RD_IN && !clk_ep)
-				clk_de = 'b01;
-			else
-				clk_de = 'b00;
-		end
-	end
+		if (RST_IN)
+			clk_de <= 0;
 
-	else
-	begin
-		always_ff @ (posedge RST_IN, posedge CLK_IN)
+		else
 		begin
-			if (RST_IN)
-				clk_de <= 0;
-
-			else
+			// Enable
+			if (RD_EN_IN)
 			begin
-				// Enable
-				if (RD_EN_IN)
-				begin
-					if (!clk_ep)
-						clk_de[0] <= RD_IN;
-					else
-						clk_de[0] <= 0;
-					clk_de[1] <= clk_de[0];
-				end
+				if (!clk_ep)
+					clk_de[0] <= RD_IN;
+				else
+					clk_de[0] <= 0;
+				clk_de[1] <= clk_de[0];
 			end
 		end
 	end
-endgenerate
 
 // Empty
 // Must be combinatorial

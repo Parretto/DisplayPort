@@ -98,17 +98,17 @@ add_files ../../../software/build/bin/dp_app_amd_zcu102_rom.mem
 add_files ../../../software/build/bin/dp_app_amd_zcu102_ram.mem
 
 # IPs
-import_ip ../../ref/amd/zcu102/sys_pll/sys_pll.xci 
+import_ip ../../ref/amd/zcu102/sys_pll/sys_pll.xcix 
 import_ip ../../ref/amd/zcu102/zcu102_gth_2spl/zcu102_gth_2spl.xci 
-import_ip ../../ref/amd/zcu102/zcu102_gth_4spl/zcu102_gth_4spl.xci 
+#import_ip ../../ref/amd/zcu102/zcu102_gth_4spl/zcu102_gth_4spl.xci 
 
 # Update IPs 
 upgrade_ip [get_ips]
 
 # Create IP design files
 # We need to execute the command per individual IPs. 
-create_ip_run -force [get_ips zcu102_gth_2spl]
-create_ip_run -force [get_ips zcu102_gth_4spl]
+#create_ip_run -force [get_ips zcu102_gth_2spl]
+#create_ip_run -force [get_ips zcu102_gth_4spl]
 create_ip_run -force [get_ips sys_pll]
 
 # Launch synthesis

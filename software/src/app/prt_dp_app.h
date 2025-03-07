@@ -5,7 +5,7 @@
 
 
     Module: DP Application Header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -49,9 +49,6 @@
 // Interrupt handlers
 #define DPTX_IRQ_HANDLER
 #define DPRX_IRQ_HANDLER
-
-// The scaler only operates in 4 pixel per clock
-//#define SCALER
 
 // MST
 //#define MST              

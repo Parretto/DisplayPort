@@ -5,7 +5,7 @@
 
 
     Module: PHY AMD UltraScale GTH Header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
    
     License
     =======
@@ -67,36 +67,17 @@ typedef struct {
 
 // PIO
 #define PRT_PHY_AMD_PIO_IN_PWRGD                    (1 << 0)
-#define PRT_PHY_AMD_PIO_IN_CPLL_LOCK                (1 << 1)
-#define PRT_PHY_AMD_PIO_IN_QPLL_LOCK                (1 << 2)
-#define PRT_PHY_AMD_PIO_IN_TX_PMA_RST_DONE          (1 << 3)
-#define PRT_PHY_AMD_PIO_IN_TX_RST_DONE              (1 << 4)
-#define PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE          (1 << 5)
-#define PRT_PHY_AMD_PIO_IN_RX_RST_DONE  		        (1 << 6)
+#define PRT_PHY_AMD_PIO_IN_TX_RST_DONE              (1 << 1)
+#define PRT_PHY_AMD_PIO_IN_RX_RST_DONE  		        (1 << 2)
 
-#define PRT_PHY_AMD_PIO_OUT_CPLL_RST                (1 << 0)
-#define PRT_PHY_AMD_PIO_OUT_QPLL_RST                (1 << 1)
-#define PRT_PHY_AMD_PIO_OUT_TX_RST      		        (1 << 2)
-#define PRT_PHY_AMD_PIO_OUT_TX_DIV_RST              (1 << 3)
-#define PRT_PHY_AMD_PIO_OUT_TX_USR_RDY              (1 << 4)
-#define PRT_PHY_AMD_PIO_OUT_RX_RST                  (1 << 5)
-#define PRT_PHY_AMD_PIO_OUT_RX_DIV_RST              (1 << 6)
-#define PRT_PHY_AMD_PIO_OUT_RX_USR_RDY              (1 << 7)
-#define PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT       8
-#define PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT           10
-#define PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT            15
+#define PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST       (1 << 0)
+#define PRT_PHY_AMD_PIO_OUT_TX_DP_RST               (1 << 1)
+#define PRT_PHY_AMD_PIO_OUT_RX_PLL_AND_DP_RST       (1 << 2)
+#define PRT_PHY_AMD_PIO_OUT_RX_DP_RST               (1 << 3)
 
-//#define PRT_PHY_AMD_PIO_IN_TX_RST_DONE              (1 << 3)
-//#define PRT_PHY_AMD_PIO_IN_RX_RST_DONE  		        (1 << 4)
-
-//#define PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST       (1 << 0)
-//#define PRT_PHY_AMD_PIO_OUT_TX_DP_RST               (1 << 1)
-//#define PRT_PHY_AMD_PIO_OUT_RX_PLL_AND_DP_RST       (1 << 2)
-//#define PRT_PHY_AMD_PIO_OUT_RX_DP_RST               (1 << 3)
-
-//#define PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT       4
-//#define PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT           6
-//#define PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT            11
+#define PRT_PHY_AMD_PIO_OUT_TX_LINERATE_SHIFT       4
+#define PRT_PHY_AMD_PIO_OUT_TX_VOLT_SHIFT           6
+#define PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT            11
 
 // Prototype
 void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
@@ -104,7 +85,7 @@ prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr
 void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
 prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc);
-prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy);
 
 prt_u8 prt_phy_amd_encode_cpll_fbdiv (prt_u8 fbdiv);
 prt_u8 prt_phy_amd_encode_cpll_fbdiv_45 (prt_u8 fbdiv_45);
@@ -114,30 +95,30 @@ prt_u8 prt_phy_amd_encode_qpll_fbdiv (prt_u8 fbdiv);
 prt_u8 prt_phy_amd_encode_qpll_refclk_div (prt_u8 qpll_refclk_div);
 prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div);
 
-//prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
-//prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy);
-prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy);
-prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy);
+prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
+prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy);
 
-//prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
-//prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy);
-prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy);
-prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy);
+prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy);
+prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy);
+//prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy);
 
-//prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, prt_u32 PHY_RST, prt_u32 PHY_RST_DONE);
-prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PHY_USR_RDY);
-prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PLL_LOCK, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PMA_RST_DONE, prt_u32 PHY_USR_RDY, prt_u32 PHY_RST_DONE);
+prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, prt_u32 PHY_RST, prt_u32 PHY_RST_DONE);
+//prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PHY_USR_RDY);
+//prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy, prt_u32 PLL_RST, prt_u32 PLL_LOCK, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PMA_RST_DONE, prt_u32 PHY_USR_RDY, prt_u32 PHY_RST_DONE);
 
 void prt_phy_amd_cpll_cal (prt_phy_amd_ds_struct *phy, prt_u8 rate);
 void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre);
-prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy);
-prt_u8 prt_phy_amd_get_rxpll_lock (prt_phy_amd_ds_struct *phy);
-void prt_phy_amd_prbs_gen (prt_phy_amd_ds_struct *phy, prt_u8 en);
-void prt_phy_amd_prbs_clr (prt_phy_amd_ds_struct *phy);
-void prt_phy_amd_prbs_err (prt_phy_amd_ds_struct *phy);
-prt_bool prt_phy_amd_prbs_lock (prt_phy_amd_ds_struct *phy, prt_u8 lane);
-prt_u32 prt_phy_amd_prbs_cnt (prt_phy_amd_ds_struct *phy, prt_u8 lane);
-void prt_phy_amd_equ_sel (prt_phy_amd_ds_struct *phy, prt_u8 lpm);
+//prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy);
+//prt_u8 prt_phy_amd_get_rxpll_lock (prt_phy_amd_ds_struct *phy);
+//void prt_phy_amd_prbs_gen (prt_phy_amd_ds_struct *phy, prt_u8 en);
+//void prt_phy_amd_prbs_clr (prt_phy_amd_ds_struct *phy);
+//void prt_phy_amd_prbs_err (prt_phy_amd_ds_struct *phy);
+//prt_bool prt_phy_amd_prbs_lock (prt_phy_amd_ds_struct *phy, prt_u8 lane);
+//prt_u32 prt_phy_amd_prbs_cnt (prt_phy_amd_ds_struct *phy, prt_u8 lane);
+//void prt_phy_amd_equ_sel (prt_phy_amd_ds_struct *phy, prt_u8 lpm);
 void prt_phy_amd_pio_dat_set (prt_phy_amd_ds_struct *phy, prt_u32 dat);
 void prt_phy_amd_pio_dat_clr (prt_phy_amd_ds_struct *phy, prt_u32 dat);
 void prt_phy_amd_pio_dat_msk (prt_phy_amd_ds_struct *phy, prt_u32 dat, prt_u32 msk);

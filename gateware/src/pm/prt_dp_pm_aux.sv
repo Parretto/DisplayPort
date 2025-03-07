@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
 	v1.1 - Added RX input filter
+	v1.2 - Improved RX stability
 
     License
     =======
@@ -81,6 +82,7 @@ localparam P_STA_RX_FIFO_FL 	= 9;
 localparam P_STA_RX_FIFO_WRDS 	= 10;
 localparam P_STA_WIDTH          = 16;
 
+localparam P_RX_AUX_SMP_CNT		= (P_SIM) ? 'd9 : 'd24;
 localparam P_TO_VAL             = 'd400;    // time out 400 us
 
 // Typedef
@@ -89,7 +91,7 @@ typedef enum {
 } tx_sm_state;
 
 typedef enum {
-	rx_sm_rst, rx_sm_idle, rx_sm_init, rx_sm_smp, rx_sm_str, rx_sm_stp, rx_sm_act
+	rx_sm_rst, rx_sm_idle, rx_sm_sync, rx_sm_act, rx_sm_wr
 } rx_sm_state;
 
 // Structure
@@ -181,46 +183,29 @@ typedef struct {
 typedef struct {
 	rx_sm_state					sm_cur;
 	rx_sm_state					sm_nxt;
-	logic [1:0]					flt_cnt;
+	logic						run;		// Run
+	logic 	[1:0]				flt_cnt;
 	logic 						flt_shft;
-	logic [4:0]					flt;
-	logic						rx_en;		// Enable
+	logic 	[4:0]				flt;
 	logic						rx;			// RX
 	logic						rx_re;		// RX rising edge
 	logic						rx_fe;		// RX falling edge
-    logic                   	wd_ld;
-    logic [5:0]             	wd_cnt;
+	logic 	[4:0]				smp_cnt;
+	logic 						smp_tick;
+	logic 						smp_msk;
+	logic 						smp;
+	logic	[5:0]				rx_pipe;
+	logic						stp;
+    logic 	[5:0]             	wd_cnt;
     logic                   	wd_end;
     logic                   	wd_end_re;
-	logic						rx_ph1;
-	logic						rx_err;
 	logic						locked;			// Locked
 	logic						locked_clr;		// Locked
 	logic						locked_set;		// Locked
-	logic						beat_cnt_run;
-	logic						beat_cnt_run_clr;
-	logic						beat_cnt_run_set;
-	logic						beat_cnt_ld;
-	logic	[15:0]				beat_cnt;
-	logic						beat_cnt_end;
-	logic						beat_cnt_end_re;
-	logic						beat_ph1;
-	logic						beat_ph2;
-	logic						beat_mask;
-	logic	[15:0]				beat_val;
-	logic	[9:0]				beat_per_90;
-	logic	[9:0]				beat_per_270;
-	logic	[9:0]				beat_per_360;
-	logic						beat_smp;
-	logic						beat_smp_clr;
-	logic						beat_smp_set;
-	logic	[3:0]				cnt_in;
-	logic	[3:0]				cnt;
-	logic						cnt_ld;
-	logic						cnt_dec;
-	logic						cnt_end;
-	logic	[1:0]				stp_cnt;
-	logic						stp;
+	logic	[3:0]				bit_cnt;
+	logic						bit_cnt_ld;
+	logic						bit_cnt_dec;
+	logic						bit_cnt_end;
 	logic	[7:0]				shft;
 } rx_aux_struct;
 
@@ -959,7 +944,7 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 			if (clk_ctl.run)
 	        begin
 				// Reset RX state machine when TX is active
-				if (clk_tx_aux.en)
+				if (clk_tx_aux.en || clk_rx_aux.wd_end_re)
 					clk_rx_aux.sm_cur <= rx_sm_rst;
 	            else
 				    clk_rx_aux.sm_cur <= clk_rx_aux.sm_nxt;
@@ -975,14 +960,8 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 	begin
 		// Default
 		clk_rx_aux.sm_nxt 			= rx_sm_idle;
-        clk_rx_aux.wd_ld            = 0;
-		clk_rx_aux.beat_smp_clr		= 0;
-		clk_rx_aux.beat_smp_set		= 0;
-		clk_rx_aux.beat_cnt_run_clr	= 0;
-		clk_rx_aux.beat_cnt_run_set	= 0;
-		clk_rx_aux.cnt_ld			= 0;
-		clk_rx_aux.cnt_dec			= 0;
-		clk_rx_aux.cnt_in			= 0;
+		clk_rx_aux.bit_cnt_ld		= 0;
+		clk_rx_aux.bit_cnt_dec		= 0;
 		clk_rx_fifo.wr 				= 0;
 		clk_rx_aux.locked_clr		= 0;
 		clk_rx_aux.locked_set		= 0;
@@ -996,8 +975,6 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 			// Reset
 			rx_sm_rst :
 			begin
-				clk_rx_aux.beat_smp_clr		= 1;		// Stop sampling
-				clk_rx_aux.beat_cnt_run_clr	= 1;		// Stop beat counter
 				clk_rx_aux.locked_clr		= 1;		// Clear lock
 				clk_rx_aux.sm_nxt 			= rx_sm_idle;
 			end
@@ -1008,129 +985,31 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 				// Wait for rising edge
 				if (clk_rx_aux.rx_re)
 				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-					clk_rx_aux.cnt_ld = 1;
-					clk_rx_aux.cnt_in = 'd3;
 					clk_sta.to_en_clr = 1;				// Clear time out
-					clk_rx_aux.sm_nxt = rx_sm_init;
+					clk_rx_aux.sm_nxt = rx_sm_sync;
 				end
 				else
 					clk_rx_aux.sm_nxt = rx_sm_idle;
 			end
 
-			// Init
-			// We wait for 4 cycles to make sure the input is stable
-			rx_sm_init :
-			begin
-				// Wait for falling edge
-				if (clk_rx_aux.rx_fe)
-				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-
-					if (clk_rx_aux.cnt_end)
-					begin
-						clk_rx_aux.cnt_ld = 1;
-						clk_rx_aux.cnt_in = 'd7;
-						clk_rx_aux.beat_smp_set = 1;
-						clk_rx_aux.sm_nxt = rx_sm_smp;
-					end
-
-					else
-					begin
-						clk_rx_aux.cnt_dec = 1;
-						clk_rx_aux.sm_nxt = rx_sm_init;
-					end
-				end
-
-                // Watchdog
-                else if (clk_rx_aux.wd_end_re)
-					clk_rx_aux.sm_nxt = rx_sm_rst;
-
-				else
-					clk_rx_aux.sm_nxt = rx_sm_init;
-			end
-
-			// Sample
-			// In this state the bit width is measured for a period of 8 cycles
-			rx_sm_smp :
-			begin
-                // The sync period consists of 16 consecutive 0s
-				// A zero transists from low to high in the middle of the bit
-				// Therefore we wait for the falling edge
-				if (clk_rx_aux.rx_fe)
-				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-
-                    if (clk_rx_aux.cnt_end)
-					begin
-						clk_rx_aux.beat_smp_clr = 1;	// Stop sampling
-						clk_rx_aux.sm_nxt = rx_sm_str;
-					end
-
-					else
-					begin
-						clk_rx_aux.cnt_dec 	= 1;
-						clk_rx_aux.sm_nxt 	= rx_sm_smp;
-					end
-				end
-
-                // Watchdog
-                else if (clk_rx_aux.wd_end_re)
-					clk_rx_aux.sm_nxt = rx_sm_rst;
-
-				else
-					clk_rx_aux.sm_nxt = rx_sm_smp;
-			end
-
-			// Start
-			// Now we know the bit width.
-			// The value is sampled in the second period of the bit.
-			// Each bit has a transistion in the middle of the period.
-			// The beat counter is started at the rising edge and the next falling edge will load the counter.
-			rx_sm_str :
-			begin
-				// Wait for rising edge
-				if (clk_rx_aux.rx_re)
-				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-					clk_rx_aux.beat_cnt_run_set = 1;		// Start beat counter
-					clk_rx_aux.sm_nxt = rx_sm_stp;
-				end
-
-                // Watchdog
-                else if (clk_rx_aux.wd_end_re)
-					clk_rx_aux.sm_nxt = rx_sm_rst;
-
-				else
-					clk_rx_aux.sm_nxt = rx_sm_str;
-			end
-
-			// Stop
-			// Wait for stop condition
-			rx_sm_stp :
+			// Sync
+			rx_sm_sync :
 			begin
 				// Wait for stop condition
 				if (clk_rx_aux.stp)
 				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-
 					// If the RX fifo is not empty at the start of the new message,
 					// then set the message corrupted flag.
 					if (!clk_rx_fifo.ep)
 						clk_sta.msg_err_set = 1;
 					clk_rx_fifo.clr		= 1;		// Clear RX fifo
 					clk_rx_aux.locked_set = 1;		// Set locked
-					clk_rx_aux.cnt_in = 'd8;
-					clk_rx_aux.cnt_ld = 1;
+					clk_rx_aux.bit_cnt_ld = 1;
 					clk_rx_aux.sm_nxt = rx_sm_act;
 				end
 
-                // Watchdog
-                else if (clk_rx_aux.wd_end_re)
-					clk_rx_aux.sm_nxt = rx_sm_rst;
-
 				else
-					clk_rx_aux.sm_nxt = rx_sm_stp;
+					clk_rx_aux.sm_nxt = rx_sm_sync;
 			end
 
 			// Active
@@ -1143,30 +1022,33 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 					clk_sta.msg_new_set = 1;			// Set new message flag
 				end
 
-				// At phase 2 the data is sampled
-				else if (clk_rx_aux.beat_ph2)
-				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-					clk_rx_aux.cnt_dec = 1;
-					clk_rx_aux.sm_nxt = rx_sm_act;
-				end
+				// Sample
+				else if (clk_rx_aux.smp)
+				begin				
+					// Have we shifted in all bits?
+					// It takes one extra clock for the shift register to update.
+					// Therefore we jump to the write state. 
+					if (clk_rx_aux.bit_cnt_end)
+						clk_rx_aux.sm_nxt = rx_sm_wr;
 
-				// Beat phase 1
-				else if (clk_rx_aux.beat_ph1 && clk_rx_aux.cnt_end)
-				begin
-                    clk_rx_aux.wd_ld  = 1;              // Load watchdog
-					clk_rx_aux.cnt_in = 'd8;
-					clk_rx_aux.cnt_ld = 1;
-					clk_rx_fifo.wr = 1;
-					clk_rx_aux.sm_nxt = rx_sm_act;
+					else
+					begin
+						clk_rx_aux.bit_cnt_dec = 1;
+						clk_rx_aux.sm_nxt = rx_sm_act;
+					end
 				end
-
-                // Watchdog
-                else if (clk_rx_aux.wd_end_re)
-					clk_rx_aux.sm_nxt = rx_sm_rst;
 
 				else
 					clk_rx_aux.sm_nxt = rx_sm_act;
+			end
+
+			// Write
+			// Write RX data info FIFO
+			rx_sm_wr :
+			begin
+				clk_rx_aux.bit_cnt_ld = 1;
+				clk_rx_fifo.wr = 1;
+				clk_rx_aux.sm_nxt = rx_sm_act;
 			end
 
 			default :
@@ -1266,20 +1148,78 @@ endgenerate
 	RX_AUX_RX_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),				// Clock
-		.CKE_IN		(clk_rx_aux.rx_en),		// Clock enable
+		.CKE_IN		(clk_rx_aux.run),		// Clock enable
 		.A_IN		(clk_rx_aux.rx),		// Input
 		.RE_OUT		(clk_rx_aux.rx_re),		// Rising edge
 		.FE_OUT		(clk_rx_aux.rx_fe)		// Falling edge
 	);
 
-// Enable
+// Run
 	always_ff @ (posedge CLK_IN)
 	begin
 		if (clk_ctl.run && (clk_tx_aux.sm_cur == tx_sm_idle))
-			clk_rx_aux.rx_en <= 1;
+			clk_rx_aux.run <= 1;
 		else
-			clk_rx_aux.rx_en <= 0;
+			clk_rx_aux.run <= 0;
 	end
+
+// Sample counter
+// This counter is synchronized with the incoming RX signal
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Run
+		if (clk_rx_aux.run)
+		begin
+			// Load
+			if ((clk_rx_aux.rx_re || clk_rx_aux.rx_fe) || (clk_rx_aux.smp_cnt == 0))
+				clk_rx_aux.smp_cnt <= P_RX_AUX_SMP_CNT;
+
+			// Decrement
+			else
+				clk_rx_aux.smp_cnt <= clk_rx_aux.smp_cnt - 'd1;
+		end
+
+		// Idle
+		else
+			clk_rx_aux.smp_cnt <= 0;
+	end
+
+// Sample Tick
+// This signal is asserted in the middle of the eye.
+// It's used to sample the RX signal.
+    always_ff @ (posedge CLK_IN)
+    begin
+		if (clk_rx_aux.smp_cnt == P_RX_AUX_SMP_CNT/2)
+			clk_rx_aux.smp_tick <= 1;
+		else
+			clk_rx_aux.smp_tick <= 0;
+	end
+
+// Sample mask
+// Because the sample clock is trigged at every edge, the clock runs at double the speed of the RX signal.
+// The mask blocks the second sample (of the invertered signal)
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Run
+		if (clk_rx_aux.run)
+		begin
+			// The stop condition is used to synchronize the mask.
+			if (clk_rx_aux.stp)
+				clk_rx_aux.smp_msk <= 0;
+
+			// In the active period the mask signal is toggled at every sample. 
+			else if (clk_rx_aux.smp_tick)
+				clk_rx_aux.smp_msk <= ~clk_rx_aux.smp_msk;
+		end
+
+		// Idle
+		else
+			clk_rx_aux.smp_msk <= 0;
+	end
+
+// Sample
+// This signal is asserted when the RX value is sampled
+	assign clk_rx_aux.smp = clk_rx_aux.smp_tick && !clk_rx_aux.smp_msk;
 
 // Watchdog
 // The RX state machine is reset, when this watchdog counter expires.
@@ -1288,10 +1228,10 @@ endgenerate
     always_ff @ (posedge CLK_IN)
     begin
         // Run
-        if (clk_ctl.run)
+        if (clk_rx_aux.run)
         begin
             // Load
-            if (clk_rx_aux.wd_ld)
+            if (clk_rx_aux.rx_re || clk_rx_aux.rx_fe)
                 clk_rx_aux.wd_cnt <= '1;
 
             // Decrement
@@ -1300,6 +1240,7 @@ endgenerate
                 clk_rx_aux.wd_cnt <= clk_rx_aux.wd_cnt - 'd1;
         end
 
+		// Idle
         else
             clk_rx_aux.wd_cnt <= 0;
     end
@@ -1324,204 +1265,57 @@ endgenerate
 		.FE_OUT		()							 // Falling edge
 	);
 
-// Counter
-// Used by state machine
+// Bit counter
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Load
-		if (clk_rx_aux.cnt_ld)
-			clk_rx_aux.cnt <= clk_rx_aux.cnt_in;
+		if (clk_rx_aux.bit_cnt_ld)
+			clk_rx_aux.bit_cnt <= 'd7;
 
 		// Decrement
-		else if (clk_rx_aux.cnt_dec)
-			clk_rx_aux.cnt <= clk_rx_aux.cnt - 'd1;
+		else if (clk_rx_aux.bit_cnt_dec)
+			clk_rx_aux.bit_cnt <= clk_rx_aux.bit_cnt - 'd1;
 	end
 
-// Counter end
+// Bit counter end
 	always_comb
 	begin
-		if (clk_rx_aux.cnt == 0)
-			clk_rx_aux.cnt_end = 1;
+		if (clk_rx_aux.bit_cnt == 0)
+			clk_rx_aux.bit_cnt_end = 1;
 		else
-			clk_rx_aux.cnt_end = 0;
+			clk_rx_aux.bit_cnt_end = 0;
 	end
 
-// Beat sample enable
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Clear
-		if (clk_rx_aux.beat_smp_clr)
-			clk_rx_aux.beat_smp <= 0;
-
-		// Set
-		else if (clk_rx_aux.beat_smp_set)
-			clk_rx_aux.beat_smp <= 1;
-	end
-
-// Beat value
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Enable
-		if (clk_rx_aux.rx_en)
-		begin
-			// Clear
-			if (clk_rx_aux.beat_smp_set)
-				clk_rx_aux.beat_val <= 0;
-
-			// Sample
-			else if (clk_rx_aux.beat_smp)
-				clk_rx_aux.beat_val <= clk_rx_aux.beat_val + 'd1;
-		end
-
-		// Idle
-		else
-			clk_rx_aux.beat_val <= 0;
-	end
-
-// Beat period
-assign clk_rx_aux.beat_per_90	= clk_rx_aux.beat_val[$size(clk_rx_aux.beat_val)-1:5] - 'd1;	// Divided by 32
-assign clk_rx_aux.beat_per_270 	= clk_rx_aux.beat_val[$size(clk_rx_aux.beat_val)-1:4] + clk_rx_aux.beat_per_90;
-assign clk_rx_aux.beat_per_360 	= clk_rx_aux.beat_val[$size(clk_rx_aux.beat_val)-1:3] - 'd1;	// Divided by 8
-
-// Beat counter run
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Clear
-		if (clk_rx_aux.beat_cnt_run_clr)
-			clk_rx_aux.beat_cnt_run <= 0;
-
-		// Set
-		else if (clk_rx_aux.beat_cnt_run_set)
-			clk_rx_aux.beat_cnt_run <= 1;
-	end
-
-// Beat counter
-	always_ff @ (posedge CLK_IN)
-	begin
+// RX pipe
+// To detect a stop condition the sampled RX is shifted into this pipe
+    always_ff @ (posedge CLK_IN)
+    begin
 		// Run
-		if (clk_rx_aux.beat_cnt_run)
+		if (clk_rx_aux.run)
 		begin
-			// Load
-			if (clk_rx_aux.beat_cnt_ld)
-				clk_rx_aux.beat_cnt <= clk_rx_aux.beat_per_360;
-
-			// Decrement
-			else if (!clk_rx_aux.beat_cnt_end)
-				clk_rx_aux.beat_cnt <= clk_rx_aux.beat_cnt - 'd1;
+			// Wait for sample tick
+			if (clk_rx_aux.smp_tick)
+				clk_rx_aux.rx_pipe <= {clk_rx_aux.rx_pipe[0+:$high(clk_rx_aux.rx_pipe)], clk_rx_aux.rx};
 		end
 
-		// Idle
 		else
-			clk_rx_aux.beat_cnt <= 0;
-	end
-
-// Beat counter end
-	always_comb
-	begin
-		if (clk_rx_aux.beat_cnt == 0)
-			clk_rx_aux.beat_cnt_end = 1;
-		else
-			clk_rx_aux.beat_cnt_end = 0;
-	end
-
-// Beat counter end edge
-	prt_dp_lib_edge
-	RX_AUX_BEAT_CNT_END_EDGE_INST
-	(
-		.CLK_IN		(CLK_IN),						// Clock
-		.CKE_IN		(1'b1),							// Clock enable
-		.A_IN		(clk_rx_aux.beat_cnt_end),		// Input
-		.RE_OUT		(clk_rx_aux.beat_cnt_end_re),	// Rising edge
-		.FE_OUT		()								// Falling edge
-	);
-
-// Beat counter load
-	always_comb
-	begin
-		if (clk_rx_aux.beat_cnt_end_re || (!clk_rx_aux.beat_mask && (clk_rx_aux.rx_re || clk_rx_aux.rx_fe)) )
-			clk_rx_aux.beat_cnt_ld = 1;
-		else
-			clk_rx_aux.beat_cnt_ld = 0;
-	end
-
-// Mask
-// When the mask is active, the beat counter can't be loaded.
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Run
-		if (clk_rx_aux.beat_cnt_run)
-		begin
-			// Clear
-			if (clk_rx_aux.beat_ph2)
-				clk_rx_aux.beat_mask <= 0;
-
-			// Set
-			else if (clk_rx_aux.beat_ph1)
-				clk_rx_aux.beat_mask <= 1;
-		end
-
-		// Idle
-		else
-			clk_rx_aux.beat_mask <= 0;
-	end
-
-// Beat phase 1
-	always_ff @ (posedge CLK_IN)
-	begin
-		if (clk_rx_aux.beat_cnt_run && (clk_rx_aux.beat_cnt == clk_rx_aux.beat_per_270))
-			clk_rx_aux.beat_ph1 <= 1;
-		else
-			clk_rx_aux.beat_ph1 <= 0;
-	end
-
-// Beat Phase 2
-	always_ff @ (posedge CLK_IN)
-	begin
-		if (clk_rx_aux.beat_cnt_run && (clk_rx_aux.beat_cnt == clk_rx_aux.beat_per_90))
-			clk_rx_aux.beat_ph2 <= 1;
-		else
-			clk_rx_aux.beat_ph2 <= 0;
-	end
-
-// Sample bit phase 1
-// This process samples the bit value during phase 1
-// This is used to detect a bit error
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Sample phase 1
-		if (clk_rx_aux.beat_ph1)
-			clk_rx_aux.rx_ph1 <= clk_rx_aux.rx;
-	end
-
-// Error
-// Every bit must have a transistion in the middle, else it is an error.
-	always_ff @ (posedge CLK_IN)
-	begin
-		// Default
-		clk_rx_aux.rx_err <= 0;
-
-		// If the bit value must be inverted
-		// else there is a bit error
-		if (clk_rx_aux.beat_ph2 && (clk_rx_aux.rx == clk_rx_aux.rx_ph1))
-			clk_rx_aux.rx_err <= 1;
+			clk_rx_aux.rx_pipe <= 0;
 	end
 
 // Stop condition
 	always_ff @ (posedge CLK_IN)
 	begin
+		// Default
 		clk_rx_aux.stp <= 0;
 
-		// Clear
-		if (clk_rx_aux.rx_re)
-			clk_rx_aux.stp_cnt <= 0;
-
-		// Set
-		else if (clk_rx_aux.rx_err)
+		// Wait for sample tick
+		if (clk_rx_aux.smp_tick)
 		begin
-			if (clk_rx_aux.stp_cnt == 'd3)
+			// A stop condition consists of four ones, followed by four zeros.
+			// However, in case of a misaligned sample clock, there might be a bit missing. 
+			// Therefore we check for three bits each. 
+			if (clk_rx_aux.rx_pipe == 'b111000)
 				clk_rx_aux.stp <= 1;
-			else
-				clk_rx_aux.stp_cnt <= clk_rx_aux.stp_cnt + 'd1;
 		end
 	end
 
@@ -1529,10 +1323,8 @@ assign clk_rx_aux.beat_per_360 	= clk_rx_aux.beat_val[$size(clk_rx_aux.beat_val)
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Shift
-		if (clk_rx_aux.beat_ph2)
-			// The bit value is sampled during the second phase of the bit (right after the transistion).
-			// Therefore the value must be inverted.
-			clk_rx_aux.shft <= {clk_rx_aux.shft[6:0], ~clk_rx_aux.rx};
+		if (clk_rx_aux.smp)
+			clk_rx_aux.shft <= {clk_rx_aux.shft[6:0], clk_rx_aux.rx};
 	end
 
 // Locked

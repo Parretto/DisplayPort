@@ -99,11 +99,11 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_rom.hex" : "none";
-localparam P_RAM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_ram.hex" : "none";
+localparam P_ROM_INIT = "none";
+localparam P_RAM_INIT = "none";
 
 // Hardware version
-localparam P_HW_VER_MAJOR = 1;
+localparam P_HW_VER_MAJOR = 2;
 localparam P_HW_VER_MINOR = 0;
 
 // PIO

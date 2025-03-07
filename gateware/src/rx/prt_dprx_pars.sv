@@ -83,7 +83,6 @@ typedef struct {
     logic   [8:0]           dat[P_SPL];    // Data
 } src_struct;
 
-
 // Signals
 snk_struct   clk_snk;
 pars_struct  clk_pars;

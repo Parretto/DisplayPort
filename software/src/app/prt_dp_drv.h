@@ -5,7 +5,7 @@
 
 
     Module: DP Driver header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -148,7 +148,7 @@ typedef struct {
 typedef struct {
 	uint8_t pass;
 	uint8_t fail;
-	uint8_t cr;
+	uint8_t tps;
 } prt_dp_trn_struct;
 
 // Mail structure
@@ -287,6 +287,7 @@ uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
 // DPRX
 void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp);
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
+uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
 
 // Internal
@@ -308,7 +309,6 @@ void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap);
 uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
-uint8_t prt_dp_is_trn_cr (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
 uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);

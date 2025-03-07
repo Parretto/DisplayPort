@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
     v1.1 - Added training TPS4
+    v1.2 - Improved training
 
     License
     =======
@@ -42,8 +43,8 @@ module prt_dprx_trn_lane
     input wire  [2:0]           CFG_TPS_IN,         // Training pattern select
 
     // Status
+    output wire  [15:0]         STA_CYCLE_OUT,      // Cycles
     output wire  [15:0]         STA_MATCH_OUT,      // Match
-    output wire  [7:0]          STA_ERR_OUT,        // Error
 
     // Scrambler
     prt_dp_rx_lnk_if.snk        SCRM_SNK_IF,        // Sink
@@ -70,8 +71,7 @@ typedef struct {
 } cfg_struct;
 
 typedef struct {
-    logic                           lock_in;          // Lock (input)
-    logic                           lock;             // Training locked
+    logic                           lock;          // Lock (input)
     logic   [8:0]                   din[0:P_SPL-1];
     logic   [8:0]                   din_del[0:P_SPL-2];
     logic   [8:0]                   dat[0:P_SPL-1];
@@ -99,11 +99,15 @@ typedef struct {
     logic                           tps3_err;
     logic [P_SPL-1:0]               tps4_det;
     logic [P_SPL-1:0]               tps4_err;
+    logic                           tps_det;
+    logic                           tps_err;
 } trn_struct;
 
 typedef struct {
+    logic   [15:0]                  cycle;      // Cycles
     logic   [15:0]                  match;      // Match
-    logic   [7:0]                   err;        // Error
+    logic                           match_clr;
+    logic   [3:0]                   err;        // Error
 } sta_struct;
 
 cfg_struct      clk_cfg;
@@ -128,14 +132,14 @@ genvar i;
     always_ff @ (posedge CLK_IN)
     begin
         // Lock
-        clk_lnk.lock_in <= LNK_SNK_IF.lock;
+        clk_lnk.lock <= LNK_SNK_IF.lock;
 
         // Data
         for (int i = 0; i < P_SPL; i++)
             clk_lnk.din[i] <= {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
         
         // Data delayed
-        // The data must be delayed for the alignement
+        // The data must be delayed for the alignment
         for (int i = 1; i < P_SPL; i++)
             clk_lnk.din_del[i-1] <= clk_lnk.din[i];
     end
@@ -349,7 +353,7 @@ endgenerate
     always_ff @ (posedge CLK_IN)
     begin
         // Lock
-        if (clk_lnk.lock_in)
+        if (clk_lnk.lock)
         begin
             // Clear
             if (clk_cfg.clr)
@@ -448,7 +452,7 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Lock
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -566,7 +570,7 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Lock
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -731,7 +735,7 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -989,7 +993,7 @@ generate
         always_ff @ (posedge CLK_IN)
         begin
             // Locked
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -1209,7 +1213,7 @@ endgenerate
     always_ff @ (posedge CLK_IN)
     begin
         // Locked
-        if (clk_lnk.lock_in)
+        if (clk_lnk.lock)
         begin
             // Default
             clk_trn.tps4_det <= 0;
@@ -1236,6 +1240,41 @@ endgenerate
         end
     end
 
+// Any detector
+assign clk_trn.tps_det = clk_trn.tps1_det || clk_trn.tps2_det || clk_trn.tps3_det || (&clk_trn.tps4_det);
+assign clk_trn.tps_err = clk_trn.tps1_err || clk_trn.tps2_err || clk_trn.tps3_err || (|clk_trn.tps4_err);
+
+// Cycles
+// This counts the total number of cycles.
+// This is used by the policy maker to determine if the training was succesfull. 
+    always_ff @ (posedge RST_IN, posedge CLK_IN)
+    begin
+        // Reset
+        if (RST_IN)
+            clk_sta.cycle <= 0;
+
+        else
+        begin
+            // Lock
+            if (clk_lnk.lock)
+            begin
+                // Clear
+                // When any training pattern is selected
+                if (clk_cfg.clr && (clk_cfg.tps != 0))
+                    clk_sta.cycle <= 0;
+
+                // Increment
+                // Don't roll over when the maximum value is reached
+                else if (!(&clk_sta.cycle))
+                    clk_sta.cycle <= clk_sta.cycle + 'd1;
+            end
+
+            // Not locked
+            else
+                clk_sta.cycle <= 0;
+        end
+    end
+
 // Matches
     always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
@@ -1246,15 +1285,16 @@ endgenerate
         else
         begin
             // Lock
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 // When any training pattern is selected
-                if (clk_cfg.clr && (clk_cfg.tps != 0))
+                // Or when too many errors occured
+                if ((clk_cfg.clr && (clk_cfg.tps != 0)) || clk_sta.match_clr)
                     clk_sta.match <= 0;
 
                 // Increment
-                else if (clk_trn.tps1_det || clk_trn.tps2_det || clk_trn.tps3_det || (&clk_trn.tps4_det))
+                else if (clk_trn.tps_det)
                 begin
                     // Don't roll over when the maximum value is reached
                     if (!(&clk_sta.match))
@@ -1273,58 +1313,44 @@ endgenerate
     begin
         // Reset
         if (RST_IN)
+        begin
             clk_sta.err <= 0;
+            clk_sta.match_clr <= 0;
+        end
 
         else
         begin
+            // Default
+            clk_sta.match_clr <= 0;
+
             // Lock
-            if (clk_lnk.lock_in)
+            if (clk_lnk.lock)
             begin
                 // Clear
                 // When any training pattern is selected
-                if (clk_cfg.clr && (clk_cfg.tps != 0))
+                // Or when the error watchdog expires.
+                if (clk_cfg.clr && (clk_cfg.tps != 0)) 
                     clk_sta.err <= 0;
 
                 // Increment
-                else if (clk_trn.tps1_err || clk_trn.tps2_err || clk_trn.tps3_err || (|clk_trn.tps4_err))
+                else if (clk_trn.tps_err)
                 begin
-                    // Don't roll over when the maximum value is reached
-                    if (!(&clk_sta.err))
+                    // When too many errors accumulate, then reset the match counter.
+                    if (&clk_sta.err)
+                    begin
+                        clk_sta.err <= 0;
+                        clk_sta.match_clr <= 1;
+                    end
+
+                    else
                         clk_sta.err <= clk_sta.err + 'd1;
                 end
+
             end
 
             // Not locked
             else
                 clk_sta.err <= 0;
-        end
-    end
-
-// Locked
-    always_ff @ (posedge RST_IN, posedge CLK_IN)
-    begin
-        // Reset
-        if (RST_IN)
-            clk_lnk.lock <= 0;
-
-        else
-        begin
-            // Lock
-            if (clk_lnk.lock_in)
-            begin
-                // Clear
-                // When any training pattern is selected
-                if (clk_cfg.clr && (clk_cfg.tps != 0))
-                    clk_lnk.lock <= 0;
-
-                // Set
-                else if (((clk_cfg.tps == 'd2) || (clk_cfg.tps == 'd3) || (clk_cfg.tps == 'd4)) && (clk_sta.match > P_LOCKED_THRES))
-                    clk_lnk.lock <= 1;
-            end
-
-            // Not locked
-            else
-                clk_lnk.lock <= 0;
         end
     end
 
@@ -1336,15 +1362,15 @@ endgenerate
             assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_lnk.din[i];
         end
     endgenerate
-    assign LNK_SRC_IF.lock    = clk_lnk.lock;
+    assign LNK_SRC_IF.lock    = 0;  // Not used
     assign LNK_SRC_IF.sol[0]  = 0;  // Not used
     assign LNK_SRC_IF.eol[0]  = 0;  // Not used
     assign LNK_SRC_IF.vid[0]  = 0;  // Not used
     assign LNK_SRC_IF.sdp[0]  = 0;  // Not used
     assign LNK_SRC_IF.msa[0]  = 0;  // Not used
     assign LNK_SRC_IF.vbid[0] = 0;  // Not used
+    assign STA_CYCLE_OUT      = clk_sta.cycle;
     assign STA_MATCH_OUT      = clk_sta.match;
-    assign STA_ERR_OUT        = clk_sta.err;
 
 endmodule
 

@@ -58,14 +58,15 @@ module dp_ref_amd_zcu102
     output wire             DPTX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPTX_AUX_RX_IN,             // AUX Receive
     input wire              DPTX_HPD_IN,                // HPD
-    output wire             DPTX_I2C_SEL,               // I2C select (DP21 TX)
+    output wire             DPTX_I2C_SEL_OUT,           // I2C select (DP21 TX)
 
     // DP RX
     output wire             DPRX_AUX_EN_OUT,            // AUX Enable
     output wire             DPRX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPRX_AUX_RX_IN,             // AUX Receive
     output wire             DPRX_HPD_OUT,               // HPD
-    output wire             DPRX_I2C_SEL,               // I2C select (DP21 RX)
+    output wire             DPRX_I2C_SEL_OUT,           // I2C select (DP21 RX)
+    input wire              DPRX_CABDET_IN,             // Cable detect
 
     // GT
     input wire [1:0]        GT_REFCLK_IN_P,             // GT reference clock
@@ -76,7 +77,8 @@ module dp_ref_amd_zcu102
     output wire [3:0]       GT_TX_OUT_N,
 
     // Misc
-    output wire [7:0]       LED_OUT
+    output wire [7:0]       LED_OUT,
+    output wire [7:0]       DEBUG_OUT   
 );
 
 // Parameters
@@ -106,8 +108,8 @@ localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
 localparam P_SDP            = 1;                        // SDP support
 
 localparam P_PHY_CTL_DRP_PORTS  = 5;
-localparam P_PHY_CTL_PIO_IN     = 7;
-localparam P_PHY_CTL_PIO_OUT    = 20;
+localparam P_PHY_CTL_PIO_IN     = 3;
+localparam P_PHY_CTL_PIO_OUT    = 16;
 
 // Interfaces
 
@@ -176,14 +178,10 @@ wire                                    rx_card_from_app;
 
 // PHY
 wire [3:0]                              pwrgd_from_phy;
-wire [3:0]                              tx_pmarst_done_from_phy;
-wire [3:0]                              tx_rst_done_from_phy;
-wire [3:0]                              rx_pmarst_done_from_phy;
-wire [3:0]                              rx_rst_done_from_phy;
+wire                                    tx_rst_done_from_phy;
+wire                                    rx_rst_done_from_phy;
 wire                                    txclk_from_phy;
 wire                                    rxclk_from_phy;
-wire [3:0]                              cplllock_from_phy;
-wire                                    qplllock_from_phy;
 logic [P_PHY_DAT_WIDTH-1:0]             gtwiz_userdata_tx_to_phy;
 logic [63:0]                            txctrl0_to_phy;
 logic [63:0]                            txctrl1_to_phy;
@@ -230,6 +228,9 @@ wire [(P_PPC*P_BPC)-1:0]                g_from_vtb[0:1];
 wire [(P_PPC*P_BPC)-1:0]                b_from_vtb[0:1];
 wire [1:0]                              de_from_vtb;
 
+// Audio
+wire [23:0]                             ch_from_aud[2];
+
 // DIA
 wire                                    dia_rdy_from_app;
 wire [31:0]                             dia_dat_from_vtb;
@@ -244,14 +245,10 @@ wire [P_PHY_CTL_DRP_PORTS-1:0]          drp_wr_from_phy_ctl;
 wire [P_PHY_CTL_PIO_IN-1:0]             pio_dat_to_phy_ctl;
 wire [P_PHY_CTL_PIO_OUT-1:0]            pio_dat_from_phy_ctl;
 
-wire                                    cpll_rst_from_phy_ctl;
-wire                                    qpll_rst_from_phy_ctl;
-wire                                    tx_rst_from_phy_ctl;
-wire                                    tx_divrst_from_phy_ctl;
-wire                                    tx_usrrdy_from_phy_ctl;
-wire                                    rx_rst_from_phy_ctl;
-wire                                    rx_divrst_from_phy_ctl;
-wire                                    rx_usrrdy_from_phy_ctl;
+wire                                    tx_pll_and_dp_rst_from_phy_ctl;
+wire                                    tx_dp_rst_from_phy_ctl;
+wire                                    rx_pll_and_dp_rst_from_phy_ctl;
+wire                                    rx_dp_rst_from_phy_ctl;
 wire [1:0]                              tx_linerate_from_phy_ctl;
 wire [4:0]                              tx_diffctrl_from_phy_ctl;
 wire [4:0]                              tx_postcursor_from_phy_ctl;
@@ -513,6 +510,7 @@ endgenerate
         // System
         .P_VENDOR           (P_VENDOR),   // Vendor
         .P_BEAT             (P_BEAT),     // Beat value. The system clock is 50 MHz
+        .P_SDP              (P_SDP),      // SDP support
 
         // Link
         .P_LANES            (P_LANES),    // Lanes
@@ -557,7 +555,7 @@ endgenerate
         .VID_VLD_OUT        (vid_vld_from_dprx),    // Valid
 
         // Secondary Data Packet
-        .SDP_CLK_IN         (sys_clk_from_pll),     // Clock
+        .SDP_CLK_IN         (sys_clk_from_pll),    // Clock
         .SDP_SOP_OUT        (sdp_sop_from_dprx),    // Start of packet
         .SDP_EOP_OUT        (sdp_eop_from_dprx),    // End of packet
         .SDP_DAT_OUT        (sdp_dat_from_dprx),    // Data
@@ -840,28 +838,19 @@ endgenerate
 
     // PIO in mapping
     assign pio_dat_to_phy_ctl[0]            = &pwrgd_from_phy;
-    assign pio_dat_to_phy_ctl[1]            = &cplllock_from_phy;
-    assign pio_dat_to_phy_ctl[2]            = qplllock_from_phy;
-    assign pio_dat_to_phy_ctl[3]            = &tx_pmarst_done_from_phy;
-    assign pio_dat_to_phy_ctl[4]            = &tx_rst_done_from_phy;
-    assign pio_dat_to_phy_ctl[5]            = &rx_pmarst_done_from_phy;
-    assign pio_dat_to_phy_ctl[6]            = &rx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[1]            = tx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[2]            = rx_rst_done_from_phy;
 
     // PIO out mapping
-    assign cpll_rst_from_phy_ctl            = pio_dat_from_phy_ctl[0];
-    assign qpll_rst_from_phy_ctl            = pio_dat_from_phy_ctl[1];
-    assign tx_rst_from_phy_ctl              = pio_dat_from_phy_ctl[2];
-    assign tx_divrst_from_phy_ctl           = pio_dat_from_phy_ctl[3];
-    assign tx_usrrdy_from_phy_ctl           = pio_dat_from_phy_ctl[4];
-    assign rx_rst_from_phy_ctl              = pio_dat_from_phy_ctl[5];
-    assign rx_divrst_from_phy_ctl           = pio_dat_from_phy_ctl[6];
-    assign rx_usrrdy_from_phy_ctl           = pio_dat_from_phy_ctl[7];
-    assign tx_linerate_from_phy_ctl         = pio_dat_from_phy_ctl[8+:2];
-    assign tx_diffctrl_from_phy_ctl         = pio_dat_from_phy_ctl[10+:5];
-    assign tx_postcursor_from_phy_ctl       = pio_dat_from_phy_ctl[15+:5];
+    assign tx_pll_and_dp_rst_from_phy_ctl   = pio_dat_from_phy_ctl[0];
+    assign tx_dp_rst_from_phy_ctl           = pio_dat_from_phy_ctl[1];
+    assign rx_pll_and_dp_rst_from_phy_ctl   = pio_dat_from_phy_ctl[2];
+    assign rx_dp_rst_from_phy_ctl           = pio_dat_from_phy_ctl[3];
+    assign tx_linerate_from_phy_ctl         = pio_dat_from_phy_ctl[4+:2];
+    assign tx_diffctrl_from_phy_ctl         = pio_dat_from_phy_ctl[6+:5];
+    assign tx_postcursor_from_phy_ctl       = pio_dat_from_phy_ctl[11+:5];
 
 // PHY
-/*
 generate
     // Four symbols per lane
     if (P_SPL == 4)
@@ -879,126 +868,10 @@ generate
             // Xilinx Ultrascale transceiver wizard PG182 tells on page 10,
             // that for the GTHE4 Ultrascale+, when the CPLL is used, 
             // the free running clock and the DRP clock are coupled. 
-            //.gtwiz_reset_clk_freerun_in                 (drp_clk_from_pll), 
+            .gtwiz_reset_clk_freerun_in                 (drp_clk_from_pll), 
 
             // Resets
             .gtpowergood_out                            (pwrgd_from_phy),
-            
-            .gttxreset_in                               ({4{tx_rst_from_phy_ctl}}),
-            .txuserrdy_in                               ({4{tx_usrrdy_from_phy_ctl}}),
-            .txprogdivreset_in                          ({4{tx_divrst_from_phy_ctl}}),
-            .txpmaresetdone_out                         (tx_pmarst_done_from_phy),
-            .txresetdone_out                            (tx_rst_done_from_phy),
-
-            .gtrxreset_in                               ({4{rx_rst_from_phy_ctl}}),
-            .rxuserrdy_in                               ({4{rx_usrrdy_from_phy_ctl}}),
-            .rxprogdivreset_in                          ({4{rx_divrst_from_phy_ctl}}),
-            .rxpmaresetdone_out                         (rx_pmarst_done_from_phy),
-            .rxresetdone_out                            (rx_rst_done_from_phy),
-
-            .gtwiz_reset_tx_done_in                     (&tx_rst_done_from_phy),
-            .gtwiz_reset_rx_done_in                     (&rx_rst_done_from_phy),
-            
-            .gtwiz_userclk_tx_reset_in                  (1'b0),
-            .gtwiz_userclk_tx_active_out                (),
-            .gtwiz_userclk_rx_reset_in                  (1'b0),
-            .gtwiz_userclk_rx_active_out                (),
-
-            // CPLL
-            .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
-            .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
-            .cplllock_out                               (cplllock_from_phy),
-
-            // CPLL calibration
-            // See Xilinx PG182
-            // Enabling CPLL calibration block for UltraScale+ Devices
-            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_phy}}),
-            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_phy}}),
-            .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
-
-            // QPLL
-            .qpll0reset_in                              (qpll_rst_from_phy_ctl),
-            .gtrefclk00_in                              (clk_from_phy_ibuf[1]),          // GT reference clock 1
-            .qpll0lock_out                              (qplllock_from_phy),
-            .qpll0outclk_out                            (),
-            .qpll0outrefclk_out                         (),
-
-            // User clocks       
-            .gtwiz_userclk_tx_srcclk_out                (),
-            .gtwiz_userclk_tx_usrclk_out                (),
-            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_phy),
-            .gtwiz_userclk_rx_srcclk_out                (),
-            .gtwiz_userclk_rx_usrclk_out                (),
-            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_phy),
-
-            // TX control
-            .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
-            .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
-
-            // TX datapath
-            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_phy), // 64 bits
-            .txctrl0_in                                 (txctrl0_to_phy),
-            .txctrl1_in                                 (txctrl1_to_phy),
-            .txctrl2_in                                 (txctrl2_to_phy),
-            .tx8b10ben_in                               (4'b1111),
-            .txpolarity_in                              (4'b1001), // Lanes 0 & 3 are inverted),  
-
-            // RX control
-            .rxpolarity_in                              (4'b1111),    // All lanes are inverted), 
-
-            // RX datapath
-            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_phy), // 64 bits
-            .rxctrl0_out                                (rxctrl0_from_phy), // 64 bits
-            .rxctrl1_out                                (),
-            .rxctrl2_out                                (),
-            .rxctrl3_out                                (),
-            .rx8b10ben_in                               (4'b1111),
-            .rxcommadeten_in                            (4'b1111),
-            .rxmcommaalignen_in                         (4'b1111),
-            .rxpcommaalignen_in                         (4'b1111),
-
-            // DRP
-            .drpclk_in                                  ({4{drp_clk_from_pll}}),
-            .drpaddr_in                                 (drp_adr_from_phy_ctl[0+:(4*10)]),
-            .drpdi_in                                   (drp_dat_from_phy_ctl[0+:(4*16)]),
-            .drpen_in                                   (drp_en_from_phy_ctl[3:0]),
-            .drpwe_in                                   (drp_wr_from_phy_ctl[3:0]),
-            .drpdo_out                                  (drp_dat_from_phy[0+:(4*16)]),
-            .drprdy_out                                 (drp_rdy_from_phy[3:0]),
-
-            .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
-            .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
-            .drpen_common_in                            (drp_en_from_phy_ctl[4]),
-            .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
-            .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
-            .drprdy_common_out                          (drp_rdy_from_phy[4])
-        );
-    end
-
-    // Two symbols per lane
-    else 
-    begin : phy_2spl
-*/
-        zcu102_gth_2spl
-        PHY_INST
-        (
-            // High speed serial
-            .gthrxp_in                                  (GT_RX_IN_P),
-            .gthrxn_in                                  (GT_RX_IN_N),
-            .gthtxp_out                                 (GT_TX_OUT_P),
-            .gthtxn_out                                 (GT_TX_OUT_N),
-
-            // Free running clock
-            // Xilinx Ultrascale transceiver wizard PG182 tells on page 10,
-            // that for the GTHE4 Ultrascale+, when the CPLL is used, 
-            // the free running clock and the DRP clock are coupled. 
-            //.gtwiz_reset_clk_freerun_in                 (drp_clk_from_pll), 
-
-            // Resets
-            .gtpowergood_out                            (pwrgd_from_phy),
-
-/*
             .gtwiz_reset_all_in                         (1'b0),
             .gtwiz_reset_tx_pll_and_datapath_in         (tx_pll_and_dp_rst_from_phy_ctl),
             .gtwiz_reset_tx_datapath_in                 (tx_dp_rst_from_phy_ctl),
@@ -1007,32 +880,12 @@ generate
             .gtwiz_reset_rx_cdr_stable_out              (),
             .gtwiz_reset_tx_done_out                    (tx_rst_done_from_phy),
             .gtwiz_reset_rx_done_out                    (rx_rst_done_from_phy),
-*/
  
-            .gttxreset_in                               ({4{tx_rst_from_phy_ctl}}),
-            .txuserrdy_in                               ({4{tx_usrrdy_from_phy_ctl}}),
-            .txprogdivreset_in                          ({4{tx_divrst_from_phy_ctl}}),
-            .txpmaresetdone_out                         (tx_pmarst_done_from_phy),
-            .txresetdone_out                            (tx_rst_done_from_phy),
+            .rxpmaresetdone_out                         (),
+            .txpmaresetdone_out                         (),
 
-            .gtrxreset_in                               ({4{rx_rst_from_phy_ctl}}),
-            .rxuserrdy_in                               ({4{rx_usrrdy_from_phy_ctl}}),
-            .rxprogdivreset_in                          ({4{rx_divrst_from_phy_ctl}}),
-            .rxpmaresetdone_out                         (rx_pmarst_done_from_phy),
-            .rxresetdone_out                            (rx_rst_done_from_phy),
-
-            .gtwiz_reset_tx_done_in                     (&tx_rst_done_from_phy),
-            .gtwiz_reset_rx_done_in                     (&rx_rst_done_from_phy),
-/*
-            .gtwiz_userclk_tx_reset_in                  (1'b0),
-            .gtwiz_userclk_tx_active_out                (),
-            .gtwiz_userclk_rx_reset_in                  (1'b0),
-            .gtwiz_userclk_rx_active_out                (),
-*/
             // CPLL
-            .cpllpd_in                                  ({4{cpll_rst_from_phy_ctl}}),
             .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
-            .cplllock_out                               (cplllock_from_phy),
 
             // CPLL calibration
             // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
@@ -1043,19 +896,22 @@ generate
             .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
 
             // QPLL
-            .qpll0reset_in                              (qpll_rst_from_phy_ctl),
             .gtrefclk00_in                              (clk_from_phy_ibuf[1]),          // GT reference clock 1
-            .qpll0lock_out                              (qplllock_from_phy),
             .qpll0outclk_out                            (),
             .qpll0outrefclk_out                         (),
 
             // User clocks       
+            .gtwiz_userclk_tx_reset_in                  (1'b0),
             .gtwiz_userclk_tx_srcclk_out                (),
             .gtwiz_userclk_tx_usrclk_out                (),
             .gtwiz_userclk_tx_usrclk2_out               (txclk_from_phy),
+            .gtwiz_userclk_tx_active_out                (),
+  
+            .gtwiz_userclk_rx_reset_in                  (1'b0),
             .gtwiz_userclk_rx_srcclk_out                (),
             .gtwiz_userclk_rx_usrclk_out                (),
             .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_phy),
+            .gtwiz_userclk_rx_active_out                (),
 
             // TX control
             .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
@@ -1096,15 +952,125 @@ generate
             .drprdy_out                                 (drp_rdy_from_phy[3:0]),
 
             .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
+            .drpaddr_common_in                          ({6'h0, drp_adr_from_phy_ctl[(4*10)+:10]}),
             .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
             .drpen_common_in                            (drp_en_from_phy_ctl[4]),
             .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
             .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
             .drprdy_common_out                          (drp_rdy_from_phy[4])
         );
-//    end
-//endgenerate
+    end
+
+    // Two symbols per lane
+    else 
+    begin : phy_2spl
+
+        zcu102_gth_2spl
+        PHY_INST
+        (
+            // High speed serial
+            .gthrxp_in                                  (GT_RX_IN_P),
+            .gthrxn_in                                  (GT_RX_IN_N),
+            .gthtxp_out                                 (GT_TX_OUT_P),
+            .gthtxn_out                                 (GT_TX_OUT_N),
+
+            // Free running clock
+            // Xilinx Ultrascale transceiver wizard PG182 tells on page 10,
+            // that for the GTHE4 Ultrascale+, when the CPLL is used, 
+            // the free running clock and the DRP clock are coupled. 
+            .gtwiz_reset_clk_freerun_in                 (drp_clk_from_pll), 
+
+            // Resets
+            .gtpowergood_out                            (pwrgd_from_phy),
+            .gtwiz_reset_all_in                         (1'b0),
+            .gtwiz_reset_tx_pll_and_datapath_in         (tx_pll_and_dp_rst_from_phy_ctl),
+            .gtwiz_reset_tx_datapath_in                 (tx_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_pll_and_datapath_in         (rx_pll_and_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_datapath_in                 (rx_dp_rst_from_phy_ctl),
+            .gtwiz_reset_rx_cdr_stable_out              (),
+            .gtwiz_reset_tx_done_out                    (tx_rst_done_from_phy),
+            .gtwiz_reset_rx_done_out                    (rx_rst_done_from_phy),
+ 
+            .rxpmaresetdone_out                         (),
+            .txpmaresetdone_out                         (),
+
+            // CPLL
+            .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
+
+            // CPLL calibration
+            // See Xilinx PG182 - Enabling CPLL calibration block for UltraScale+ Devices
+            // To enable the CPLL calibration ports type the following command in the TCL console
+            // set_property -dict [list CONFIG.INCLUDE_CPLL_CAL {1} ] [get_ips zcu102_gth_2spl]
+            .gtwiz_gthe4_cpll_cal_txoutclk_period_in    ({4{cpll_cal_txoutclk_period_to_phy}}),
+            .gtwiz_gthe4_cpll_cal_cnt_tol_in            ({4{cpll_cal_cnt_tol_to_phy}}),
+            .gtwiz_gthe4_cpll_cal_bufg_ce_in            (4'b1111),
+
+            // QPLL
+            .gtrefclk00_in                              (clk_from_phy_ibuf[1]),          // GT reference clock 1
+            .qpll0outclk_out                            (),
+            .qpll0outrefclk_out                         (),
+
+            // User clocks       
+            .gtwiz_userclk_tx_reset_in                  (1'b0),
+            .gtwiz_userclk_tx_srcclk_out                (),
+            .gtwiz_userclk_tx_usrclk_out                (),
+            .gtwiz_userclk_tx_usrclk2_out               (txclk_from_phy),
+            .gtwiz_userclk_tx_active_out                (),
+  
+            .gtwiz_userclk_rx_reset_in                  (1'b0),
+            .gtwiz_userclk_rx_srcclk_out                (),
+            .gtwiz_userclk_rx_usrclk_out                (),
+            .gtwiz_userclk_rx_usrclk2_out               (rxclk_from_phy),
+            .gtwiz_userclk_rx_active_out                (),
+
+            // TX control
+            .txdiffctrl_in                              ({4{tx_diffctrl_from_phy_ctl}}),
+            .txpostcursor_in                            ({4{tx_postcursor_from_phy_ctl}}),
+
+            // TX datapath
+            .gtwiz_userdata_tx_in                       (gtwiz_userdata_tx_to_phy), // 64 bits
+            .txctrl0_in                                 (txctrl0_to_phy),
+            .txctrl1_in                                 (txctrl1_to_phy),
+            .txctrl2_in                                 (txctrl2_to_phy),
+            .tx8b10ben_in                               (4'b1111),
+            .txpolarity_in                              (txpolarity_to_phy),  
+          
+            // RX control
+            .rxpolarity_in                              (rxpolarity_to_phy),     
+
+            // RX datapath
+            .gtwiz_userdata_rx_out                      (gtwiz_userdata_rx_from_phy), // 64 bits
+            .rxctrl0_out                                (rxctrl0_from_phy), // 64 bits
+            .rxctrl1_out                                (),
+            .rxctrl2_out                                (),
+            .rxctrl3_out                                (),
+            .rx8b10ben_in                               (4'b1111),
+            .rxcommadeten_in                            (4'b1111),
+            .rxmcommaalignen_in                         (4'b1111),
+            .rxpcommaalignen_in                         (4'b1111),
+            .rxbyteisaligned_out                        (),
+            .rxbyterealign_out                          (),
+            .rxcommadet_out                             (),
+
+            // DRP
+            .drpclk_in                                  ({4{drp_clk_from_pll}}),
+            .drpaddr_in                                 (drp_adr_from_phy_ctl[0+:(4*10)]),
+            .drpdi_in                                   (drp_dat_from_phy_ctl[0+:(4*16)]),
+            .drpen_in                                   (drp_en_from_phy_ctl[3:0]),
+            .drpwe_in                                   (drp_wr_from_phy_ctl[3:0]),
+            .drpdo_out                                  (drp_dat_from_phy[0+:(4*16)]),
+            .drprdy_out                                 (drp_rdy_from_phy[3:0]),
+
+            .drpclk_common_in                           (drp_clk_from_pll),
+            .drpaddr_common_in                          ({6'h0, drp_adr_from_phy_ctl[(4*10)+:10]}),
+            .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
+            .drpen_common_in                            (drp_en_from_phy_ctl[4]),
+            .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
+            .drpdo_common_out                           (drp_dat_from_phy[(4*16)+:16]),
+            .drprdy_common_out                          (drp_rdy_from_phy[4])
+        );
+    end
+endgenerate
 
 // TX polarity select
     always_ff @ (posedge txclk_from_phy)
@@ -1346,11 +1312,11 @@ endgenerate
     assign LED_OUT[3]   = hb_from_dptx;
     assign LED_OUT[4]   = hb_from_dprx;
     assign LED_OUT[5]   = tx_card_from_app; 
-    assign LED_OUT[6]   = 0; 
-    assign LED_OUT[7]   = 0; 
-    assign DPTX_I2C_SEL = 1;    // Only for DP21 TX card. Select FMC I2C interface
-    assign DPRX_I2C_SEL = 1;    // Only for DP21 RX card. Select FMC I2C interface
-       
+    assign LED_OUT[6]   = rx_card_from_app; 
+    assign LED_OUT[7]   = DPRX_CABDET_IN; 
+    assign DPTX_I2C_SEL_OUT = 1;    // Only for DP21 TX card. Select FMC I2C interface
+    assign DPRX_I2C_SEL_OUT = 1;    // Only for DP21 RX card. Select FMC I2C interface
+   
 endmodule
 
 `default_nettype wire

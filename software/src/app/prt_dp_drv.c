@@ -5,7 +5,7 @@
 
 
     Module: DP Driver
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -97,7 +97,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->mail_in.proc = PRT_FALSE;
 	dp->trn.pass = PRT_FALSE;
 	dp->trn.fail = PRT_FALSE;
-	dp->trn.cr = PRT_FALSE;
+	dp->trn.tps = 0;
 	dp->hpd = PRT_DP_HPD_UNPLUG;
 	dp->lnk.phy_rate = 0;
 	dp->lnk.phy_ssc = 0;
@@ -610,14 +610,11 @@ uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
 		return PRT_FALSE;
 }
 
-// Training clock recovery
-// This function returns PRT_TRUE when the training starts the clock recovery (RX Only)
-uint8_t prt_dp_is_trn_cr (prt_dp_ds_struct *dp)
+// Get training pattern
+// This function returns the current training pattern
+uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp)
 {
-	if (dp->trn.cr)
-		return PRT_TRUE;
-	else
-		return PRT_FALSE;
+	return dp->trn.tps;
 }
 
 // Send message
@@ -979,6 +976,9 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			break;
 
 		case PRT_DP_MAIL_PHY_RST_REQ:		
+			// Get the training pattern
+			dp->trn.tps = dp->mail_in.dat[1];
+
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_PHY_RST;
 			break;
@@ -990,8 +990,8 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			// Clear training fail flag
 			dp->trn.fail = PRT_FALSE;
 
-			// Clear training cr flag
-			dp->trn.cr = PRT_FALSE;
+			// Clear training pattern
+			dp->trn.tps = 0;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;
@@ -1004,8 +1004,8 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			// Clear training pass flag
 			dp->trn.pass = PRT_FALSE;
 
-			// Clear training cr flag
-			dp->trn.cr = PRT_FALSE;
+			// Clear training pattern
+			dp->trn.tps = 0;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;

@@ -5,7 +5,7 @@
 
 
     Module: PHY AMD UltraScale GTH Driver
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -315,10 +315,12 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	#endif
 
 	// Assert PHY TX reset
+/*
 	sta = prt_phy_amd_txrst_set (phy);
 
 	if (sta != PRT_STA_OK)
 		return PRT_STA_FAIL;
+*/
 
 	switch (rate)
 	{
@@ -423,10 +425,10 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	prt_phy_amd_cpll_cal (phy, rate);
 
 	// Release reset
-	sta = prt_phy_amd_txrst_clr (phy);
+	//sta = prt_phy_amd_txrst_clr (phy);
 
 	// Reset PHY TX PLL and datapath
-	//sta = prt_phy_amd_tx_pll_and_dp_rst (phy);
+	sta = prt_phy_amd_tx_pll_and_dp_rst (phy);
 
 	return sta;              
 }
@@ -552,11 +554,11 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 	#endif
 
 	// Assert PHY RX reset
-	sta = prt_phy_amd_rxrst_set (phy);
+/*	sta = prt_phy_amd_rxrst_set (phy);
 
 	if (sta != PRT_STA_OK)
 		return PRT_STA_FAIL;
-
+*/
 	switch (rate)
 	{
 		// 2.7 Gbps
@@ -673,10 +675,10 @@ if (1)
 	}
 
 	// Release reset
-	sta = prt_phy_amd_rxrst_clr (phy);
+	//sta = prt_phy_amd_rxrst_clr (phy);
 
 	// Reset PHY RX PLL and datapath
-	//sta = prt_phy_amd_rx_pll_and_dp_rst (phy);
+	sta = prt_phy_amd_rx_pll_and_dp_rst (phy);
 
 	return sta;
 }
@@ -767,7 +769,6 @@ prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div)
 
 
 // PHY TX PLL and datapath reset
-/*
 prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
 {
 	return prt_phy_amd_rst (phy, 
@@ -780,7 +781,8 @@ prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy)
 	return prt_phy_amd_rst (phy, 
 		PRT_PHY_AMD_PIO_OUT_TX_DP_RST, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
-*/
+
+/*
 
 // PHY TX assert reset
 prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy)
@@ -796,9 +798,9 @@ prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy)
 		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_IN_CPLL_LOCK, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST,
 		PRT_PHY_AMD_PIO_IN_TX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
+*/
 
 // PHY RX PLL and datapath reset
-/*
 prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
 {
 	return prt_phy_amd_rst (phy, 
@@ -811,7 +813,8 @@ prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy)
 	return prt_phy_amd_rst (phy, 
 		PRT_PHY_AMD_PIO_OUT_RX_DP_RST, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
 }
-*/
+
+/*
 
 // PHY RX assert reset
 prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy)
@@ -827,8 +830,8 @@ prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy)
 		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_IN_QPLL_LOCK, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, 
 		PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
 }
+*/
 
-/*
 // PHY reset 
 prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, 
 	prt_u32 PHY_RST, prt_u32 PHY_RST_DONE)
@@ -894,8 +897,8 @@ prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy,
 		return PRT_STA_FAIL;
 	}
 }
-*/
 
+/*
 // PHY assert reset 
 // This function resets the PLL and the complete GT components
 // This function is called before the line rate is changed. 
@@ -1037,6 +1040,7 @@ prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy,
     return PRT_STA_OK;
 }
 
+
 // PHY RX reset
 // This function resets all the GT RX components (no PLL)
 // This function is called during the clock recovery training
@@ -1109,6 +1113,7 @@ prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy)
 
     return PRT_STA_OK;
 }
+*/
 
 // Set the CPLL calibration parameters (through the pio)
 void prt_phy_amd_cpll_cal (prt_phy_amd_ds_struct *phy, prt_u8 rate)
@@ -1169,6 +1174,7 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
      prt_phy_amd_pio_dat_msk (phy, dat, msk);
 }
 
+/*
 // TX PLL lock
 // The TX is using the CPLL
 prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy)
@@ -1200,6 +1206,7 @@ prt_u8 prt_phy_amd_get_rxpll_lock (prt_phy_amd_ds_struct *phy)
    	else
    		return PRT_FALSE;
 }
+*/
 
 /*
 // PRBS generator
