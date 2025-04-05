@@ -120,6 +120,7 @@ void dp_trn_cb (prt_dp_ds_struct *dp);
 void dp_lnk_cb (prt_dp_ds_struct *dp);
 void dp_vid_cb (prt_dp_ds_struct *dp);
 void dprx_msa_cb (prt_dp_ds_struct *dp);
+void dprx_dpcd_cb (prt_dp_ds_struct *dp);
 void dp_debug_cb (prt_dp_ds_struct *dp);
 
 // PHY
@@ -133,14 +134,13 @@ void vtb_status (void);
 // Operation
 prt_sta_type vtb_colorbar (prt_bool force);
 prt_sta_type vtb_pass (void);
-prt_sta_type scale (void);
+
+// DPCD
+void dpcd_rd (void);
+void dpcd_wr (void);
 
 // EDID
 void set_edid (prt_bool user);
-
-// PRBS
-void prbs (void);
-void prbs_menu (void);
 
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)

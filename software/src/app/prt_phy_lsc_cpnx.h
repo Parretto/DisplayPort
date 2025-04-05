@@ -5,7 +5,7 @@
 
 
     Module: PHY Lattice CertusPro-NX Header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -102,6 +102,7 @@ void prt_phy_lsc_wr (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u
 prt_bool prt_phy_lsc_get_txpll_lock (prt_phy_lsc_ds_struct *phy);
 prt_bool prt_phy_lsc_get_rxpll_lock (prt_phy_lsc_ds_struct *phy);
 void prt_phy_lsc_tx_vap (prt_phy_lsc_ds_struct *phy, prt_u8 volt, prt_u8 pre);
+void prt_phy_lsc_init_rst (prt_phy_lsc_ds_struct *phy);
 void prt_phy_lsc_txpll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst);
 void prt_phy_lsc_rxpll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst);
 prt_u8 prt_phy_lsc_enc_pll_m (prt_u8 m);

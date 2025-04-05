@@ -214,6 +214,11 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
+#ifdef SCALER
+     // Assign scaler base address
+     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
+#endif
+
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -258,6 +263,10 @@ int main (void)
           dp_app.bpc = 8;
 
      prt_printf ("Bits per component: %d\n", dp_app.bpc);
+
+#ifdef SCALER
+     prt_printf ("Scaler enabled\n");
+#endif
 
 // ZCU102 FMC I2C mux
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -439,6 +448,9 @@ int main (void)
      // MSA
      prt_dp_set_cb (&dprx, PRT_DP_CB_MSA, &dprx_msa_cb);
 
+     // DPCD
+     prt_dp_set_cb (&dprx, PRT_DP_CB_DPCD, &dprx_dpcd_cb);
+
      // Debug
      prt_dp_set_cb (&dprx, PRT_DP_CB_DBG, &dp_debug_cb);
 
@@ -485,6 +497,9 @@ int main (void)
 
      // Initialize IRQ
      prt_irq_init ();
+
+// If the advanced option is not defined, then the DP is pre-configured.
+#ifndef ADVANCED
 
      /*
           DPTX
@@ -592,6 +607,9 @@ int main (void)
      // Set edid
      set_edid (false);
 
+     // DPCD block
+     prt_dprx_dpcd_blk_set (&dprx, 1, 0x800); // Block 0x00800 - 0x008ff
+
      // HPD plug
      prt_printf ("DPRX: HPD...");
 
@@ -599,6 +617,7 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
+#endif
 
      // Menu
      show_menu ();
@@ -628,6 +647,54 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
+#ifdef ADVANCED
+                    // Config
+                    case 'w' :
+                         prt_printf ("DPTX: Config...\n");
+
+                         prt_printf ("Select maximum line rate:\n");
+                         prt_printf (" 1 - 1.62 Gbps\n");
+                         prt_printf (" 2 - 2.7 Gbps\n");
+                         prt_printf (" 3 - 5.4 Gbps\n");
+                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+                              prt_printf (" 4 - 8.1 Gbps\n");
+                         #endif
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
+                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
+                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
+                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
+                         }
+
+                         // Set max rate
+                         prt_dp_set_lnk_max_rate (&dptx, dat);
+
+                         prt_printf ("Select maximum number of lanes:\n");
+                         prt_printf (" 1 - 1 lanes\n");
+                         prt_printf (" 2 - 2 lanes\n");
+                         prt_printf (" 3 - 4 lanes\n");
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '1' : dat = 1; break;
+                              case '2' : dat = 2; break;
+                              default  : dat = 4; break;
+                         }
+
+                         // Set max lanes
+                         prt_dp_set_lnk_max_lanes (&dptx, dat);
+
+                         if (prt_dp_cfg (&dptx))
+                              prt_printf ("DPTX: ok\n");
+                         else
+                              prt_printf ("DPTX: error\n");
+
+                         break;
+#endif
 
                     // Status
                     case 'e' :
@@ -715,6 +782,16 @@ int main (void)
                          }
                          break;
 
+                    // DPCD read
+                    case 'u' :
+                         dpcd_rd ();
+                         break;
+
+                    // DPCD write
+                    case 'i' :
+                         dpcd_wr ();
+                         break;
+
 
                     /*
                          DPRX
@@ -729,6 +806,54 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
+#ifdef ADVANCED
+                    // Config
+                    case 's' :
+                         prt_printf ("DPRX: Config...\n");
+
+                         prt_printf ("Select maximum line rate:\n");
+                         prt_printf (" 1 - 1.62 Gbps\n");
+                         prt_printf (" 2 - 2.7 Gbps\n");
+                         prt_printf (" 3 - 5.4 Gbps\n");
+                         #if (BOARD == BOARD_AMD_ZCU102)
+                              prt_printf (" 4 - 8.1 Gbps\n");
+                         #endif
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
+                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
+                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
+                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
+                         }
+
+                         // Set max rate
+                         prt_dp_set_lnk_max_rate (&dprx, dat);
+
+                         prt_printf ("Select maximum number of lanes:\n");
+                         prt_printf (" 1 - 2 lanes\n");
+                         prt_printf (" 2 - 4 lanes\n");
+                         cmd = prt_uart_get_char ();
+
+                         switch (cmd)
+                         {
+                              case '1' : dat = 2; break;
+                              default  : dat = 4; break;
+                         }
+
+                         // Set max lanes
+                         prt_dp_set_lnk_max_lanes (&dprx, dat);
+
+                         if (prt_dp_cfg (&dprx))
+                              prt_printf ("DPRX: ok\n");
+                         else
+                              prt_printf ("DPRX: error\n");
+
+                         // Set edid
+                         //set_edid ();
+                         break;
+#endif
 
                     // Status
                     case 'd' :
@@ -876,17 +1001,21 @@ int main (void)
 
      // PHY RX reset
      void dprx_phy_rst_cb (prt_dp_ds_struct *dp)
-     {
-          #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
-          
-               // Training pattern 1
-               if (prt_dprx_get_trn_tps (&dprx) == 1)
-               {
+     {        
+          // Training pattern 1
+          if (prt_dprx_get_trn_tps (&dprx) == 1)
+          {
+               // AMD
+               #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
                     // Reset PHY datapath
                     prt_phy_amd_rx_dp_rst (&phy);
-               }
-          #endif
-          
+
+               // Lattice CertusPro-NX
+               #elif (BOARD == BOARD_LSC_LFCPNX)
+                    prt_phy_lsc_rxrst (&phy);
+               #endif     
+          }
+
           // Send acknowledge
           prt_dprx_phy_rst_ack (dp);
      }
@@ -1153,6 +1282,61 @@ int main (void)
           dp_app.rx.pass = true;
      }
 
+     // DPCD callback
+     void dprx_dpcd_cb (prt_dp_ds_struct *dp)
+     {
+          // Variables
+          uint32_t adr;
+          uint8_t len;
+
+          prt_log_sprintf (&log, "DPRX: DPCD | ");
+  
+          adr = prt_dp_dpcd_adr_get (dp);
+          len = prt_dp_dpcd_len_get (dp);
+
+          // Write
+          if (prt_dp_dpcd_cmd_is_wr (dp))
+          {
+               prt_log_sprintf (&log, "Write");
+
+               // Send acknowledge
+               prt_dprx_dpcd_ack (dp);
+          }
+
+          else if (prt_dp_dpcd_cmd_is_rd (dp))
+          {
+               prt_log_sprintf (&log, "Read ");
+
+               // Fill read data
+               for (uint8_t i = 0; i < len; i++)
+               {
+                    prt_dp_dpcd_dat_set (dp, i, i);
+               }
+
+               // Send acknowledge
+               prt_dprx_dpcd_ack (dp);
+               //prt_dprx_dpcd_nack (dp);
+          }
+
+          else 
+               prt_log_sprintf (&log, "unknown");
+
+          prt_log_sprintf (&log, " | Address: %x", adr);
+          prt_log_sprintf (&log, " | Length: %d", len);  
+
+          // Write data
+          if (prt_dp_dpcd_cmd_is_wr (dp))
+          {
+               prt_log_sprintf (&log, " | Data: ");   
+               for (uint8_t i = 0; i < len; i++)
+               {
+                    prt_log_sprintf (&log, "%x ", prt_dp_dpcd_dat_get (dp, i));   
+               }
+          }
+
+          prt_log_sprintf (&log, "\n");
+     }
+     
      // Debug callback
      void dp_debug_cb (prt_dp_ds_struct *dp)
      {
@@ -1175,11 +1359,23 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("w - Config\n");
+     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
+     #ifdef ADVANCED
+         prt_printf ("t - PHY test\n");
+         prt_printf ("y - AUX test\n");
+     #endif
+         prt_printf ("u - Read DPCD\n");
+         prt_printf ("i - Write DPCD\n");
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("s - Config\n");
+     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1191,6 +1387,9 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
+     #ifdef ADVANCED
+         prt_printf ("b - PRBS\n");
+     #endif
          prt_printf ("\n");
      }
 
@@ -1974,6 +2173,81 @@ void set_edid (prt_bool user)
           prt_dprx_hpd (&dprx, 3);
      }
 }
+
+/*
+     DPCD
+*/
+
+// DPCD read
+void dpcd_rd (void)
+{
+     // Variables
+     uint32_t adr;
+     uint8_t len;
+     uint8_t dat[16];
+     uint8_t sta;
+
+     prt_printf ("\nDPTX: DPCD | Read");
+     
+     adr = 0x800;
+     prt_printf (" | Address: %x", adr);
+
+     len = 16;
+     prt_printf (" | Length: %d", len);
+
+     sta = prt_dptx_dpcd_rd (&dptx, adr, len, dat);
+
+     if (sta == PRT_TRUE)
+     {
+          prt_printf ("\n\tACK | Data:");
+
+          for (uint8_t i; i < len; i++)
+               prt_printf (" %x ", dat[i]);
+          
+          prt_printf ("\n");
+     }
+
+     else
+     {
+          prt_printf ("\n\tNACK\n");
+     }
+}
+
+// DPCD write
+void dpcd_wr (void)
+{
+     // Variables
+     uint32_t adr;
+     uint8_t len;
+     uint8_t dat[16];
+     uint8_t sta;
+
+     prt_printf ("\nDPTX: DPCD | Write");
+     
+     adr = 0x800;
+     prt_printf (" | Address: %x", adr);
+
+     len = 16;
+     prt_printf (" | Length: %d", len);
+
+     // Fill data
+     for (uint8_t i = 0 ; i < len; i++)
+          dat[i] = i;
+
+     sta = prt_dptx_dpcd_wr (&dptx, adr, len, dat);
+
+     if (sta == PRT_TRUE)
+     {
+          prt_printf ("\n\tACK\n");
+     }
+
+     else
+     {
+          prt_printf ("\n\tNACK\n");
+     }
+}
+
+
 
 /*
      ZCU102 functions

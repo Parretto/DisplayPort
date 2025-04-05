@@ -30,6 +30,7 @@
 module prt_riscv_rom
 #(
     parameter P_VENDOR      = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter P_FAMILY      = "none",       // Family (Only used for Lattice)
     parameter P_ADR         = 16,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -129,17 +130,43 @@ generate
 
     else if (P_VENDOR == "LSC")
     begin : gen_rom_lsc
-        prt_riscv_rom_lsc
-        ROM_INST
-        (
-            .clk_i              (CLK_IN), 
-            .clk_en_i           (clk_en), 
-            .wr_en_i            (clk_wr), 
-            .addr_i             (clk_adr), 
-            .wr_data_i          (clk_din),
-            .rd_out_clk_en_i    (clk_en),  
-            .rd_data_o          (ROM_IF.dat)
-        );
+
+        // CertusPro-NX
+        if (P_FAMILY == "LFCPNX")
+        begin : gen_rom_lsc_lfcpnx
+            prt_riscv_rom_lsc
+            ROM_INST
+            (
+                .rst_i              (1'b0),            
+                .clk_i              (CLK_IN), 
+                .clk_en_i           (clk_en), 
+                .wr_en_i            (clk_wr), 
+                .addr_i             (clk_adr), 
+                .wr_data_i          (clk_din),
+                .rdout_clken_i      (clk_en),  
+                .rd_data_o          (ROM_IF.dat),
+                .rd_datavalid_o     (),
+                .dps_i              (1'b0),
+                .lramready_o        ()   
+            );
+        end
+
+        // Avant
+        else
+        begin : gen_rom_lsc_lav
+            prt_riscv_rom_lsc
+            ROM_INST
+            (
+                .rst_i              (1'b0),            
+                .clk_i              (CLK_IN), 
+                .clk_en_i           (clk_en), 
+                .wr_en_i            (clk_wr), 
+                .addr_i             (clk_adr), 
+                .wr_data_i          (clk_din),
+                .rd_out_clk_en_i    (clk_en),  
+                .rd_data_o          (ROM_IF.dat)
+            );
+        end
     end
 
     else if (P_VENDOR == "ALTERA")

@@ -68,8 +68,9 @@
 #define PRT_DP_EVT_LNK							(1<<8)
 #define PRT_DP_EVT_VID							(1<<9)
 #define PRT_DP_EVT_MSA							(1<<10)
-#define PRT_DP_EVT_DEBUG						(1<<11)
+#define PRT_DP_EVT_DPCD							(1<<11)
 #define PRT_DP_EVT_EDID							(1<<12)
+#define PRT_DP_EVT_DEBUG						(1<<13)
 
 // Line rate
 #define PRT_DP_PHY_LINERATE_1620		0x06
@@ -99,7 +100,10 @@
 #define PRT_AUX_REPLY_DEFER    		0x2
 
 // Enum HPD
-typedef enum {PRT_DP_HPD_UNPLUG, PRT_DP_HPD_PLUG, PRT_DP_HPD_IRQ} prt_dp_hpd_type;
+typedef enum {PRT_DP_HPD_UNPLUG = 0, PRT_DP_HPD_PLUG, PRT_DP_HPD_IRQ} prt_dp_hpd_type;
+
+// Enum DPCD
+typedef enum {PRT_DP_DPCD_NONE = 0, PRT_DP_DPCD_WR, PRT_DP_DPCD_RD, PRT_DP_DPCD_ACK, PRT_DP_DPCD_NACK} prt_dp_dpcd_type;
 
 // Typedef callback
 typedef void (*prt_dp_cb)(void *CallbackRef);
@@ -115,6 +119,7 @@ typedef enum {
 	PRT_DP_CB_LNK, 
 	PRT_DP_CB_VID, 
 	PRT_DP_CB_MSA, 
+	PRT_DP_CB_DPCD, 
 	PRT_DP_CB_DBG
 } prt_dp_cb_type;
 
@@ -161,17 +166,29 @@ typedef struct {
 } prt_dp_mail_ds_struct;
 
 // AUX structure
+// Only used in simulation
+#ifdef PRT_SIM
 typedef struct {
 	uint8_t proc;		// Process
 	uint16_t dat[32]; 	// Data
 	uint8_t len;  		// Length
 } prt_dp_aux_ds_struct;
+#endif 
 
 // EDID structure
 typedef struct {
 	uint8_t dat[1024]; 	// Data
 	uint16_t adr;		// Address
 } prt_dp_edid_struct;
+
+// DPCD structure
+typedef struct {
+	prt_dp_dpcd_type 	cmd;		// Command
+	uint32_t 			adr;		// Address
+	uint8_t 			len; 		// Length
+	uint8_t 			dat[16]; 	// Data
+	prt_bool 			rdy;		// Ready flag
+} prt_dp_dpcd_struct;
 
 // Timing parameters
 typedef struct {
@@ -229,6 +246,7 @@ typedef struct {
 	prt_dp_cb		lnk;		// Link Callback
 	prt_dp_cb		vid;		// Video Callback
 	prt_dp_cb		msa;		// MSA Callback
+	prt_dp_cb		dpcd;		// DPCD Callback
 	prt_dp_cb		dbg;		// Debug Callback
 } prt_dp_cb_struct;
 
@@ -247,6 +265,7 @@ typedef struct {
 	prt_dp_lnk_struct						lnk;			// Link
 	prt_dp_vid_struct						vid[2];			// Video
 	prt_dp_edid_struct						edid;			// EDID
+	volatile prt_dp_dpcd_struct				dpcd;			// DPCD
 #ifdef PRT_SIM
 	prt_dp_aux_ds_struct					aux;			// AUX
 #endif
@@ -275,11 +294,18 @@ uint8_t prt_dp_get_phy_rate (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_phy_ssc (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_phy_volt (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_phy_pre (prt_dp_ds_struct *dp);
+uint8_t prt_dp_dpcd_cmd_is_wr (prt_dp_ds_struct *dp);
+uint8_t prt_dp_dpcd_cmd_is_rd (prt_dp_ds_struct *dp);
+uint32_t prt_dp_dpcd_adr_get (prt_dp_ds_struct *dp);
+uint8_t prt_dp_dpcd_len_get (prt_dp_ds_struct *dp);
+uint8_t prt_dp_dpcd_dat_get (prt_dp_ds_struct *dp, uint8_t idx);
+void prt_dp_dpcd_dat_set (prt_dp_ds_struct *dp, uint8_t idx, uint8_t dat);
+
 
 // DPTX
 uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t stream);
-uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t dat);
-uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t *dat);
+uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
+uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
@@ -289,6 +315,9 @@ void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp);
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
+uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr);
+void prt_dprx_dpcd_ack (prt_dp_ds_struct *dp);
+void prt_dprx_dpcd_nack (prt_dp_ds_struct *dp);
 
 // Internal
 void prt_dp_irq_handler (prt_dp_ds_struct *dp);

@@ -32,6 +32,7 @@
 module prt_riscv_ram
 #(
     parameter P_VENDOR      = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter P_FAMILY      = "none",       // Family (Only used for Lattice)
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -134,17 +135,43 @@ generate
 
     else if (P_VENDOR == "LSC")
     begin : gen_ram_lsc
-        prt_riscv_ram_lsc
-        RAM_INST
-        (
-            .clk_i              (CLK_IN), 
-            .clk_en_i           (1'b1), 
-            .wr_en_i            (clk_wr), 
-            .addr_i             (clk_adr), 
-            .ben_i              (~clk_be),  // The byte lane polarity is inverted
-            .wr_data_i          (clk_din),
-            .rd_data_o          (RAM_IF.rd_dat)
-        );
+
+        // CertusPro-NX
+        if (P_FAMILY == "LFCPNX")
+        begin : gen_ram_lsc_lfcpnx
+            prt_riscv_ram_lsc
+            RAM_INST
+            (
+                .rst_i              (1'b0),            
+                .clk_i              (CLK_IN), 
+                .clk_en_i           (1'b1), 
+                .wr_en_i            (clk_wr), 
+                .addr_i             (clk_adr), 
+                .ben_i              (~clk_be),  // The byte lane polarity is inverted
+                .wr_data_i          (clk_din),
+                .rd_data_o          (RAM_IF.rd_dat),
+                .rd_datavalid_o     (),
+                .dps_i              (1'b0),
+                .lramready_o        ()   
+            );
+        end
+
+        // Avant
+        else
+        begin : gen_ram_lsc_lav
+            prt_riscv_ram_lsc 
+            RAM_INST
+            (
+                .rst_i              (1'b0),            
+                .clk_i              (CLK_IN), 
+                .clk_en_i           (1'b1), 
+                .wr_en_i            (clk_wr), 
+                .addr_i             (clk_adr), 
+                .ben_i              (~clk_be),  // The byte lane polarity is inverted
+                .wr_data_i          (clk_din),
+                .rd_data_o          (RAM_IF.rd_dat)
+            );
+        end
     end
 
     else if (P_VENDOR == "ALTERA")

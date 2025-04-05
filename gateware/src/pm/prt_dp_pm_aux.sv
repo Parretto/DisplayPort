@@ -12,6 +12,8 @@
     v1.0 - Initial release
 	v1.1 - Added RX input filter
 	v1.2 - Improved RX stability
+	v1.3 - Improved RX stop condition handling and sampling
+
 
     License
     =======
@@ -34,7 +36,8 @@ module prt_dp_pm_aux
 #(
      // System
     parameter              	P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
-	parameter 				P_SIM = 0
+	parameter 				P_SIM = 0,
+	parameter               P_BEAT 	= 'd125     // Beat value
 )
 (
 	// Reset and clock
@@ -48,8 +51,8 @@ module prt_dp_pm_aux
  	input wire 				BEAT_IN,		// Beat 1 MHz
 
 	// AUX
- 	output wire 			AUX_EN_OUT,		// Enable
- 	output wire 			AUX_TX_OUT,		// Transmit
+	output wire 			AUX_EN_OUT,		// Enable
+	output wire 			AUX_TX_OUT,		// Transmit
  	input wire 				AUX_RX_IN,		// Receive
 
     // Interrupt
@@ -82,7 +85,6 @@ localparam P_STA_RX_FIFO_FL 	= 9;
 localparam P_STA_RX_FIFO_WRDS 	= 10;
 localparam P_STA_WIDTH          = 16;
 
-localparam P_RX_AUX_SMP_CNT		= (P_SIM) ? 'd9 : 'd24;
 localparam P_TO_VAL             = 'd400;    // time out 400 us
 
 // Typedef
@@ -91,7 +93,7 @@ typedef enum {
 } tx_sm_state;
 
 typedef enum {
-	rx_sm_rst, rx_sm_idle, rx_sm_sync, rx_sm_act, rx_sm_wr
+	rx_sm_rst, rx_sm_idle, rx_sm_pre, rx_sm_sync, rx_sm_stp, rx_sm_act, rx_sm_wr
 } rx_sm_state;
 
 // Structure
@@ -190,11 +192,15 @@ typedef struct {
 	logic						rx;			// RX
 	logic						rx_re;		// RX rising edge
 	logic						rx_fe;		// RX falling edge
-	logic 	[4:0]				smp_cnt;
+	logic 	[2:0]				pre_cnt;
+	logic 						pre_cnt_ld;
+	logic 						pre_cnt_end;
+	logic 	[7:0]				smp_cnt;
+	logic 	[7:0]				smp_cnt_half;
 	logic 						smp_tick;
 	logic 						smp_msk;
-	logic 						smp;
-	logic	[5:0]				rx_pipe;
+	logic 						smp_bit;
+	logic	[2:0]				rx_pipe;
 	logic						stp;
     logic 	[5:0]             	wd_cnt;
     logic                   	wd_end;
@@ -207,6 +213,12 @@ typedef struct {
 	logic						bit_cnt_dec;
 	logic						bit_cnt_end;
 	logic	[7:0]				shft;
+	logic 	[7:0]				pulse_width_cnt;
+	logic 	[7:0]				pulse_width;
+	logic 						pulse_width_run;
+	logic   [15:0]				stp_cnt;
+	logic 						stp_cnt_end;
+	logic 						stp_cnt_end_re;
 } rx_aux_struct;
 
 // Signals
@@ -969,6 +981,8 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 		clk_sta.msg_err_set			= 0;
 		clk_rx_fifo.clr				= 0;
 		clk_sta.to_en_clr			= 0;
+		clk_rx_aux.pulse_width_run 	= 0;
+		clk_rx_aux.pre_cnt_ld		= 0;
 
 		case (clk_rx_aux.sm_cur)
 
@@ -986,30 +1000,54 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 				if (clk_rx_aux.rx_re)
 				begin
 					clk_sta.to_en_clr = 1;				// Clear time out
-					clk_rx_aux.sm_nxt = rx_sm_sync;
+					clk_rx_aux.pre_cnt_ld = 1;			// Load premable counter
+					clk_rx_aux.sm_nxt = rx_sm_pre;
 				end
 				else
 					clk_rx_aux.sm_nxt = rx_sm_idle;
 			end
 
+			// Preamble
+			rx_sm_pre:
+			begin
+				// Wait for a stable preamble
+				if (clk_rx_aux.pre_cnt_end)
+					clk_rx_aux.sm_nxt = rx_sm_sync;
+				else
+					clk_rx_aux.sm_nxt = rx_sm_pre;
+			end
+
 			// Sync
 			rx_sm_sync :
 			begin
-				// Wait for stop condition
+				// Measure the pulse width
+				clk_rx_aux.pulse_width_run = 1;
+
+				// Wait for the end of the stop condition
 				if (clk_rx_aux.stp)
 				begin
 					// If the RX fifo is not empty at the start of the new message,
 					// then set the message corrupted flag.
 					if (!clk_rx_fifo.ep)
 						clk_sta.msg_err_set = 1;
-					clk_rx_fifo.clr		= 1;		// Clear RX fifo
-					clk_rx_aux.locked_set = 1;		// Set locked
-					clk_rx_aux.bit_cnt_ld = 1;
-					clk_rx_aux.sm_nxt = rx_sm_act;
+					clk_rx_fifo.clr			= 1;		// Clear RX fifo
+					clk_rx_aux.locked_set 	= 1;		// Set locked
+					clk_rx_aux.bit_cnt_ld 	= 1;
+					clk_rx_aux.sm_nxt 		= rx_sm_stp;
 				end
 
 				else
 					clk_rx_aux.sm_nxt = rx_sm_sync;
+			end
+
+			// Wait for end of stop
+			rx_sm_stp :
+			begin
+				// Wait for the end of the stop condition
+				if (clk_rx_aux.stp_cnt_end_re)
+					clk_rx_aux.sm_nxt = rx_sm_act;
+				else
+					clk_rx_aux.sm_nxt = rx_sm_stp;
 			end
 
 			// Active
@@ -1018,12 +1056,12 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 				// Stop condition
 				if (clk_rx_aux.stp)
 				begin
-					clk_rx_aux.sm_nxt = rx_sm_idle;
-					clk_sta.msg_new_set = 1;			// Set new message flag
+					clk_sta.msg_new_set = 1;		// Set new message flag
+					clk_rx_aux.sm_nxt 	= rx_sm_idle;
 				end
 
 				// Sample
-				else if (clk_rx_aux.smp)
+				else if (clk_rx_aux.smp_bit)
 				begin				
 					// Have we shifted in all bits?
 					// It takes one extra clock for the shift register to update.
@@ -1163,6 +1201,36 @@ endgenerate
 			clk_rx_aux.run <= 0;
 	end
 
+// Preamble counter
+// This is used by the state machine to wait for a stable preamble signal
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Run
+		if (clk_rx_aux.run)
+		begin
+			// Load
+			if (clk_rx_aux.pre_cnt_ld)
+				clk_rx_aux.pre_cnt <= '1;
+			
+			// Decrement
+			else if (clk_rx_aux.rx_re && !clk_rx_aux.pre_cnt_end)
+				clk_rx_aux.pre_cnt <= clk_rx_aux.pre_cnt - 'd1;
+		end
+
+		// Idle
+		else 
+			clk_rx_aux.pre_cnt <= 0;
+	end
+
+// Preamble counter end
+	always_comb
+	begin 
+		if (clk_rx_aux.pre_cnt == 0)
+			clk_rx_aux.pre_cnt_end = 1;
+		else
+			clk_rx_aux.pre_cnt_end = 0;
+	end
+
 // Sample counter
 // This counter is synchronized with the incoming RX signal
     always_ff @ (posedge CLK_IN)
@@ -1171,8 +1239,8 @@ endgenerate
 		if (clk_rx_aux.run)
 		begin
 			// Load
-			if ((clk_rx_aux.rx_re || clk_rx_aux.rx_fe) || (clk_rx_aux.smp_cnt == 0))
-				clk_rx_aux.smp_cnt <= P_RX_AUX_SMP_CNT;
+			if ((clk_rx_aux.rx_re || clk_rx_aux.rx_fe) || (clk_rx_aux.smp_cnt == 0) || clk_rx_aux.stp_cnt_end_re)
+				clk_rx_aux.smp_cnt <= clk_rx_aux.pulse_width - 'd1;
 
 			// Decrement
 			else
@@ -1184,12 +1252,93 @@ endgenerate
 			clk_rx_aux.smp_cnt <= 0;
 	end
 
+// Pulse width counter
+// This counter measures the width of a single RX pulse
+// and the width of the postive period of the stop condition.
+// This is used for the stop counter.
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Increment
+		if (clk_rx_aux.rx)
+			clk_rx_aux.pulse_width_cnt <= clk_rx_aux.pulse_width_cnt + 'd1;
+
+		// Clear
+		else
+			clk_rx_aux.pulse_width_cnt <= 0;
+	end
+
+// Pulse width 
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Run
+		if (clk_rx_aux.run)
+		begin
+			// Load - only during the pre-charge
+			if (clk_rx_aux.rx_fe && clk_rx_aux.pulse_width_run)
+				clk_rx_aux.pulse_width <= clk_rx_aux.pulse_width_cnt;
+		end
+
+		// Idle
+		else 
+			clk_rx_aux.pulse_width <= 0;
+	end
+
+// Stop counter
+// This counter is started at the half of the stop condition.
+// When the counter expires, the sample counter is synchronized and ready to sample the first RX bit.
+    always_ff @ (posedge CLK_IN)
+    begin
+		// Run
+		if (clk_rx_aux.run)
+		begin
+			// Load
+			// The width of the positive period of the stop condition is measured by the pulse width counter.
+			// This includes also the second half of the last zero bit of the sync period.
+			// The stop counter value must be adjusted to have the correct negative period value.
+			if (clk_rx_aux.rx_fe && clk_rx_aux.stp && clk_rx_aux.stp_cnt_end)
+				clk_rx_aux.stp_cnt <= clk_rx_aux.pulse_width_cnt - clk_rx_aux.pulse_width;
+
+			// Decrement
+			else if (!clk_rx_aux.stp_cnt_end)
+				clk_rx_aux.stp_cnt <= clk_rx_aux.stp_cnt - 'd1;
+			
+			else
+				clk_rx_aux.stp_cnt <= 0;
+		end
+
+		// Idle
+		else 
+			clk_rx_aux.stp_cnt <= 0;
+	end
+
+// Stop counter end
+	always_comb
+	begin
+		if (clk_rx_aux.stp_cnt == 0)
+			clk_rx_aux.stp_cnt_end = 1;
+		else
+			clk_rx_aux.stp_cnt_end = 0;
+	end
+
+// Stop counter rising edge
+	prt_dp_lib_edge
+	STP_CNT_END_EDGE_INST
+	(
+		.CLK_IN		(CLK_IN),						// Clock
+		.CKE_IN		(1'b1),							// Clock enable
+		.A_IN		(clk_rx_aux.stp_cnt_end),		// Input
+		.RE_OUT		(clk_rx_aux.stp_cnt_end_re),	// Rising edge
+		.FE_OUT		()								// Falling edge
+	);
+
+	assign clk_rx_aux.smp_cnt_half = {1'b0, clk_rx_aux.pulse_width[1+:7]};
+
 // Sample Tick
 // This signal is asserted in the middle of the eye.
 // It's used to sample the RX signal.
     always_ff @ (posedge CLK_IN)
     begin
-		if (clk_rx_aux.smp_cnt == P_RX_AUX_SMP_CNT/2)
+		if (clk_rx_aux.smp_cnt == clk_rx_aux.smp_cnt_half)
 			clk_rx_aux.smp_tick <= 1;
 		else
 			clk_rx_aux.smp_tick <= 0;
@@ -1204,7 +1353,7 @@ endgenerate
 		if (clk_rx_aux.run)
 		begin
 			// The stop condition is used to synchronize the mask.
-			if (clk_rx_aux.stp)
+			if (clk_rx_aux.stp_cnt_end_re)
 				clk_rx_aux.smp_msk <= 0;
 
 			// In the active period the mask signal is toggled at every sample. 
@@ -1217,9 +1366,9 @@ endgenerate
 			clk_rx_aux.smp_msk <= 0;
 	end
 
-// Sample
+// Sample bit
 // This signal is asserted when the RX value is sampled
-	assign clk_rx_aux.smp = clk_rx_aux.smp_tick && !clk_rx_aux.smp_msk;
+	assign clk_rx_aux.smp_bit = clk_rx_aux.smp_tick && !clk_rx_aux.smp_msk;
 
 // Watchdog
 // The RX state machine is reset, when this watchdog counter expires.
@@ -1305,25 +1454,28 @@ endgenerate
 // Stop condition
 	always_ff @ (posedge CLK_IN)
 	begin
-		// Default
-		clk_rx_aux.stp <= 0;
-
-		// Wait for sample tick
-		if (clk_rx_aux.smp_tick)
+		// Run
+		if (clk_rx_aux.run)
 		begin
-			// A stop condition consists of four ones, followed by four zeros.
-			// However, in case of a misaligned sample clock, there might be a bit missing. 
-			// Therefore we check for three bits each. 
-			if (clk_rx_aux.rx_pipe == 'b111000)
+			// Clear
+			if (clk_rx_aux.stp_cnt_end_re)
+				clk_rx_aux.stp <= 0;
+
+			// Set
+			else if (&clk_rx_aux.rx_pipe)
 				clk_rx_aux.stp <= 1;
 		end
+
+		// Idle
+		else
+			clk_rx_aux.stp <= 0;
 	end
 
 // Shift register
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Shift
-		if (clk_rx_aux.smp)
+		if (clk_rx_aux.smp_bit)
 			clk_rx_aux.shft <= {clk_rx_aux.shft[6:0], clk_rx_aux.rx};
 	end
 

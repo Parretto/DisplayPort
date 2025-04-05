@@ -5,7 +5,7 @@
 
 
     Module: PHY Lattice CertusPro-NX Driver
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -42,6 +42,9 @@ void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u
 	// Timer
 	phy->tmr = tmr;
 
+	// Reset the PHY
+	prt_phy_lsc_init_rst (phy);
+	
 	// Unbond RX channels. 
 	// By default all RX channels are bonded and the RX master clock comes from MPCS channel 0. 
 	// Depending on the PCB layout the DP lane 0 doesn't have to be connected to MPCS channel 0. 
@@ -516,7 +519,22 @@ void prt_phy_lsc_rx_pol (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u8 inv)
 	prt_phy_lsc_wr (phy, port, 0x74, dat);
 }
 
+// PHY all reset
+// This function resets the MPCS during initialization.
+void prt_phy_lsc_init_rst (prt_phy_lsc_ds_struct *phy)
+{
+    // Assert PHY TX reset
+    prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_ALL_RST);
+
+	// Sleep alarm 0
+	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_LSC_RST_PULSE);
+     
+     // Release PHY TX reset
+	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_ALL_RST);
+}
+
 // PHY TX reset
+// This function resets the TX PMA datapath.
 void prt_phy_lsc_txrst (prt_phy_lsc_ds_struct *phy)
 {
     // Assert PHY TX reset
@@ -530,6 +548,7 @@ void prt_phy_lsc_txrst (prt_phy_lsc_ds_struct *phy)
 }
 
 // PHY RX reset
+// This function resets the RX PMA datapath.
 void prt_phy_lsc_rxrst (prt_phy_lsc_ds_struct *phy)
 {
 	// Variables

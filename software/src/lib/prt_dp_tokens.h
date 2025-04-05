@@ -5,7 +5,7 @@
 
 
     Module: DP Tokens Header
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -68,6 +68,7 @@
   #define PRT_DP_MAIL_DPCD_ACK         0x72    // DPCD ack
   #define PRT_DP_MAIL_DPCD_NACK        0x73    // DPCD nack
   #define PRT_DP_MAIL_DPCD_DEFER       0x74    // DPCD defer
+  #define PRT_DP_MAIL_DPCD_BLK         0x75    // DPCD block
   
   #define PRT_DP_MAIL_EDID_RD          0x80    // EDID read
   #define PRT_DP_MAIL_EDID_DAT         0x81    // EDID data

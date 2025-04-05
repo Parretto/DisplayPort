@@ -14,6 +14,7 @@
 	v1.2 - Added 10-bits video support
 	v1.3 - Increased EDID size to 1024 bytes
 	v1.4 - Added training clock recovery signaling
+	v1.5 - Added DPCD messaging
 
     License
     =======
@@ -66,6 +67,7 @@ void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handl
 		case PRT_DP_CB_PHY_VAP 	: dp->cb.phy_vap = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_LNK 		: dp->cb.lnk = (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_VID 		: dp->cb.vid = (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_DPCD 	: dp->cb.dpcd = (prt_dp_cb)cb_handler; break;
 		case PRT_DP_CB_MSA 		: dp->cb.msa = (prt_dp_cb)cb_handler; break;
 		case PRT_DP_CB_DBG 		: dp->cb.dbg = (prt_dp_cb)cb_handler; break;
 		default : break;
@@ -92,6 +94,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->cb.lnk = 0;
 	dp->cb.vid = 0;
 	dp->cb.msa = 0;
+	dp->cb.dpcd = 0;
 	dp->mail_in.err = PRT_FALSE;
 	dp->mail_in.ok = PRT_FALSE;
 	dp->mail_in.proc = PRT_FALSE;
@@ -109,6 +112,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->vid[1].evt = PRT_FALSE;
 	dp->debug.head = 0;
 	dp->debug.tail = 0;
+	dp->dpcd.cmd = PRT_DP_DPCD_NONE;
 	
 	// Enable mail_out and mail_in boxes
 	// Enable interrupt and start policy maker
@@ -412,29 +416,55 @@ uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t st
 }
 
 // DPCD write 
-uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t dat)
+uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat)
 {
 	// Variables
 	uint8_t sta;
 
 	dp->mail_out.len = 0;
-	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_WR;	// DPCD write
-	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 16) & 0xff;	// Address high
-	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 8) & 0xff;	// Address mid
-	dp->mail_out.dat[dp->mail_out.len++] = adr & 0xff;		// Address low
-	dp->mail_out.dat[dp->mail_out.len++] = 1;				// Length
-	dp->mail_out.dat[dp->mail_out.len++] = dat;				// Data
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_WR;		// DPCD write
+	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 16) & 0xff;		// Address high
+	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 8) & 0xff;		// Address mid
+	dp->mail_out.dat[dp->mail_out.len++] = adr & 0xff;				// Address low
+	
+	// Check maximum length
+	if (len > 16)
+		dp->dpcd.len = 16;
+	else
+		dp->dpcd.len = len;
 
+	dp->mail_out.dat[dp->mail_out.len++] = dp->dpcd.len;		// Length
+	
+	// Copy data
+	for (uint8_t i = 0; i < dp->dpcd.len; i++)
+		dp->mail_out.dat[dp->mail_out.len++] = *(dat+i);				// Data
+
+	// Clear ready flag
+	dp->dpcd.rdy = PRT_FALSE;
+
+	// Send mail
 	prt_dp_mail_send (dp);
 
 	// Wait for response
 	sta = prt_dp_mail_resp (dp);
 
-	return sta;
+	// Exit when the status isn't true
+	if (sta != PRT_TRUE)
+		return PRT_FALSE;
+	
+	// Wait for ready flag to be set by mail decoder (interrupt handler) 
+	while (dp->dpcd.rdy == PRT_FALSE);
+
+	// Return true when there is an acknowledge
+	if (dp->dpcd.cmd == PRT_DP_DPCD_ACK)
+		return PRT_TRUE;
+
+	else
+		return PRT_FALSE;
 }
 
 // DPCD read 
-uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t *dat)
+uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat)
 {
 	// Variables
 	uint8_t sta;
@@ -443,18 +473,44 @@ uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t *dat)
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_RD;	// DPCD write
 	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 16) & 0xff;	// Address high
 	dp->mail_out.dat[dp->mail_out.len++] = (adr >> 8) & 0xff;	// Address mid
-	dp->mail_out.dat[dp->mail_out.len++] = adr & 0xff;		// Address low
-	dp->mail_out.dat[dp->mail_out.len++] = 1;				// Length
+	dp->mail_out.dat[dp->mail_out.len++] = adr & 0xff;			// Address low
+	
+	// Check maximum length
+	if (len > 16)
+		dp->dpcd.len = 16;
+	else
+		dp->dpcd.len = len;
 
+	dp->mail_out.dat[dp->mail_out.len++] = dp->dpcd.len;		// Length
+
+	// Clear ready flag
+	dp->dpcd.rdy = PRT_FALSE;
+
+	// Send mail
 	prt_dp_mail_send (dp);
 
 	// Wait for response
 	sta = prt_dp_mail_resp (dp);
 
-	// Copy data
-	*dat = dp->mail_in.dat[2];
+	// Exit when the status isn't true
+	if (sta != PRT_TRUE)
+		return PRT_FALSE;
+	
+	// Wait for ready flag to be set by mail decoder (interrupt handler) 
+	while (dp->dpcd.rdy == PRT_FALSE);
 
-	return sta;
+	// Return true when there is an acknowledge
+	if (dp->dpcd.cmd == PRT_DP_DPCD_ACK)
+	{
+		for (uint8_t i = 0; i < dp->dpcd.len; i++)
+		{
+			*(dat+i) = dp->dpcd.dat[i];
+		}
+		return PRT_TRUE;
+	}
+
+	else
+		return PRT_FALSE;
 }
 
 // Video start
@@ -1197,6 +1253,110 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 			break;
 
+		// DPCD Write
+		// Only for DPRX
+		case PRT_DP_MAIL_DPCD_WR:
+
+			// Command
+			dp->dpcd.cmd = PRT_DP_DPCD_WR;
+
+			// Address high
+			dp->dpcd.adr = dp->mail_in.dat[1] << 16;
+
+			// Address mid
+			dp->dpcd.adr |= dp->mail_in.dat[2] << 8;
+
+			// Address low
+			dp->dpcd.adr |= dp->mail_in.dat[3];
+
+			// Length
+			dp->dpcd.len = dp->mail_in.dat[4];
+
+			// Copy data
+			for (uint8_t i = 0; i < dp->dpcd.len; i++)
+			{
+				dp->dpcd.dat[i] = dp->mail_in.dat[5+i];
+			}
+
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_DPCD;
+
+			break;
+
+		// DPCD Read
+		// Only for DPRX
+		case PRT_DP_MAIL_DPCD_RD:
+
+			// Command
+			dp->dpcd.cmd = PRT_DP_DPCD_RD;
+
+			// Address high
+			dp->dpcd.adr = dp->mail_in.dat[1] << 16;
+
+			// Address mid
+			dp->dpcd.adr |= dp->mail_in.dat[2] << 8;
+
+			// Address low
+			dp->dpcd.adr |= dp->mail_in.dat[3];
+
+			// Length
+			dp->dpcd.len = dp->mail_in.dat[4];
+
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_DPCD;
+
+			break;
+
+		// DPCD Acknowledge
+		// Only for DPTX
+		case PRT_DP_MAIL_DPCD_ACK:
+
+			// Command
+			dp->dpcd.cmd = PRT_DP_DPCD_ACK;
+
+			// Clear address
+			dp->dpcd.adr = 0;
+
+			// Length
+			dp->dpcd.len = dp->mail_in.dat[1];
+
+			if (dp->dpcd.len > 0)
+			{
+				// Copy data
+				for (uint8_t i = 0; i < dp->dpcd.len; i++)
+				{
+					dp->dpcd.dat[i] = dp->mail_in.dat[2+i];
+				}
+			}
+
+			// There is no event.
+			// Instead the ready flag is set. 
+			// This signals the dpcd_wr or dpcd_rd function that the response has been received.
+			dp->dpcd.rdy = PRT_TRUE;
+
+			break;
+
+		// DPCD Not Acknowledge
+		// Only for DPTX
+		case PRT_DP_MAIL_DPCD_NACK:
+
+			// Command
+			dp->dpcd.cmd = PRT_DP_DPCD_NACK;
+
+			// Clear address
+			dp->dpcd.adr = 0;
+
+			// Clear length
+			dp->dpcd.len = 0;
+
+			// There is no event.
+			// Instead the ready flag is set. 
+			// This signals the dpcd_wr or dpcd_rd function that the response has been received.
+			dp->dpcd.rdy = PRT_TRUE;
+
+			break;
+
+		// EDID data
 		case PRT_DP_MAIL_EDID_DAT:
 
 			// Copy data
@@ -1210,7 +1370,8 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 			break;
 
-		default:
+
+			default:
 			//prt_printf ("Unknown token (%x)\n", dp->mail_in.dat[0]);
 			break;	
 	}
@@ -1233,10 +1394,16 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		}
 
 		// PHY reset
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST) && (dp->cb.phy_rate != 0))
+		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST) && (dp->cb.phy_rst != 0))
 		{
 			// Jump callback
 			dp->cb.phy_rst (dp);
+		}
+
+		// If the callback was not registered, then send an acknowledge immediately.
+		else
+		{
+			prt_dprx_phy_rst_ack (dp);
 		}
 
 		// PHY rate
@@ -1281,6 +1448,13 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->cb.msa (dp);
 		}
 
+		// DPCD
+		if (prt_dp_is_evt (dp, PRT_DP_EVT_DPCD) && (dp->cb.dpcd != 0))
+		{
+			// Jump callback
+			dp->cb.dpcd (dp);
+		}
+		
 		// Debug
 		if (prt_dp_is_evt (dp, PRT_DP_EVT_DEBUG) && (dp->cb.dbg != 0))
 		{
@@ -1424,6 +1598,107 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len)
 	} while (!done);
 
 	return sta;
+}
+
+// DPCD block
+// This function sets the DPCD block, which needs to be routed to the host
+uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr)
+{
+	// Variables
+	uint8_t sta;
+
+	// Only 16 blocks are supported
+	if (idx > 16)
+		return PRT_FALSE;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_BLK;	// Token
+	dp->mail_out.dat[dp->mail_out.len++] = idx;	     				// Index
+	dp->mail_out.dat[dp->mail_out.len++] = adr >> 16;	     		// Address upper byte
+	dp->mail_out.dat[dp->mail_out.len++] = adr >> 8;		  		// Address lower byte
+
+	prt_dp_mail_send (dp);
+
+	// Wait for response
+	sta = prt_dp_mail_resp (dp);
+
+	return sta;
+}
+
+// DPCD get address
+uint32_t prt_dp_dpcd_adr_get (prt_dp_ds_struct *dp)
+{
+	return dp->dpcd.adr;
+}
+
+// DPCD get length
+uint8_t prt_dp_dpcd_len_get (prt_dp_ds_struct *dp)
+{
+	return dp->dpcd.len;
+}
+
+// DPCD get data
+uint8_t prt_dp_dpcd_dat_get (prt_dp_ds_struct *dp, uint8_t idx)
+{
+	return dp->dpcd.dat[idx];
+}
+
+// DPCD set data
+void prt_dp_dpcd_dat_set (prt_dp_ds_struct *dp, uint8_t idx, uint8_t dat)
+{
+	dp->dpcd.dat[idx] = dat;
+}
+
+// DPCD command is write
+uint8_t prt_dp_dpcd_cmd_is_wr (prt_dp_ds_struct *dp)
+{
+	if (dp->dpcd.cmd ==  PRT_DP_DPCD_WR)
+		return PRT_TRUE;
+	else
+		return PRT_FALSE;
+}
+
+// DPCD command is read
+uint8_t prt_dp_dpcd_cmd_is_rd (prt_dp_ds_struct *dp)
+{
+	if (dp->dpcd.cmd ==  PRT_DP_DPCD_RD)
+		return PRT_TRUE;
+	else
+		return PRT_FALSE;
+}
+
+// DPCD ACK
+void prt_dprx_dpcd_ack (prt_dp_ds_struct *dp)
+{
+	// The length should not be longer than 16 bytes
+	if (dp->dpcd.len > 16)
+		dp->dpcd.len = 16;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_ACK;	// Token
+	dp->mail_out.dat[dp->mail_out.len++] = dp->dpcd.len;	     	// Length
+
+	for (uint8_t i = 0; i < dp->dpcd.len; i++)
+		dp->mail_out.dat[dp->mail_out.len++] = dp->dpcd.dat[i];	// Data
+
+	prt_dp_mail_send (dp);
+
+	// Because this is (most likely) executed from the DPCD callback
+	// and the callback is running in the interrupt handler, 
+	// we don't wait for a response. 
+}
+
+// DPCD NACK
+void prt_dprx_dpcd_nack (prt_dp_ds_struct *dp)
+{
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_NACK;	// Token
+	dp->mail_out.dat[dp->mail_out.len++] = 0;						// Length (always zero)
+	prt_dp_mail_send (dp);
+
+	// Because this is (most likely) executed from the DPCD callback
+	// and the callback is running in the interrupt handler, 
+	// we don't wait for a response. 
 }
 
 // Interrupt handler

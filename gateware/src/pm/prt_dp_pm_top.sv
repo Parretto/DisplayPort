@@ -530,8 +530,9 @@ endgenerate
 // AUX
     prt_dp_pm_aux
     #(
-        .P_VENDOR               (P_VENDOR),         // Vendor
-        .P_SIM                  (P_SIM)
+        .P_VENDOR               (P_VENDOR),     // Vendor
+        .P_SIM                  (P_SIM),
+        .P_BEAT                 (P_BEAT)        // Beat value
     )
     AUX_INST
     (

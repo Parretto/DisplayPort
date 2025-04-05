@@ -5,7 +5,7 @@
 
 
     Module: RISC-V CPU
-    (c) 2022 - 2024 by Parretto B.V.
+    (c) 2022 - 2025 by Parretto B.V.
 
     History
     =======
