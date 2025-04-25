@@ -31,13 +31,14 @@
 
 `default_nettype none
 
+// Module
 module prt_dprx_top
 #(
     // System
     parameter                                   P_VENDOR    = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
     parameter                                   P_BEAT      = 'd125,        // Beat value
     parameter                                   P_MST       = 0,            // MST support
-    parameter                                   P_SDP       = 0,       // SDP support
+    parameter                                   P_SDP       = 0,            // SDP support
 
     // Link
     parameter                                   P_LANES     = 4,            // Lanes
@@ -160,7 +161,6 @@ vid_if();
 // Secondary data packet interface
 prt_dp_rx_sdp_if
 sdp_if();
-
 
 wire lnk_clkdet_from_lnk;
 wire cdr_lock_from_lnk;

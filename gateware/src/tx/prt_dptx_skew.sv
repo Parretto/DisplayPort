@@ -12,6 +12,8 @@
     v1.0 - Initial release
     v1.1 - Added support for 4 symbols per lane
     v1.2 - Updated PHY interface
+    v1.3 - Unrolled data interface
+
     
     License
     =======
@@ -29,6 +31,7 @@
 
 `default_nettype none
 
+// Module
 module prt_dptx_skew
 #(
     // Link
@@ -61,7 +64,7 @@ generate
             logic   [1:0]     clk_disp_ctl_del; // Disparity control
             logic   [1:0]     clk_disp_val_del; // Disparity value
             logic   [1:0]     clk_k_del;        // k character
-            logic   [7:0]     clk_dat_del[0:1]; // Data
+            logic   [7:0]     clk_dat_del[2];   // Data
 
             // Skew
             always_ff @ (posedge CLK_IN) 
@@ -85,7 +88,7 @@ generate
             logic   [P_SPL-1:0]     clk_disp_ctl_skew;       // Disparity control
             logic   [P_SPL-1:0]     clk_disp_val_skew;       // Disparity value
             logic   [P_SPL-1:0]     clk_k_skew;              // k character
-            logic   [7:0]           clk_dat_skew[0:P_SPL-1]; // Data
+            logic   [7:0]           clk_dat_skew[P_SPL];     // Data
 
             // Skew
             always_ff @ (posedge CLK_IN) 
@@ -109,11 +112,11 @@ generate
             logic   [1:0]           clk_disp_ctl_del;           // Disparity control
             logic   [1:0]           clk_disp_val_del;           // Disparity value
             logic   [1:0]           clk_k_del;                  // k character
-            logic   [7:0]           clk_dat_del[0:1];           // Data
+            logic   [7:0]           clk_dat_del[2];             // Data
             logic   [P_SPL-1:0]     clk_disp_ctl_skew;          // Disparity control
             logic   [P_SPL-1:0]     clk_disp_val_skew;          // Disparity value
             logic   [P_SPL-1:0]     clk_k_skew;                 // k character
-            logic   [7:0]           clk_dat_skew[0:P_SPL-1];    // Data
+            logic   [7:0]           clk_dat_skew[P_SPL];        // Data
 
             // Skew
             always_ff @ (posedge CLK_IN) 
@@ -142,10 +145,12 @@ generate
     begin : gen_2_spl
 
         // Signals
-        logic   [P_SPL-1:0]     clk_disp_ctl[0:P_LANE-1];       // Disparity control
-        logic   [P_SPL-1:0]     clk_disp_val[0:P_LANE-1];       // Disparity value
-        logic   [P_SPL-1:0]     clk_k[0:P_LANE-1];              // k character
-        logic   [7:0]           clk_dat[0:P_LANE-1][0:P_SPL-1]; // Data
+        logic   [P_SPL-1:0]     clk_disp_ctl[P_LANE];       // Disparity control
+        logic   [P_SPL-1:0]     clk_disp_val[P_LANE];       // Disparity value
+        logic   [P_SPL-1:0]     clk_k[P_LANE];              // k character
+        logic   [7:0]           clk_dat[P_LANE][P_SPL];     // Data
+
+        genvar j;
 
         // Skew
         always_ff @ (posedge CLK_IN) 
@@ -156,15 +161,19 @@ generate
                 begin
                     clk_disp_ctl[0] <= LNK_SNK_IF.disp_ctl[0];   
                     clk_disp_val[0] <= LNK_SNK_IF.disp_val[0];   
-                    clk_k[0]        <= LNK_SNK_IF.k[0];   
-                    clk_dat[0]      <= LNK_SNK_IF.dat[0];  
+                    clk_k[0]        <= LNK_SNK_IF.k[0];
+                    
+                    for (int j = 0; j < P_SPL; j++)   
+                        clk_dat[0][j]      <= LNK_SNK_IF.dat[0][j];  
                 end
                 else
                 begin
                     clk_disp_ctl[i] <= clk_disp_ctl[i-1];
                     clk_disp_val[i] <= clk_disp_val[i-1];
                     clk_k[i]        <= clk_k[i-1];
-                    clk_dat[i]      <= clk_dat[i-1];
+
+                    for (int j = 0; j < P_SPL; j++)   
+                        clk_dat[i][j] <= clk_dat[i-1][j];
                 end
             end
         end
@@ -173,7 +182,9 @@ generate
         assign LNK_SRC_IF.disp_ctl[0]    = clk_disp_ctl[P_LANE-1];
         assign LNK_SRC_IF.disp_val[0]    = clk_disp_val[P_LANE-1];
         assign LNK_SRC_IF.k[0]           = clk_k[P_LANE-1];
-        assign LNK_SRC_IF.dat[0]         = clk_dat[P_LANE-1]; 
+
+        for (j = 0; j < P_SPL; j++)   
+            assign LNK_SRC_IF.dat[0][j] = clk_dat[P_LANE-1][j]; 
     end
 
 endgenerate

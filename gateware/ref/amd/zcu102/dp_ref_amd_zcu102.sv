@@ -15,6 +15,7 @@
     v1.3 - Added 10-bits video 
     v1.4 - Updated DRP peripheral with PIO
     v1.5 - Added support for Tentiva DP21TX and DP21RX cards
+    v1.6 - Added DPTX secondary packet interface
     
     License
     =======
@@ -451,6 +452,7 @@ endgenerate
         .P_VENDOR           (P_VENDOR),     // Vendor
         .P_BEAT             (P_BEAT),       // Beat value. The system clock is 50 MHz
         .P_MST              (P_MST),        // MST support
+        .P_SDP              (P_SDP),        // SDP support
 
         // Link
         .P_LANES            (P_LANES),      // Lanes
@@ -488,6 +490,14 @@ endgenerate
         .VID0_G_IN           (g_from_vtb[0]),            // Green
         .VID0_B_IN           (b_from_vtb[0]),            // Blue
         .VID0_DE_IN          (de_from_vtb[0]),           // Data enable
+
+        // Secondary data packet
+        .SDP_CLK_IN          (sys_clk_from_pll),         // Clock
+        .SDP_RDY_OUT         (),                         // Ready
+        .SDP_SOP_IN          (sdp_sop_from_dprx),        // Start of packet
+        .SDP_EOP_IN          (sdp_eop_from_dprx),        // End of packet
+        .SDP_DAT_IN          (sdp_dat_from_dprx),        // Data
+        .SDP_VLD_IN          (sdp_vld_from_dprx),        // Valid
 
         // Video stream 1
         .VID1_CLK_IN         (clk_from_vid_bufg),

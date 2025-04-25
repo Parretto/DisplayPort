@@ -31,6 +31,7 @@ prj_add_source $SRC/tx/prt_dptx_lnk.sv
 prj_add_source $SRC/tx/prt_dptx_msa.sv
 prj_add_source $SRC/tx/prt_dptx_scrm.sv
 prj_add_source $SRC/tx/prt_dptx_skew.sv
+prj_add_source $SRC/tx/prt_dptx_sdp.sv
 prj_add_source $SRC/tx/prt_dptx_trn.sv
 prj_add_source $SRC/tx/prt_dptx_vid_vmap.sv
 prj_add_source $SRC/tx/prt_dptx_vid_fifo.sv

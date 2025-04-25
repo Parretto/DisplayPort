@@ -30,6 +30,7 @@ add_files $SRC/tx/prt_dptx_ctl.sv
 add_files $SRC/tx/prt_dptx_lnk.sv
 add_files $SRC/tx/prt_dptx_msa.sv
 add_files $SRC/tx/prt_dptx_scrm.sv
+add_files $SRC/tx/prt_dptx_sdp.sv
 add_files $SRC/tx/prt_dptx_skew.sv
 add_files $SRC/tx/prt_dptx_trn.sv
 add_files $SRC/tx/prt_dptx_vid_vmap.sv

@@ -236,6 +236,22 @@ interface prt_dp_tx_phy_if
 endinterface
 
 /*
+	TX SDP interface
+*/
+interface prt_dp_tx_sdp_if
+#();
+	logic 				rdy;		// Ready
+	logic   			sop;		// Start of packet
+	logic   			eop;		// End of packet
+	logic	[31:0]		dat;		// Data
+	logic   			vld;		// Valid
+
+	modport snk	(output rdy, input sop, input eop, input dat, input vld);
+	modport src	(input rdy, output sop, output eop, output dat, output vld);
+
+endinterface
+
+/*
 	RX Link interface
 */
 interface prt_dp_rx_lnk_if
@@ -257,6 +273,7 @@ interface prt_dp_rx_lnk_if
 	modport src	(output lock, output sol, output eol, output vid, output sdp, output msa, output vbid, output k, output dat);
 
 endinterface
+
 
 /*
 	RX SDP interface

@@ -151,9 +151,14 @@ typedef struct {
 
 // Training
 typedef struct {
-	uint8_t pass;
-	uint8_t fail;
+	uint8_t pass;	// Pass
+	uint8_t fail;	// Fail
+	uint8_t sta;	// Status
 	uint8_t tps;
+	uint8_t rate;
+	uint8_t lanes;
+	uint16_t cycles;
+	uint16_t matches[4];
 } prt_dp_trn_struct;
 
 // Mail structure
@@ -314,6 +319,11 @@ uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
 void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp);
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp);
+uint8_t prt_dprx_get_trn_rate (prt_dp_ds_struct *dp);
+uint8_t prt_dprx_get_trn_lanes (prt_dp_ds_struct *dp);
+uint16_t prt_dprx_get_trn_cycles (prt_dp_ds_struct *dp);
+uint16_t prt_dprx_get_trn_matches (prt_dp_ds_struct *dp, uint8_t lane);
+
 uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
 uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr);
 void prt_dprx_dpcd_ack (prt_dp_ds_struct *dp);
@@ -338,6 +348,7 @@ void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap);
 uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
+uint8_t prt_dp_is_trn_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
 uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);
@@ -348,6 +359,9 @@ uint8_t prt_dp_get_edid_dat (prt_dp_ds_struct *dp, uint8_t index);
 void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat);
 void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat);
 uint8_t prt_dp_debug_get (prt_dp_ds_struct *dp);
+
+// Debug
+uint8_t  prt_dp_cfg_set_trig_val (prt_dp_ds_struct *dp, uint8_t dat);
 
 // Simulation
 #ifdef PRT_SIM

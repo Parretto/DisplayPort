@@ -498,8 +498,6 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
-// If the advanced option is not defined, then the DP is pre-configured.
-#ifndef ADVANCED
 
      /*
           DPTX
@@ -617,7 +615,6 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
-#endif
 
      // Menu
      show_menu ();
@@ -647,54 +644,6 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
-#ifdef ADVANCED
-                    // Config
-                    case 'w' :
-                         prt_printf ("DPTX: Config...\n");
-
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dptx, dat);
-
-                         prt_printf ("Select maximum number of lanes:\n");
-                         prt_printf (" 1 - 1 lanes\n");
-                         prt_printf (" 2 - 2 lanes\n");
-                         prt_printf (" 3 - 4 lanes\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = 1; break;
-                              case '2' : dat = 2; break;
-                              default  : dat = 4; break;
-                         }
-
-                         // Set max lanes
-                         prt_dp_set_lnk_max_lanes (&dptx, dat);
-
-                         if (prt_dp_cfg (&dptx))
-                              prt_printf ("DPTX: ok\n");
-                         else
-                              prt_printf ("DPTX: error\n");
-
-                         break;
-#endif
 
                     // Status
                     case 'e' :
@@ -806,54 +755,6 @@ int main (void)
                          else
                               prt_printf ("error\n");
                          break;
-#ifdef ADVANCED
-                    // Config
-                    case 's' :
-                         prt_printf ("DPRX: Config...\n");
-
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if (BOARD == BOARD_AMD_ZCU102)
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dprx, dat);
-
-                         prt_printf ("Select maximum number of lanes:\n");
-                         prt_printf (" 1 - 2 lanes\n");
-                         prt_printf (" 2 - 4 lanes\n");
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '1' : dat = 2; break;
-                              default  : dat = 4; break;
-                         }
-
-                         // Set max lanes
-                         prt_dp_set_lnk_max_lanes (&dprx, dat);
-
-                         if (prt_dp_cfg (&dprx))
-                              prt_printf ("DPRX: ok\n");
-                         else
-                              prt_printf ("DPRX: error\n");
-
-                         // Set edid
-                         //set_edid ();
-                         break;
-#endif
 
                     // Status
                     case 'd' :
@@ -1359,23 +1260,13 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("w - Config\n");
-     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
-     #ifdef ADVANCED
-         prt_printf ("t - PHY test\n");
-         prt_printf ("y - AUX test\n");
-     #endif
          prt_printf ("u - Read DPCD\n");
          prt_printf ("i - Write DPCD\n");
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("s - Config\n");
-     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1387,9 +1278,6 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
-     #ifdef ADVANCED
-         prt_printf ("b - PRBS\n");
-     #endif
          prt_printf ("\n");
      }
 
@@ -2246,7 +2134,6 @@ void dpcd_wr (void)
           prt_printf ("\n\tNACK\n");
      }
 }
-
 
 
 /*

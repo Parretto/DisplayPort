@@ -12,6 +12,8 @@
     v1.0 - Initial release
     v1.1 - Split clock domains
     v1.2 - Added support for shorter audio samples
+    v1.3 - Updated support for any length packets
+
 
     License
     =======
@@ -28,6 +30,8 @@
 */
 
 `default_nettype none
+
+// Module
 module prt_dprx_sdp
 #(
     // System
@@ -89,7 +93,7 @@ typedef struct {
     logic   [8:0]                   din_del[P_LANES][P_SPL];    // Data
     logic   [8:0]                   dout[P_LANES][P_SPL];       // Data
     logic   [1:0]                   sel[P_LANES];
-    logic   [3:0]                   wr[P_LANES];
+    logic   [P_SPL-1:0]             wr[P_LANES];
     logic   [P_LANES-1:0]           wr_fe;
     logic   [5:0]                   len_cnt[P_LANES];           // Length counter - the maximum length of a packet is 44 bytes
 } aln_struct;
@@ -503,44 +507,82 @@ endgenerate
 // At the end of the packet, the length is written into the length FIFO.
 // As the lanes are unaligned, each lane has it's own length FIFO and counter.
 generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_aln_len_cnt
-        
-        always_ff @ (posedge LNK_CLK_IN)
-        begin
-            // Run
-            if (lclk_lnk.run)
+    // 4 symbols
+    if (P_SPL == 4)
+    begin : gen_len_cnt_4spl
+        for (i = 0; i < P_LANES; i++)
+        begin : gen_aln_len_cnt
+            
+            always_ff @ (posedge LNK_CLK_IN)
             begin
-                // Clear
-                if (lclk_aln.wr_fe[i])
-                    lclk_aln.len_cnt[i] <= 0;
-
-                // Increment
-                // Here the data is aligned, so there are only four combinations.
-                else if (|lclk_aln.wr[i])
+                // Run
+                if (lclk_lnk.run)
                 begin
-                    if (lclk_aln.wr[i] == 'b1111)
-                        lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd4;
+                    // Clear
+                    if (lclk_aln.wr_fe[i])
+                        lclk_aln.len_cnt[i] <= 0;
 
-                    else if (lclk_aln.wr[i] == 'b0001)
-                        lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd1;
+                    // Increment
+                    // Here the data is aligned, so there are only four combinations.
+                    else if (|lclk_aln.wr[i])
+                    begin
+                        if (lclk_aln.wr[i] == 'b1111)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd4;
 
-                    else if (lclk_aln.wr[i] == 'b0011)
-                        lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd2;
+                        else if (lclk_aln.wr[i] == 'b0001)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd1;
 
-                    else if (lclk_aln.wr[i] == 'b0111)
-                        lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd3;
+                        else if (lclk_aln.wr[i] == 'b0011)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd2;
+
+                        else if (lclk_aln.wr[i] == 'b0111)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd3;
+                    end
                 end
-            end
 
-            // Idle
-            else
-                lclk_aln.len_cnt[i] <= 0;
+                // Idle
+                else
+                    lclk_aln.len_cnt[i] <= 0;
+            end
         end
-    end
+    end 
+
+    // 2 symbols
+    else
+    begin : gen_len_cnt_2spl
+        for (i = 0; i < P_LANES; i++)
+        begin : gen_aln_len_cnt
+            
+            always_ff @ (posedge LNK_CLK_IN)
+            begin
+                // Run
+                if (lclk_lnk.run)
+                begin
+                    // Clear
+                    if (lclk_aln.wr_fe[i])
+                        lclk_aln.len_cnt[i] <= 0;
+
+                    // Increment
+                    // Here the data is aligned, so there are only two combinations.
+                    else if (|lclk_aln.wr[i])
+                    begin
+                        if (lclk_aln.wr[i] == 'b11)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd2;
+
+                        else if (lclk_aln.wr[i] == 'b01)
+                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd1;
+                    end
+                end
+
+                // Idle
+                else
+                    lclk_aln.len_cnt[i] <= 0;
+            end
+        end
+    end 
 endgenerate
 
-//  FIFO clear
+// FIFO clear
     always_ff @ (posedge LNK_CLK_IN)
     begin
         if (lclk_lnk.run)
@@ -1025,8 +1067,7 @@ generate
     end
 endgenerate
 
-
-//  Length FIFO clear
+// Length FIFO clear
     always_ff @ (posedge LNK_CLK_IN)
     begin
         if (lclk_lnk.run)
@@ -1148,26 +1189,19 @@ endgenerate
     end
 
 // Read counter length 
-    always_ff @ (posedge SDP_CLK_IN)
+    always_comb
     begin
         // Default
-        sclk_sdp.rd_cnt_in <= 'd0;
-        sclk_sdp.rd_len_vld <= 0;
+        sclk_sdp.rd_cnt_in = 'd0;
+        sclk_sdp.rd_len_vld = 0;
 
         // One lane
         if (sclk_sdp.lanes == 'd1)
         begin
             if (sclk_len_fifo.de[0])
             begin    
-                // Short audio sample packet
-                if (sclk_len_fifo.dout[0] == 'd28)
-                    sclk_sdp.rd_cnt_in <= 'd7;
-                
-                // 'Normal' packet
-                else
-                    sclk_sdp.rd_cnt_in <= 'd12;
-
-                sclk_sdp.rd_len_vld <= 1;
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][2+:4]; // Divide by four
+                sclk_sdp.rd_len_vld = 1;
             end
         end
 
@@ -1176,15 +1210,8 @@ endgenerate
         begin
             if (&sclk_len_fifo.de[1:0])
             begin    
-                // Short audio sample packet
-                if (sclk_len_fifo.dout[0] == 'd14)
-                    sclk_sdp.rd_cnt_in <= 'd7;
-                
-                // 'Normal' packet
-                else
-                    sclk_sdp.rd_cnt_in <= 'd12;
-
-                sclk_sdp.rd_len_vld <= 1;
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][1+:4]; // Divide by two
+                sclk_sdp.rd_len_vld = 1;
             end
         end
 
@@ -1193,15 +1220,8 @@ endgenerate
         begin
             if (&sclk_len_fifo.de)
             begin    
-                // Short audio sample packet
-                if (sclk_len_fifo.dout[0] == 'd7)
-                    sclk_sdp.rd_cnt_in <= 'd7;
-                
-                // 'Normal' packet
-                else
-                    sclk_sdp.rd_cnt_in <= 'd12;
-
-                sclk_sdp.rd_len_vld <= 1;
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][0+:4];
+                sclk_sdp.rd_len_vld = 1;
             end
         end
     end
@@ -1275,6 +1295,10 @@ endgenerate
     end
 
 // Read select
+// This process controls the data fifo reads.
+// At the start of a read, 
+// the read counter is loaded with the packet length and then decremented.
+// As there are various packet lengths, the read select is counting upwards. 
     always_ff @ (posedge SDP_CLK_IN)
     begin
         if (!sclk_sdp.rd_cnt_end)
@@ -1284,6 +1308,8 @@ endgenerate
     end
 
 // Data select 
+// This process select the data fifo outputs.
+// This is the delayed version of the read select. 
     always_ff @ (posedge SDP_CLK_IN)
     begin
         for (int i = 0; i < $size(sclk_sdp.dat_sel); i++)

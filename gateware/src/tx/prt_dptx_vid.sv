@@ -34,6 +34,7 @@
 
 `default_nettype none
 
+// Module
 module prt_dptx_vid
 #(
     // System
@@ -210,7 +211,7 @@ typedef struct {
     logic                           rd_re;
     prt_dp_tx_lnk_sym               sym[0:P_LANES-1][0:P_SPL-1];
     logic [7:0]                     dat[0:P_LANES-1][0:P_SPL-1];
-    logic [4:0]                     vld;
+    logic                           vld;
 } src_struct;
 
 // Signals
@@ -2863,11 +2864,11 @@ endgenerate
         begin
             // MST
             if (lclk_ctl.mst)
-                lclk_src.vld <= {lclk_src.vld[$high(lclk_src.vld)-1:0], lclk_src.rd};
+                lclk_src.vld <= lclk_src.rd;
 
             // SST
             else
-                lclk_src.vld <= '1;
+                lclk_src.vld <= lclk_map.de && lclk_vid.act_ph;
         end
 
         // Idle
@@ -2886,7 +2887,7 @@ generate
         end
     end
 endgenerate
-    assign LNK_SRC_IF.vld = lclk_src.vld[$high(lclk_src.vld)];
+    assign LNK_SRC_IF.vld = lclk_src.vld;
 
     assign LNK_VS_OUT  = (lclk_ctl.en) ? lclk_vid.vs : 0;   // Vsync
     assign LNK_VBF_OUT = (lclk_ctl.en) ? lclk_vid.vbf : 0;  // Video blanking flag

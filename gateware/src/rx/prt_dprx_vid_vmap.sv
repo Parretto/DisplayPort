@@ -27,6 +27,7 @@
 
 `default_nettype none
 
+// Module
 module prt_dprx_vid_vmap
 #(
     // Video
@@ -2696,6 +2697,10 @@ generate
                 else
                     fn_vmap_asm_out = vmap_asm_4ppc_8bpc (fn_vmap_asm_in);
             end
+
+            // Video data
+            for (i = 0; i < (P_PPC * 3); i++)
+                assign clk_vid.dat[(i*P_BPC)+:P_BPC] = fn_vmap_asm_out.dat[i];
         end
 
         // 2 pixels per clock
@@ -2711,12 +2716,17 @@ generate
                 else
                     fn_vmap_asm_out = vmap_asm_2ppc_8bpc (fn_vmap_asm_in);
             end
+
+            // Video data
+            for (i = 0; i < (P_PPC * 3); i++)
+                assign clk_vid.dat[(i*P_BPC)+:P_BPC] = fn_vmap_asm_out.dat[i];
+            
+            // In this configuration the video pixel bus is 60 bits wide.
+            // The AXI data width is 64 bits.
+            // To prevent any floating bits, the upper unused bits are wired to zero.
+            assign clk_vid.dat[$high(clk_vid.dat):3*P_PPC*P_BPC] = 0;
         end
 
-        // Video data
-        for (i = 0; i < (P_PPC * 3); i++)
-            assign clk_vid.dat[(i*P_BPC)+:P_BPC] = fn_vmap_asm_out.dat[i];
-    
         assign clk_vid.vld = fn_vmap_asm_out.vld;
     end
 

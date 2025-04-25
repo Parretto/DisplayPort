@@ -14,6 +14,7 @@
     v1.2 - Updated TX interfaces
     v1.3 - Added MST support
     v1.4 - Added 10-bits video support
+    v1.5 - Added secondary data packet 
 
     License
     =======
@@ -31,12 +32,14 @@
 
 `default_nettype none
 
+// Module
 module prt_dptx_lnk
 #(
     // System
     parameter           P_VENDOR       = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
     parameter           P_SIM          = 0,       // Simulation
     parameter           P_MST          = 0,       // MST support
+    parameter           P_SDP          = 0,       // SDP support
 
     // Link
     parameter           P_LANES        = 4,       // Lanes
@@ -82,14 +85,18 @@ module prt_dptx_lnk
     // Link source
     input wire              LNK_RST_IN,             // Reset
     input wire              LNK_CLK_IN,             // Clock
-    prt_dp_tx_phy_if.src    LNK_SRC_IF              // Interface
+    prt_dp_tx_phy_if.src    LNK_SRC_IF,             // Interface
+
+    // Secondary data packet
+    input wire              SDP_CLK_IN,             // Clock
+    prt_dp_tx_sdp_if.snk    SDP_SNK_IF              // Sink
 );
 
 // Parameters
 localparam P_VID_MODS = (P_MST) ? 2 : 1;
 localparam P_MSA_MODS = (P_MST) ? 2 : 1;
 localparam P_SYS_MSG_IF = (P_MST) ? 3 : 2;
-localparam P_LNK_MSG_IF = (P_MST) ? 5 : 4;
+localparam P_LNK_MSG_IF = (P_MST) ? 6 : 5;
 localparam P_VID_MSG_IF = 2;
 
 // Signals
@@ -103,30 +110,30 @@ wire        mst_act_from_ctl;
 wire        scrm_en_from_ctl;
 wire        tps4_from_ctl;
 wire [1:0]  bpc_from_ctl;
-wire [5:0]  vc_ts_from_ctl[0:1];
+wire [5:0]  vc_ts_from_ctl[2];
 
 // Message
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) sys_msg_if[0:P_SYS_MSG_IF-1]();
+) sys_msg_if[P_SYS_MSG_IF]();
 
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) lnk_msg_if[0:P_LNK_MSG_IF-1]();
+) lnk_msg_if[P_LNK_MSG_IF]();
 
 // Video message interface stream 0
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) vid0_msg_if[0:P_VID_MSG_IF-1]();
+) vid0_msg_if[P_VID_MSG_IF]();
 
 // Video message interface stream 1
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) vid1_msg_if[0:P_VID_MSG_IF-1]();
+) vid1_msg_if[P_VID_MSG_IF]();
 
 // Video
 prt_dp_tx_lnk_if
@@ -134,9 +141,17 @@ prt_dp_tx_lnk_if
   .P_LANES  (P_LANES),
   .P_SPL    (P_SPL)
 )
-lnk_from_vid[0:P_VID_MODS-1]();
+lnk_from_vid[P_VID_MODS]();
 wire [P_VID_MODS-1:0] vs_from_vid;
 wire [P_VID_MODS-1:0] vbf_from_vid;
+
+// SDP
+prt_dp_tx_lnk_if
+#(
+  .P_LANES  (P_LANES),
+  .P_SPL    (P_SPL)
+)
+lnk_from_sdp();
 
 // MSA
 prt_dp_tx_lnk_if
@@ -144,7 +159,7 @@ prt_dp_tx_lnk_if
   .P_LANES  (P_LANES),
   .P_SPL    (P_SPL)
 )
-lnk_from_msa[0:P_MSA_MODS-1]();
+lnk_from_msa[P_MSA_MODS]();
 
 // MST
 prt_dp_tx_lnk_if
@@ -160,14 +175,14 @@ prt_dp_tx_lnk_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_to_scrm_lane[0:P_LANES-1]();
+lnk_to_scrm_lane[P_LANES]();
 
 prt_dp_tx_phy_if
 #(
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_from_scrm_lane[0:P_LANES-1]();
+lnk_from_scrm_lane[P_LANES]();
 
 prt_dp_tx_phy_if
 #(
@@ -190,14 +205,14 @@ prt_dp_tx_phy_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_to_skew_lane[0:P_LANES-1]();
+lnk_to_skew_lane[P_LANES]();
 
 prt_dp_tx_phy_if
 #(
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_from_skew_lane[0:P_LANES-1]();
+lnk_from_skew_lane[P_LANES]();
 
 prt_dp_tx_phy_if
 #(
@@ -438,6 +453,108 @@ endgenerate
         .LNK_VBF_OUT        (vbf_from_vid[0])        // Vertical blanking flag
     );
 
+
+// MSA stream 0
+    prt_dptx_msa
+    #(
+        // System
+        .P_VENDOR           (P_VENDOR),
+        .P_SIM              (P_SIM),                // Simulation
+        .P_STREAM           (0),                    // Stream
+
+        // Link
+        .P_LANES            (P_LANES),              // Lanes
+        .P_SPL              (P_SPL),                // Symbols per lane
+
+        // Video 
+        .P_PPC              (P_PPC),                // Pixels per clock
+
+        // Message
+        .P_MSG_IDX          (P_MSG_IDX),            // Index width
+        .P_MSG_DAT          (P_MSG_DAT),            // Data width
+        .P_MSG_ID           (P_MSG_ID_MSA0)         // Message ID MSA (main stream attribute)
+    )
+    MSA0_INST
+    (
+        // Reset and clocks
+        .LNK_RST_IN         (LNK_RST_IN),           // Link reset
+        .LNK_CLK_IN         (LNK_CLK_IN),           // Link clock
+        .VID_CLK_IN         (VID0_CLK_IN),          // Video clock
+        .VID_CKE_IN         (VID0_CKE_IN),          // Clock enable
+
+        // Control
+        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
+        .CTL_VID_EN_IN      (vid_en_from_ctl[0]),   // Video Enable
+        .CTL_SCRM_EN_IN     (scrm_en_from_ctl),     // Scrambler Enable
+        .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
+
+        // Message
+        .MSG_SNK_IF         (lnk_msg_if[2]),        // Sink
+        .MSG_SRC_IF         (lnk_msg_if[3]),        // Source
+
+        // Video
+        .LNK_VS_IN          (vs_from_vid[0]),       // Vsync
+        .LNK_VBF_IN         (vbf_from_vid[0]),      // Vertical blanking flag
+
+        // Link
+        .LNK_SNK_IF         (lnk_from_vid[0]),      // Sink    
+        .LNK_SRC_IF         (lnk_from_msa[0])       // Source
+    );
+
+// SDP stream 0
+generate
+    if (P_SDP == 1)
+    begin : gen_sdp
+        prt_dptx_sdp
+        #(
+            // System
+            .P_VENDOR           (P_VENDOR),             // Vendor - "AMD", "ALTERA" or "LSC"
+
+            // Link
+            .P_LANES            (P_LANES),    	        // Lanes
+            .P_SPL              (P_SPL),       	        // Symbols per lane
+
+            // Message
+            .P_MSG_IDX          (P_MSG_IDX),            // Index width
+            .P_MSG_DAT          (P_MSG_DAT),            // Data width
+            .P_MSG_ID           (P_MSG_ID_MSA0)         // Message ID MSA (main stream attribute)
+        )
+        SDP_INST
+        (
+            // Control
+            .CTL_LANES_IN       (lanes_from_ctl),     // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+
+            // Message
+            .MSG_SNK_IF         (lnk_msg_if[3]),      // Sink
+            .MSG_SRC_IF         (lnk_msg_if[4]),      // Source
+
+            // Secondary data packet
+            .SDP_CLK_IN         (SDP_CLK_IN),         // Clock
+            .SDP_SNK_IF         (SDP_SNK_IF),         // Sink
+
+            // Link
+            .LNK_RST_IN         (LNK_RST_IN),         // Reset
+            .LNK_CLK_IN         (LNK_CLK_IN),         // Clock
+            .LNK_VS_IN          (vs_from_vid[0]),     // Vsync
+            .LNK_VBF_IN         (vbf_from_vid[0]),    // Vertical blanking flag
+            .LNK_SNK_IF         (lnk_from_msa[0]),    // Sink
+            .LNK_SRC_IF         (lnk_from_sdp)        // Source
+        );
+    end
+
+    else
+    begin : gen_no_sdp
+        assign lnk_from_sdp.sym = lnk_from_msa[0].sym;
+        assign lnk_from_sdp.dat = lnk_from_msa[0].dat;
+        assign lnk_from_sdp.vld = lnk_from_msa[0].vld;
+
+        assign lnk_msg_if[4].som = lnk_msg_if[3].som;
+        assign lnk_msg_if[4].eom = lnk_msg_if[3].eom;
+        assign lnk_msg_if[4].dat = lnk_msg_if[3].dat;
+        assign lnk_msg_if[4].vld = lnk_msg_if[3].vld;
+    end
+endgenerate
+
 // Video stream 1
 generate
     if (P_MST)
@@ -491,53 +608,6 @@ generate
     end
 endgenerate
 
-// MSA stream 0
-    prt_dptx_msa
-    #(
-        // System
-        .P_VENDOR           (P_VENDOR),
-        .P_SIM              (P_SIM),                // Simulation
-        .P_STREAM           (0),                    // Stream
-
-        // Link
-        .P_LANES            (P_LANES),              // Lanes
-        .P_SPL              (P_SPL),                // Symbols per lane
-
-        // Video 
-        .P_PPC              (P_PPC),                // Pixels per clock
-
-        // Message
-        .P_MSG_IDX          (P_MSG_IDX),            // Index width
-        .P_MSG_DAT          (P_MSG_DAT),            // Data width
-        .P_MSG_ID           (P_MSG_ID_MSA0)         // Message ID MSA (main stream attribute)
-    )
-    MSA0_INST
-    (
-        // Reset and clocks
-        .LNK_RST_IN         (LNK_RST_IN),           // Link reset
-        .LNK_CLK_IN         (LNK_CLK_IN),           // Link clock
-        .VID_CLK_IN         (VID0_CLK_IN),          // Video clock
-        .VID_CKE_IN         (VID0_CKE_IN),          // Clock enable
-
-        // Control
-        .CTL_LANES_IN       (lanes_from_ctl),       // Active lanes (0 - 2 lanes / 1 - 4 lanes)
-        .CTL_VID_EN_IN      (vid_en_from_ctl[0]),   // Video Enable
-        .CTL_SCRM_EN_IN     (scrm_en_from_ctl),     // Scrambler Enable
-        .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
-
-        // Message
-        .MSG_SNK_IF         (lnk_msg_if[2]),        // Sink
-        .MSG_SRC_IF         (lnk_msg_if[3]),        // Source
-
-        // Video
-        .LNK_VS_IN          (vs_from_vid[0]),       // Vsync
-        .LNK_VBF_IN         (vbf_from_vid[0]),      // Vertical blanking flag
-
-        // Link
-        .LNK_SNK_IF         (lnk_from_vid[0]),      // Sink    
-        .LNK_SRC_IF         (lnk_from_msa[0])       // Source
-    );
-
 // MSA stream 1
 generate
     if (P_MST)
@@ -576,8 +646,8 @@ generate
             .CTL_MST_IN         (mst_en_from_ctl),      // MST enable
 
             // Message
-            .MSG_SNK_IF         (lnk_msg_if[3]),        // Sink
-            .MSG_SRC_IF         (lnk_msg_if[4]),        // Source
+            .MSG_SNK_IF         (lnk_msg_if[4]),        // Sink
+            .MSG_SRC_IF         (lnk_msg_if[5]),        // Source
 
             // Video
             .LNK_VS_IN          (vs_from_vid[1]),       // Vsync
@@ -616,7 +686,7 @@ generate
             .CTL_VC1_TS_IN      (vc_ts_from_ctl[1]),    // VC1 time slots
 
             // Sink stream 0
-            .LNK0_SNK_IF        (lnk_from_msa[0]),      // Sink0
+            .LNK0_SNK_IF        (lnk_from_sdp),      // Sink0
 
             // Sink stream 1
             .LNK1_SNK_IF        (lnk_from_msa[1]),      // Sink1
@@ -628,7 +698,7 @@ generate
 
     else
     begin
-        assign lnk_from_msa[0].rd = 1'b1;
+        assign lnk_from_sdp.rd = 1'b1;
     end
 endgenerate
 
@@ -637,9 +707,9 @@ generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_scrm
 
-        assign lnk_to_scrm_lane[i].sym[0]   = (P_MST) ? lnk_from_mst.sym[i] : lnk_from_msa[0].sym[i];
-        assign lnk_to_scrm_lane[i].dat[0]   = (P_MST) ? lnk_from_mst.dat[i] : lnk_from_msa[0].dat[i];
-        assign lnk_to_scrm_lane[i].vld      = (P_MST) ? lnk_from_mst.vld : lnk_from_msa[0].vld;
+        assign lnk_to_scrm_lane[i].sym[0]   = (P_MST) ? lnk_from_mst.sym[i] : lnk_from_sdp.sym[i];
+        assign lnk_to_scrm_lane[i].dat[0]   = (P_MST) ? lnk_from_mst.dat[i] : lnk_from_sdp.dat[i];
+        assign lnk_to_scrm_lane[i].vld      = (P_MST) ? lnk_from_mst.vld : lnk_from_sdp.vld;
 
         prt_dptx_scrm
         #(  

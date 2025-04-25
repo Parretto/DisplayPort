@@ -50,6 +50,7 @@
   #define PRT_DP_MAIL_TRN_STR          0x30    // Training start / TX only
   #define PRT_DP_MAIL_TRN_PASS         0x31    // Training pass
   #define PRT_DP_MAIL_TRN_ERR          0x32    // Training error
+  #define PRT_DP_MAIL_TRN_STA          0x33    // Training status
   
   #define PRT_DP_MAIL_LNK_RATE_REQ     0x40    // Link rate request
   #define PRT_DP_MAIL_LNK_VAP_REQ      0x41    // Link voltage and pre-amble request
@@ -106,3 +107,4 @@
   #define PRT_DP_CFG_MAX_RATE          0
   #define PRT_DP_CFG_MAX_LANES         1
   #define PRT_DP_CFG_MST_CAP           2
+  #define PRT_DP_CFG_TRIG_CNT          3      // Trigger counter

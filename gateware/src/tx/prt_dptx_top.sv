@@ -12,6 +12,7 @@
     v1.0 - Initial release
     v1.1 - Added MST support
     v1.2 - Added 10-bits video support
+    v1.3 - Added secondary data packet 
 
     License
     =======
@@ -29,12 +30,14 @@
 
 `default_nettype none
 
+// Module
 module prt_dptx_top
 #(
     // System
     parameter                                   P_VENDOR            = "none",   // Vendor - "AMD", "ALTERA" or "LSC"
     parameter                                   P_BEAT              = 'd50,     // Beat value
     parameter                                   P_MST               = 0,        // MST support   
+    parameter                                   P_SDP               = 0,        // SDP support
 
     // Link
     parameter                                   P_LANES             = 4,        // Lanes
@@ -71,6 +74,14 @@ module prt_dptx_top
     input wire [(P_PPC * P_BPC)-1:0]            VID0_G_IN,      // Green
     input wire [(P_PPC * P_BPC)-1:0]            VID0_B_IN,      // Blue
     input wire                                  VID0_DE_IN,     // Data enable
+
+    // Secondary data packet
+    input wire                                  SDP_CLK_IN,     // Clock
+    output wire                                 SDP_RDY_OUT,    // Ready
+    input wire                                  SDP_SOP_IN,     // Start of packet
+    input wire                                  SDP_EOP_IN,     // End of packet
+    input wire [31:0]                           SDP_DAT_IN,     // Data
+    input wire                                  SDP_VLD_IN,     // Valid
 
     // Video stream 1
     input wire                                  VID1_CLK_IN,    // Clock
@@ -148,6 +159,10 @@ prt_dp_tx_phy_if
   .P_SPL    (P_SPL)
 )
 lnk_if();
+
+// Secondary data packet interface
+prt_dp_tx_sdp_if
+sdp_if();
 
 // Signals
 // Reset
@@ -278,6 +293,7 @@ genvar i, j;
         .P_VENDOR               (P_VENDOR),         // Vendor
         .P_SIM                  (P_SIM),            // Simulation
         .P_MST                  (P_MST),            // MST support
+        .P_SDP                  (P_SDP),            // SDP
 
         // Link
         .P_LANES                (P_LANES),          // Lanes
@@ -324,7 +340,11 @@ genvar i, j;
         // Link
         .LNK_RST_IN             (rst_from_lnk_rst),     // Reset
         .LNK_CLK_IN             (LNK_CLK_IN),           // Clock
-        .LNK_SRC_IF             (lnk_if)                // Interface
+        .LNK_SRC_IF             (lnk_if),               // Interface
+
+        // Secondary data packet
+        .SDP_CLK_IN             (SDP_CLK_IN),           // Clock
+        .SDP_SNK_IF             (sdp_if)                // Sink
     );
 
 // Map video interface stream 0
@@ -342,6 +362,13 @@ genvar i, j;
     assign vid_if[1].dat[1]    = (P_MST) ? VID1_G_IN : 0;
     assign vid_if[1].dat[2]    = (P_MST) ? VID1_B_IN : 0;
     assign vid_if[1].de        = (P_MST) ? VID1_DE_IN : 0;
+
+// Map SDP interface
+    assign sdp_if.sop = SDP_SOP_IN;
+    assign sdp_if.eop = SDP_EOP_IN;
+    assign sdp_if.dat = SDP_DAT_IN;
+    assign sdp_if.vld = SDP_VLD_IN;
+    assign SDP_RDY_OUT = sdp_if.rdy;
 
 // Outputs
     assign HB_OUT  = pio_from_pm[0];

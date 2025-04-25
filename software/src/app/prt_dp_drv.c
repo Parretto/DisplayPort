@@ -15,6 +15,7 @@
 	v1.3 - Increased EDID size to 1024 bytes
 	v1.4 - Added training clock recovery signaling
 	v1.5 - Added DPCD messaging
+	v1.6 - Added trainig status
 
     License
     =======
@@ -100,6 +101,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->mail_in.proc = PRT_FALSE;
 	dp->trn.pass = PRT_FALSE;
 	dp->trn.fail = PRT_FALSE;
+	dp->trn.sta = PRT_FALSE;
 	dp->trn.tps = 0;
 	dp->hpd = PRT_DP_HPD_UNPLUG;
 	dp->lnk.phy_rate = 0;
@@ -158,6 +160,23 @@ uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
 		dp->mail_out.dat[dp->mail_out.len++] = *(lic+i);
 	
 	// Send mail
+	prt_dp_mail_send (dp);
+
+	// Wait for response
+	sta = prt_dp_mail_resp (dp);
+	return sta;
+}
+
+// Debug set trigger counter value
+uint8_t  prt_dp_cfg_set_trig_val (prt_dp_ds_struct *dp, uint8_t dat)
+{
+	// Variables
+	uint8_t sta;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_CFG;			// Config
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_CFG_TRIG_CNT;	// Max lanes
+	dp->mail_out.dat[dp->mail_out.len++] = dat;		// Maximum lanes
 	prt_dp_mail_send (dp);
 
 	// Wait for response
@@ -666,11 +685,49 @@ uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
 		return PRT_FALSE;
 }
 
+// Training status
+// This function returns PRT_TRUE when the training status is updated
+uint8_t prt_dp_is_trn_sta (prt_dp_ds_struct *dp)
+{
+	if (dp->trn.sta)
+		return PRT_TRUE;
+	else
+		return PRT_FALSE;
+}
+
 // Get training pattern
 // This function returns the current training pattern
 uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp)
 {
 	return dp->trn.tps;
+}
+
+// Get training rate
+// This function returns the current training link rate
+uint8_t prt_dprx_get_trn_rate (prt_dp_ds_struct *dp)
+{
+	return dp->trn.rate;
+}
+
+// Get training lanes
+// This function returns the current training link lanes
+uint8_t prt_dprx_get_trn_lanes (prt_dp_ds_struct *dp)
+{
+	return dp->trn.lanes;
+}
+
+// Get training cycles
+// This function returns the current training cycles
+uint16_t prt_dprx_get_trn_cycles (prt_dp_ds_struct *dp)
+{
+	return dp->trn.cycles;
+}
+
+// Get training matches
+// This function returns the current training matches
+uint16_t prt_dprx_get_trn_matches (prt_dp_ds_struct *dp, uint8_t lane)
+{
+	return dp->trn.matches[lane];
 }
 
 // Send message
@@ -1044,6 +1101,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->trn.pass = PRT_TRUE;
 
 			// Clear training fail flag
+			dp->trn.sta = PRT_FALSE;
 			dp->trn.fail = PRT_FALSE;
 
 			// Clear training pattern
@@ -1058,10 +1116,36 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->trn.fail = PRT_TRUE;
 
 			// Clear training pass flag
+			dp->trn.sta = PRT_FALSE;
 			dp->trn.pass = PRT_FALSE;
 
 			// Clear training pattern
 			dp->trn.tps = 0;
+
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_TRN;
+			break;
+
+		case PRT_DP_MAIL_TRN_STA:
+			// Set training status flag
+			dp->trn.sta = PRT_TRUE;
+
+			// Clear training pass flag
+			dp->trn.pass = PRT_FALSE;
+			dp->trn.fail = PRT_FALSE;
+
+			// Clear training pattern
+			dp->trn.tps = dp->mail_in.dat[1];
+			dp->trn.rate = dp->mail_in.dat[2];
+			dp->trn.lanes = dp->mail_in.dat[3];
+			dp->trn.cycles = dp->mail_in.dat[4] << 8;
+			dp->trn.cycles |= dp->mail_in.dat[5];
+
+			for (uint8_t i = 0; i < 4; i++)
+			{
+				dp->trn.matches[i] = dp->mail_in.dat[6+(i*2)] << 8;
+				dp->trn.matches[i] |= dp->mail_in.dat[7+(i*2)];
+			}
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_TRN;

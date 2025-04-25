@@ -120,6 +120,18 @@ genvar i;
 
 // Logic
 
+// Lattice Debug
+(* syn_keep = 1 *) wire [8:0] debug_l0;
+(* syn_keep = 1 *) wire [8:0] debug_l1;
+(* syn_keep = 1 *) wire [8:0] debug_l2;
+(* syn_keep = 1 *) wire [8:0] debug_l3;
+
+assign debug_l0 = clk_lnk.din[0];
+assign debug_l1 = clk_lnk.din[1];
+assign debug_l2 = clk_lnk.din[2];
+assign debug_l3 = clk_lnk.din[3];
+
+
 // Config
     always_ff @ (posedge CLK_IN)
     begin
