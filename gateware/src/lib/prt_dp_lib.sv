@@ -364,7 +364,7 @@ module prt_dp_lib_cdc_gray
 );
 
 generate
-	if (P_VENDOR == "amd")
+	if (P_VENDOR == "AMD")
 	begin : gen_xpm_gray
 		xpm_cdc_gray 
 		#(

@@ -16,6 +16,7 @@
     v1.4 - Updated PHY reset controller
 	v1.5 - Added RX CDR configuration
 	v1.6 - Added support for 135 MHz reference clock
+	v1.7 - Added PCS reset and CDR lock
 
     License
     =======
@@ -428,7 +429,7 @@ prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate)
 	//sta = prt_phy_amd_txrst_clr (phy);
 
 	// Reset PHY TX PLL and datapath
-	sta = prt_phy_amd_tx_pll_and_dp_rst (phy);
+	sta = prt_phy_amd_tx_pll_rst (phy);
 
 	return sta;              
 }
@@ -553,12 +554,6 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 		}
 	#endif
 
-	// Assert PHY RX reset
-/*	sta = prt_phy_amd_rxrst_set (phy);
-
-	if (sta != PRT_STA_OK)
-		return PRT_STA_FAIL;
-*/
 	switch (rate)
 	{
 		// 2.7 Gbps
@@ -674,11 +669,8 @@ if (1)
 		prt_phy_amd_drp_wr (phy, i, drp_adr, drp_dat);
 	}
 
-	// Release reset
-	//sta = prt_phy_amd_rxrst_clr (phy);
-
 	// Reset PHY RX PLL and datapath
-	sta = prt_phy_amd_rx_pll_and_dp_rst (phy);
+	sta = prt_phy_amd_rx_pll_rst (phy);
 
 	return sta;
 }
@@ -769,71 +761,29 @@ prt_u8 prt_phy_amd_encode_rxout_div (prt_u8 rxout_div)
 
 
 // PHY TX PLL and datapath reset
-prt_sta_type prt_phy_amd_tx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
+prt_sta_type prt_phy_amd_tx_pll_rst (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst (phy, 
+	return prt_phy_amd_pll_rst (phy, 
 		PRT_PHY_AMD_PIO_OUT_TX_PLL_AND_DP_RST, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
 
 // PHY TX datapath reset
-prt_sta_type prt_phy_amd_tx_dp_rst (prt_phy_amd_ds_struct *phy)
+prt_sta_type prt_phy_amd_tx_pcs_rst (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst (phy, 
+	return prt_phy_amd_pll_rst (phy, 
 		PRT_PHY_AMD_PIO_OUT_TX_DP_RST, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
 }
 
-/*
-
-// PHY TX assert reset
-prt_sta_type prt_phy_amd_txrst_set (prt_phy_amd_ds_struct *phy)
-{
-	return prt_phy_amd_rst_set (phy, 
-		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY);
-}
-
-// PHY TX release reset
-prt_sta_type prt_phy_amd_txrst_clr (prt_phy_amd_ds_struct *phy)
-{
-	return prt_phy_amd_rst_clr (phy,
-		PRT_PHY_AMD_PIO_OUT_CPLL_RST, PRT_PHY_AMD_PIO_IN_CPLL_LOCK, PRT_PHY_AMD_PIO_OUT_TX_RST, PRT_PHY_AMD_PIO_OUT_TX_DIV_RST,
-		PRT_PHY_AMD_PIO_IN_TX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_TX_USR_RDY, PRT_PHY_AMD_PIO_IN_TX_RST_DONE);
-}
-*/
-
 // PHY RX PLL and datapath reset
-prt_sta_type prt_phy_amd_rx_pll_and_dp_rst (prt_phy_amd_ds_struct *phy)
+prt_sta_type prt_phy_amd_rx_pll_rst (prt_phy_amd_ds_struct *phy)
 {
-	return prt_phy_amd_rst (phy, 
+	return prt_phy_amd_pll_rst (phy, 
 		PRT_PHY_AMD_PIO_OUT_RX_PLL_AND_DP_RST, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
 }
 
-// PHY RX datapath reset
-prt_sta_type prt_phy_amd_rx_dp_rst (prt_phy_amd_ds_struct *phy)
-{
-	return prt_phy_amd_rst (phy, 
-		PRT_PHY_AMD_PIO_OUT_RX_DP_RST, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
-}
-
-/*
-
-// PHY RX assert reset
-prt_sta_type prt_phy_amd_rxrst_set (prt_phy_amd_ds_struct *phy)
-{
-	return prt_phy_amd_rst_set (phy, 
-		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
-}
-
-// PHY RX release reset
-prt_sta_type prt_phy_amd_rxrst_clr (prt_phy_amd_ds_struct *phy)
-{
-	return prt_phy_amd_rst_clr (phy,
-		PRT_PHY_AMD_PIO_OUT_QPLL_RST, PRT_PHY_AMD_PIO_IN_QPLL_LOCK, PRT_PHY_AMD_PIO_OUT_RX_RST, PRT_PHY_AMD_PIO_OUT_RX_DIV_RST, 
-		PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY, PRT_PHY_AMD_PIO_IN_RX_RST_DONE);
-}
-*/
-
-// PHY reset 
-prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy, 
+// PLL reset 
+// This function resets the PLL
+prt_sta_type prt_phy_amd_pll_rst (prt_phy_amd_ds_struct *phy, 
 	prt_u32 PHY_RST, prt_u32 PHY_RST_DONE)
 {
 	// Variables
@@ -898,204 +848,33 @@ prt_sta_type prt_phy_amd_rst (prt_phy_amd_ds_struct *phy,
 	}
 }
 
-/*
-// PHY assert reset 
-// This function resets the PLL and the complete GT components
-// This function is called before the line rate is changed. 
-prt_sta_type prt_phy_amd_rst_set (prt_phy_amd_ds_struct *phy, 
-	prt_u32 PLL_RST, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PHY_USR_RDY)
+// PCS reset 
+// This function resets the RX PCS (datapath)
+prt_sta_type prt_phy_amd_rx_pcs_rst (prt_phy_amd_ds_struct *phy, 
+	prt_u8 lanes)
 {
 	// Variables
 	prt_u32 dat;
-
-	// Powergood
-	// Read PIO
-	dat = prt_phy_amd_pio_dat_get (phy);
-
-	// Check if powergood signal is asserted
-	if (dat & PRT_PHY_AMD_PIO_IN_PWRGD)
-	{
-		// Assert PLL reset
-	    prt_phy_amd_pio_dat_set (phy, PLL_RST);
-
-		// De-assert PHY reset
-	    prt_phy_amd_pio_dat_clr (phy, PHY_RST);
-
-	     // De-assert USR ready
-		prt_phy_amd_pio_dat_clr (phy, PHY_USR_RDY);
-
-	     // De-assert divider reset
-		prt_phy_amd_pio_dat_clr (phy, PHY_DIV_RST);
-
-		return PRT_STA_OK;
-	}
-
-	else
-	{
-		prt_printf ("PHYTX: power good is not asserted\n");
-		return PRT_STA_FAIL;
-	}
-}
-
-// PHY release reset
-// This function completes the reset of the PLL and the complete GT components
-// This function is called after the PLL and GT line rate change.  
-prt_sta_type prt_phy_amd_rst_clr (prt_phy_amd_ds_struct *phy, 
-	prt_u32 PLL_RST, prt_u32 PLL_LOCK, prt_u32 PHY_RST, prt_u32 PHY_DIV_RST, prt_u32 PMA_RST_DONE, prt_u32 PHY_USR_RDY, prt_u32 PHY_RST_DONE)
-{
-	// Variables
-	prt_u32 dat;
+	prt_u8 msk;
     prt_bool exit_loop;
 
-	// Release PLL reset
-    prt_phy_amd_pio_dat_clr (phy, PLL_RST);
-   
-    // Wait for PLL lock
-
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
-     
-    exit_loop = PRT_FALSE;
-    do
-    {
-		// Read PIO
-		dat = prt_phy_amd_pio_dat_get (phy);
-
-		if (dat & PLL_LOCK)
-		{
-			exit_loop = PRT_TRUE;
-		}
-
-		else if (prt_tmr_is_alrm (phy->tmr, 0))
-		{
-			prt_printf ("PHY: PLL lock timeout\n");
-			return PRT_STA_FAIL;
-		}
-     } while (exit_loop == PRT_FALSE);
-
-    // Assert PHY divider reset
-    prt_phy_amd_pio_dat_set (phy, PHY_DIV_RST);
-
-    // De-assert PHY divider reset
-    prt_phy_amd_pio_dat_clr (phy, PHY_DIV_RST);
-
-     // Assert PHY reset
-	prt_phy_amd_pio_dat_set (phy, PHY_RST);
+	// Assert RX datapath reset
+	prt_phy_amd_pio_dat_set (phy, PRT_PHY_AMD_PIO_OUT_RX_DP_RST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
-     
-     // Release PHY reset
-	prt_phy_amd_pio_dat_clr (phy, PHY_RST);
 
-    // Wait for PMA reset done
+	// Release RX datapath reset
+	prt_phy_amd_pio_dat_clr (phy, PRT_PHY_AMD_PIO_OUT_RX_DP_RST);
 
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
-     
-    exit_loop = PRT_FALSE;
-    do
-    {
-		// Read PIO
-		dat = prt_phy_amd_pio_dat_get (phy);
+	// Wait for reset done
 
-		if (dat & PMA_RST_DONE)
-		{
-			exit_loop = PRT_TRUE;
-		}
-
-		else if (prt_tmr_is_alrm (phy->tmr, 0))
-		{
-			prt_printf ("PHY: PMA reset done timeout\n");
-			return PRT_STA_FAIL;
-		}
-    } while (exit_loop == PRT_FALSE);
-
-    // Set TXUSR ready
-	prt_phy_amd_pio_dat_set (phy, PHY_USR_RDY);
-
-    // Wait for reset done
-
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
-     
-    exit_loop = PRT_FALSE;
-    do
-    {
-		// Read PIO
-		dat = prt_phy_amd_pio_dat_get (phy);
-
-		if (dat & PHY_RST_DONE)
-		{
-			exit_loop = PRT_TRUE;
-		}
-
-		else if (prt_tmr_is_alrm (phy->tmr, 0))
-		{
-			prt_printf ("PHY: Reset done timeout\n");
-			return PRT_STA_FAIL;
-		}
-    } while (exit_loop == PRT_FALSE);
-
-    return PRT_STA_OK;
-}
-
-
-// PHY RX reset
-// This function resets all the GT RX components (no PLL)
-// This function is called during the clock recovery training
-prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy)
-{
-	// Variables
-	prt_u32 dat;
-    prt_bool exit_loop;
-
- 	// De-assert USR ready
-	prt_phy_amd_pio_dat_clr (phy, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
-
-     // Assert GTRX reset
-	prt_phy_amd_pio_dat_set (phy, PRT_PHY_AMD_PIO_OUT_RX_RST);
-
-	// Sleep alarm 0
-	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_RST_PULSE);
-     
-     // Release GTRX reset
-	prt_phy_amd_pio_dat_clr (phy, PRT_PHY_AMD_PIO_OUT_RX_RST);
-
-    // Wait for PMA reset done
-
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
-     
-    exit_loop = PRT_FALSE;
-    do
-    {
-		// Read PIO
-		dat = prt_phy_amd_pio_dat_get (phy);
-
-		if (dat & PRT_PHY_AMD_PIO_IN_RX_PMA_RST_DONE)
-		{
-			exit_loop = PRT_TRUE;
-		}
-
-		else if (prt_tmr_is_alrm (phy->tmr, 0))
-		{
-			prt_printf ("PHY: PMA reset done timeout\n");
-			return PRT_STA_FAIL;
-		}
-    } while (exit_loop == PRT_FALSE);
-
-    // Set RXUSR ready
-	prt_phy_amd_pio_dat_set (phy, PRT_PHY_AMD_PIO_OUT_RX_USR_RDY);
-
-    // Wait for reset done
-
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
-     
-    exit_loop = PRT_FALSE;
-    do
-    {
+	// Set alarm 0
+	prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_RST_TIMEOUT);
+	
+	exit_loop = PRT_FALSE;
+	do
+	{
 		// Read PIO
 		dat = prt_phy_amd_pio_dat_get (phy);
 
@@ -1106,14 +885,58 @@ prt_sta_type prt_phy_amd_rx_rst (prt_phy_amd_ds_struct *phy)
 
 		else if (prt_tmr_is_alrm (phy->tmr, 0))
 		{
-			prt_printf ("PHY: Reset done timeout\n");
+			prt_printf ("PHYRX: Reset done timeout\n");
 			return PRT_STA_FAIL;
 		}
-    } while (exit_loop == PRT_FALSE);
+	} while (exit_loop == PRT_FALSE);
 
-    return PRT_STA_OK;
+	// Wait for CDR lock
+
+	// Define mask
+	switch (lanes)	
+	{
+		case 1 : 
+			msk = 0x1;
+			break;
+
+		case 2 : 
+			msk = 0x3;
+			break;
+
+		default : 
+			msk = 0xf;
+			break;
+	}
+	
+	// After reset the CDR lock isn't stable. 
+	// So, first we wait for some time
+	// Sleep alarm 0
+	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_AMD_CDR_LOCK_WAIT);
+
+	// Set alarm 0
+	prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_AMD_CDR_LOCK_TIMEOUT);
+
+	exit_loop = PRT_FALSE;
+	do
+	{
+		// Read PIO
+		dat = prt_phy_amd_pio_dat_get (phy);
+		dat >>= PRT_PHY_AMD_PIO_IN_CDR_LOCK_SHIFT;
+		
+		if ((dat & msk) == msk)
+		{
+			exit_loop = PRT_TRUE;
+		}
+
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			prt_printf ("PHYRX: CDR lock timeout\n");
+			return PRT_STA_FAIL;
+		}
+	} while (exit_loop == PRT_FALSE);
+
+	return PRT_STA_OK;
 }
-*/
 
 // Set the CPLL calibration parameters (through the pio)
 void prt_phy_amd_cpll_cal (prt_phy_amd_ds_struct *phy, prt_u8 rate)
@@ -1173,115 +996,6 @@ void prt_phy_amd_tx_vap (prt_phy_amd_ds_struct *phy, prt_u8 volt, prt_u8 pre)
      dat <<= PRT_PHY_AMD_PIO_OUT_TX_PRE_SHIFT;
      prt_phy_amd_pio_dat_msk (phy, dat, msk);
 }
-
-/*
-// TX PLL lock
-// The TX is using the CPLL
-prt_u8 prt_phy_amd_get_txpll_lock (prt_phy_amd_ds_struct *phy)
-{     
-	// Variables
-	prt_u32 dat;
-
-     // Read PIO
-     dat = prt_phy_amd_pio_dat_get (phy);
-
-     if (dat & PRT_PHY_AMD_PIO_IN_CPLL_LOCK)
-     	return PRT_TRUE;
-   	else
-   		return PRT_FALSE;
-}
-
-// RX PLL lock
-// The RX is using the QPLL
-prt_u8 prt_phy_amd_get_rxpll_lock (prt_phy_amd_ds_struct *phy)
-{     
-	// Variables
-	prt_u32 dat;
-
-     // Read PIO
-     dat = prt_phy_amd_pio_dat_get (phy);
-
-     if (dat & PRT_PHY_AMD_PIO_IN_QPLL_LOCK)
-     	return PRT_TRUE;
-   	else
-   		return PRT_FALSE;
-}
-*/
-
-/*
-// PRBS generator
-void prt_phy_amd_prbs_gen (prt_phy_amd_ds_struct *phy, prt_u8 en)
-{
-	// Enable
-	if (en)
-	     prt_pio_dat_set (phy->pio, PIO_OUT_PHY_PRBS_EN);
-
-	// Disable
-	else 
-	     prt_pio_dat_clr (phy->pio, PIO_OUT_PHY_PRBS_EN);
-}
-
-// PRBS clear counter
-void prt_phy_amd_prbs_clr (prt_phy_amd_ds_struct *phy)
-{
-     prt_pio_dat_set (phy->pio, PIO_OUT_PHYRX_PRBS_CLR);
-     prt_pio_dat_clr (phy->pio, PIO_OUT_PHYRX_PRBS_CLR);
-}
-
-// PRBS insert error 
-void prt_phy_amd_prbs_err (prt_phy_amd_ds_struct *phy)
-{
-     prt_pio_dat_set (phy->pio, PIO_OUT_PHYRX_PRBS_ERR);
-     prt_pio_dat_clr (phy->pio, PIO_OUT_PHYRX_PRBS_ERR);
-}
-
-// PRBS lock
-prt_bool prt_phy_amd_prbs_lock (prt_phy_amd_ds_struct *phy, prt_u8 lane)
-{
-	// Variable 
-	prt_u32 dat;
-
-     dat = prt_pio_dat_get (phy->pio);
-     dat >>= PIO_IN_PHYRX_PRBS_LOCK_SHIFT;
-
-	if ((dat >> lane) & 1)
-		return PRT_TRUE;
-	else
-		return PRT_FALSE;
-}
-
-// PRBS read counter
-prt_u32 prt_phy_amd_prbs_cnt (prt_phy_amd_ds_struct *phy, prt_u8 lane)
-{
-	// Variables
-	prt_u32 dat;
-	prt_u32 cnt;
-
-	// Read lower 16 bits
-	dat = prt_phy_amd_drp_rd (phy, lane, 0x25e);
-	cnt = dat;
-
-	// Read upper 16 bits
-	dat = prt_phy_amd_drp_rd (phy, lane, 0x25f);
-	dat <<= 16;
-
-	cnt += dat;
-
-	return cnt;
-}
-
-// Equalizer select
-void prt_phy_amd_equ_sel (prt_phy_amd_ds_struct *phy, prt_u8 lpm)
-{
-	// LPM
-	if (lpm)
-	     prt_pio_dat_set (phy->pio, PIO_OUT_PHYRX_EQU_SEL);
-
-	// DFE
-	else 
-	     prt_pio_dat_clr (phy->pio, PIO_OUT_PHYRX_EQU_SEL);
-}
-*/
 
 //  PIO Data set
 void prt_phy_amd_pio_dat_set (prt_phy_amd_ds_struct *phy, prt_u32 dat)

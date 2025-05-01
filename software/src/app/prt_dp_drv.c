@@ -101,11 +101,13 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->mail_in.proc = PRT_FALSE;
 	dp->trn.pass = PRT_FALSE;
 	dp->trn.fail = PRT_FALSE;
-	dp->trn.sta = PRT_FALSE;
 	dp->trn.tps = 0;
 	dp->hpd = PRT_DP_HPD_UNPLUG;
-	dp->lnk.phy_rate = 0;
-	dp->lnk.phy_ssc = 0;
+	dp->lnk.rate = 0;
+	dp->lnk.lanes = 0;
+	dp->lnk.volt = 0;
+	dp->lnk.pre = 0;
+	dp->lnk.ssc = 0;
 	dp->lnk.up = PRT_FALSE;
 	dp->lnk.mst_cap = PRT_FALSE;
 	dp->vid[0].up = PRT_FALSE;
@@ -160,23 +162,6 @@ uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
 		dp->mail_out.dat[dp->mail_out.len++] = *(lic+i);
 	
 	// Send mail
-	prt_dp_mail_send (dp);
-
-	// Wait for response
-	sta = prt_dp_mail_resp (dp);
-	return sta;
-}
-
-// Debug set trigger counter value
-uint8_t  prt_dp_cfg_set_trig_val (prt_dp_ds_struct *dp, uint8_t dat)
-{
-	// Variables
-	uint8_t sta;
-
-	dp->mail_out.len = 0;
-	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_CFG;			// Config
-	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_CFG_TRIG_CNT;	// Max lanes
-	dp->mail_out.dat[dp->mail_out.len++] = dat;		// Maximum lanes
 	prt_dp_mail_send (dp);
 
 	// Wait for response
@@ -624,21 +609,39 @@ uint8_t prt_dp_is_lnk_up (prt_dp_ds_struct *dp)
 }
 
 // Get active lanes
-uint8_t prt_dp_get_lnk_act_lanes (prt_dp_ds_struct *dp)
+uint8_t prt_dp_get_lnk_lanes (prt_dp_ds_struct *dp)
 {
-	return dp->lnk.act_lanes;
+	return dp->lnk.lanes;
 }
 
 // Get active rate
-uint8_t prt_dp_get_lnk_act_rate (prt_dp_ds_struct *dp)
+uint8_t prt_dp_get_lnk_rate (prt_dp_ds_struct *dp)
 {
-	return dp->lnk.act_rate;
+	return dp->lnk.rate;
 }
 
 // Get link down reason
 uint8_t prt_dp_get_lnk_reason (prt_dp_ds_struct *dp)
 {
 	return dp->lnk.reason;
+}
+
+// Get Link voltage
+uint8_t prt_dp_get_lnk_volt (prt_dp_ds_struct *dp)
+{
+	return dp->lnk.volt;
+}
+
+// Get Link pre-amble
+uint8_t prt_dp_get_lnk_pre (prt_dp_ds_struct *dp)
+{
+	return dp->lnk.pre;
+}
+
+// Get Link spread spectrum clocking
+uint8_t prt_dp_get_lnk_ssc (prt_dp_ds_struct *dp)
+{
+	return dp->lnk.ssc;
 }
 
 // Set max lanes
@@ -685,49 +688,11 @@ uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
 		return PRT_FALSE;
 }
 
-// Training status
-// This function returns PRT_TRUE when the training status is updated
-uint8_t prt_dp_is_trn_sta (prt_dp_ds_struct *dp)
-{
-	if (dp->trn.sta)
-		return PRT_TRUE;
-	else
-		return PRT_FALSE;
-}
-
 // Get training pattern
 // This function returns the current training pattern
 uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp)
 {
 	return dp->trn.tps;
-}
-
-// Get training rate
-// This function returns the current training link rate
-uint8_t prt_dprx_get_trn_rate (prt_dp_ds_struct *dp)
-{
-	return dp->trn.rate;
-}
-
-// Get training lanes
-// This function returns the current training link lanes
-uint8_t prt_dprx_get_trn_lanes (prt_dp_ds_struct *dp)
-{
-	return dp->trn.lanes;
-}
-
-// Get training cycles
-// This function returns the current training cycles
-uint16_t prt_dprx_get_trn_cycles (prt_dp_ds_struct *dp)
-{
-	return dp->trn.cycles;
-}
-
-// Get training matches
-// This function returns the current training matches
-uint16_t prt_dprx_get_trn_matches (prt_dp_ds_struct *dp, uint8_t lane)
-{
-	return dp->trn.matches[lane];
 }
 
 // Send message
@@ -1027,11 +992,12 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 	// Variables
 	uint32_t dat;
 	uint8_t stream;
+	uint8_t i = 0;
 
 	// Clear mail flags
 	dp->mail_in.proc = PRT_FALSE;
 
-	switch (dp->mail_in.dat[0])
+	switch (dp->mail_in.dat[i++])
 	{
 		case PRT_DP_MAIL_ERR:
 			// Set error flag
@@ -1090,18 +1056,36 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 		case PRT_DP_MAIL_PHY_RST_REQ:		
 			// Get the training pattern
-			dp->trn.tps = dp->mail_in.dat[1];
+			dp->trn.tps = dp->mail_in.dat[i++];
+
+			// Get active link rate
+			dp->lnk.rate = dp->mail_in.dat[i++];
+
+			// Get active lanes
+			dp->lnk.lanes = dp->mail_in.dat[i++];
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_PHY_RST;
 			break;
 
 		case PRT_DP_MAIL_TRN_PASS:
+
+			// Get active link rate
+			dp->lnk.rate = dp->mail_in.dat[i++];
+
+			// Get active lanes
+			dp->lnk.lanes = dp->mail_in.dat[i++];
+
+			// Get voltage swing
+			dp->lnk.volt = dp->mail_in.dat[i++];
+
+			// Get pre-emphasis
+			dp->lnk.pre = dp->mail_in.dat[i++];
+
 			// Set training pass flag
 			dp->trn.pass = PRT_TRUE;
 
 			// Clear training fail flag
-			dp->trn.sta = PRT_FALSE;
 			dp->trn.fail = PRT_FALSE;
 
 			// Clear training pattern
@@ -1112,11 +1096,23 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			break;
 
 		case PRT_DP_MAIL_TRN_ERR:
+
+			// Get active bandwidth
+			dp->lnk.rate = dp->mail_in.dat[i++];
+
+			// Get active lanes
+			dp->lnk.lanes = dp->mail_in.dat[i++];
+		
+			// Clear voltage swing
+			dp->lnk.volt = 0;
+
+			// Clear pre-emphasis
+			dp->lnk.pre = 0;
+			
 			// Set training fail flag
 			dp->trn.fail = PRT_TRUE;
 
 			// Clear training pass flag
-			dp->trn.sta = PRT_FALSE;
 			dp->trn.pass = PRT_FALSE;
 
 			// Clear training pattern
@@ -1126,39 +1122,18 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->evt |= PRT_DP_EVT_TRN;
 			break;
 
-		case PRT_DP_MAIL_TRN_STA:
-			// Set training status flag
-			dp->trn.sta = PRT_TRUE;
-
-			// Clear training pass flag
-			dp->trn.pass = PRT_FALSE;
-			dp->trn.fail = PRT_FALSE;
-
-			// Clear training pattern
-			dp->trn.tps = dp->mail_in.dat[1];
-			dp->trn.rate = dp->mail_in.dat[2];
-			dp->trn.lanes = dp->mail_in.dat[3];
-			dp->trn.cycles = dp->mail_in.dat[4] << 8;
-			dp->trn.cycles |= dp->mail_in.dat[5];
-
-			for (uint8_t i = 0; i < 4; i++)
-			{
-				dp->trn.matches[i] = dp->mail_in.dat[6+(i*2)] << 8;
-				dp->trn.matches[i] |= dp->mail_in.dat[7+(i*2)];
-			}
-
-			// Set event flag
-			dp->evt |= PRT_DP_EVT_TRN;
-			break;
-
 		case PRT_DP_MAIL_LNK_RATE_REQ:
-			// Set link rate request
-			dp->lnk.phy_rate = dp->mail_in.dat[1];
 
+			// Get active link rate
+			dp->lnk.rate = dp->mail_in.dat[i++];
+
+			// Get active lanes
+			dp->lnk.lanes = dp->mail_in.dat[i++];
+			
 			if (dp->id == PRT_DPRX_ID)
 			{
 				// Set spread spectrum clocking
-				dp->lnk.phy_ssc = dp->mail_in.dat[2];
+				dp->lnk.ssc = dp->mail_in.dat[i++];
 			}
 
 			// Set event flag
@@ -1167,8 +1142,8 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 		case PRT_DP_MAIL_LNK_VAP_REQ:
 			// Set link voltage and pre-amble request
-			dp->lnk.phy_volt = dp->mail_in.dat[1];
-			dp->lnk.phy_pre = dp->mail_in.dat[2];
+			dp->lnk.volt = dp->mail_in.dat[i++];
+			dp->lnk.pre = dp->mail_in.dat[i++];
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_PHY_VAP;
@@ -1177,12 +1152,6 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		case PRT_DP_MAIL_LNK_UP:
 			// Set link up flag
 			dp->lnk.up = PRT_TRUE;
-
-			// Lanes
-			dp->lnk.act_lanes = dp->mail_in.dat[1];
-
-			// Rate
-			dp->lnk.act_rate = dp->mail_in.dat[2];
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_LNK;
@@ -1193,7 +1162,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.up = PRT_FALSE;
 
 			// Reason
-			dp->lnk.reason = dp->mail_in.dat[1];
+			dp->lnk.reason = dp->mail_in.dat[i++];
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_LNK;
@@ -1916,29 +1885,7 @@ void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat)
 	dp->edid.dat[adr] = dat;
 }
 
-// Get PHY rate
-uint8_t prt_dp_get_phy_rate (prt_dp_ds_struct *dp)
-{
-	return dp->lnk.phy_rate;
-}
 
-// Get PHY spread spectrum clocking
-uint8_t prt_dp_get_phy_ssc (prt_dp_ds_struct *dp)
-{
-	return dp->lnk.phy_ssc;
-}
-
-// Get PHY voltage
-uint8_t prt_dp_get_phy_volt (prt_dp_ds_struct *dp)
-{
-	return dp->lnk.phy_volt;
-}
-
-// Get PHY pre-amble
-uint8_t prt_dp_get_phy_pre (prt_dp_ds_struct *dp)
-{
-	return dp->lnk.phy_pre;
-}
 
 // MST start
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp)

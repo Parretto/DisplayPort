@@ -136,8 +136,25 @@ generate
     else if (P_VENDOR == "LSC")
     begin : gen_ram_lsc
 
+        // Avant
+        if (P_FAMILY == "LAV-AT")
+        begin : gen_ram_lsc_lav
+            prt_riscv_ram_lsc 
+            RAM_INST
+            (
+                .rst_i              (1'b0),            
+                .clk_i              (CLK_IN), 
+                .clk_en_i           (1'b1), 
+                .wr_en_i            (clk_wr), 
+                .addr_i             (clk_adr), 
+                .ben_i              (~clk_be),  // The byte lane polarity is inverted
+                .wr_data_i          (clk_din),
+                .rd_data_o          (RAM_IF.rd_dat)
+            );
+        end
+
         // CertusPro-NX
-        if (P_FAMILY == "LFCPNX")
+        else
         begin : gen_ram_lsc_lfcpnx
             prt_riscv_ram_lsc
             RAM_INST
@@ -153,23 +170,6 @@ generate
                 .rd_datavalid_o     (),
                 .dps_i              (1'b0),
                 .lramready_o        ()   
-            );
-        end
-
-        // Avant
-        else
-        begin : gen_ram_lsc_lav
-            prt_riscv_ram_lsc 
-            RAM_INST
-            (
-                .rst_i              (1'b0),            
-                .clk_i              (CLK_IN), 
-                .clk_en_i           (1'b1), 
-                .wr_en_i            (clk_wr), 
-                .addr_i             (clk_adr), 
-                .ben_i              (~clk_be),  // The byte lane polarity is inverted
-                .wr_data_i          (clk_din),
-                .rd_data_o          (RAM_IF.rd_dat)
             );
         end
     end

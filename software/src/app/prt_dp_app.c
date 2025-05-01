@@ -304,9 +304,6 @@ int main (void)
      // Scan Tentiva
      prt_tentiva_scan (&tentiva);
 
-     // Force Tentiva slot ID
-     //prt_tentiva_force_slot_id (&tentiva, 0, PRT_TENTIVA_DP14RX_MCDP6000_ID);
-
      // Config
      prt_printf ("Tentiva config... ");
      sta = prt_tentiva_cfg (&tentiva, true);      // Fail on config error
@@ -498,7 +495,6 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
-
      /*
           DPTX
      */
@@ -649,33 +645,6 @@ int main (void)
                     case 'e' :
                          prt_printf ("DPTX: Status\n");
                          prt_dp_sta (&dptx);
-                         break;
-
-                    // Force training
-                    case 'r' :
-                         prt_printf ("DPTX: Training\n");
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
-
-                         switch (cmd)
-                         {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
-                         }
-
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dptx, dat);
-
-                         // Force training
-                         prt_dptx_trn (&dptx);
                          break;
 
                     // MST enable / disable
@@ -902,18 +871,28 @@ int main (void)
 
      // PHY RX reset
      void dprx_phy_rst_cb (prt_dp_ds_struct *dp)
-     {        
+     {
+          // Variables
+          uint8_t tps;
+          uint8_t lanes;
+        
+          // Get Training pattern
+          tps = prt_dprx_get_trn_tps (dp);
+
+          // Get active lanes
+          lanes = prt_dp_get_lnk_lanes (dp);
+          
           // Training pattern 1
-          if (prt_dprx_get_trn_tps (&dprx) == 1)
+          if (tps == 1)
           {
                // AMD
                #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
                     // Reset PHY datapath
-                    prt_phy_amd_rx_dp_rst (&phy);
+                    prt_phy_amd_rx_pcs_rst (&phy, lanes);
 
                // Lattice CertusPro-NX
                #elif (BOARD == BOARD_LSC_LFCPNX)
-                    prt_phy_lsc_rxrst (&phy);
+                    prt_phy_lsc_rx_pcs_rst (&phy, lanes);
                #endif     
           }
 
@@ -928,14 +907,11 @@ int main (void)
           uint8_t linerate;
 
           // Get requested line rate
-          linerate = prt_dp_get_phy_rate (dp);
+          linerate = prt_dp_get_lnk_rate (dp);
           
           // Set linerate
           phy_set_tx_linerate (linerate);
           
-          // For debug only
-          //phy_set_rx_linerate (linerate, 0);
-
           // Send link request ok
           prt_dp_lnk_req_ok (dp);
      }
@@ -947,8 +923,8 @@ int main (void)
           uint8_t linerate;
           uint8_t ssc;
 
-          linerate = prt_dp_get_phy_rate (dp);
-          ssc = prt_dp_get_phy_ssc (dp);
+          linerate = prt_dp_get_lnk_rate (dp);
+          ssc = prt_dp_get_lnk_ssc (dp);
           
           // Set linerate
           phy_set_rx_linerate (linerate, ssc);
@@ -964,8 +940,8 @@ int main (void)
           uint8_t volt;
           uint8_t pre;
 
-          volt = prt_dp_get_phy_volt (dp);
-          pre = prt_dp_get_phy_pre (dp);
+          volt = prt_dp_get_lnk_volt (dp);
+          pre = prt_dp_get_lnk_pre (dp);
 
           // Set voltage and pre-amble
           phy_set_tx_vap (volt, pre);
@@ -977,16 +953,62 @@ int main (void)
      // Training event
      void dp_trn_cb (prt_dp_ds_struct *dp)
      {
+          bool pass;
+
           // Print prefix
           if (dp->id == PRT_DPTX_ID)
                prt_log_sprintf (&log, "DPTX: ");
           else
                prt_log_sprintf (&log, "DPRX: ");
 
-          if (prt_dp_is_trn_pass (dp))
-               prt_log_sprintf (&log, "Training pass\n");
+               
+          // Check if the training passed. 
+          pass = prt_dp_is_trn_pass (dp);
+
+          prt_log_sprintf (&log, "Training ");
+
+          if (pass)
+          {
+               prt_log_sprintf (&log, "passed\n");
+          }
+
           else
-               prt_log_sprintf (&log, "Training failed\n");
+          {
+               prt_log_sprintf (&log, "failed\n");
+          }
+
+          prt_log_sprintf (&log, "\tRate: ");
+
+          switch (prt_dp_get_lnk_rate (dp))
+          {
+               case PRT_DP_PHY_LINERATE_1620 :
+                    prt_log_sprintf (&log, "1.62 Gbps");
+                    break;
+
+               case PRT_DP_PHY_LINERATE_2700 :
+                    prt_log_sprintf (&log, "2.7 Gbps");
+                    break;
+
+               case PRT_DP_PHY_LINERATE_5400 :
+                    prt_log_sprintf (&log, "5.4 Gbps");
+                    break;
+
+               case PRT_DP_PHY_LINERATE_8100 :
+                    prt_log_sprintf (&log, "8.1 Gbps");
+                    break;
+
+               default :
+                    prt_log_sprintf (&log, "unknown");
+                    break;
+          }
+
+          prt_log_sprintf (&log, " | Lanes: %d\n", prt_dp_get_lnk_lanes (dp));
+
+          if (pass)
+          {
+               prt_log_sprintf (&log, "\tVoltage swing level: %d", prt_dp_get_lnk_volt (dp));
+               prt_log_sprintf (&log, " | Pre-emphasis level: %d\n", prt_dp_get_lnk_pre (dp));
+          }
      }
 
      // Link event
@@ -1001,30 +1023,7 @@ int main (void)
           // Link up
           if (prt_dp_is_lnk_up (dp))
           {
-               prt_log_sprintf (&log, "Link up | lanes: %d | rate: ", prt_dp_get_lnk_act_lanes (dp));
-
-               switch (prt_dp_get_lnk_act_rate (dp))
-               {
-                    case PRT_DP_PHY_LINERATE_1620 :
-                         prt_log_sprintf (&log, "1.62 Gbps\n");
-                         break;
-
-                    case PRT_DP_PHY_LINERATE_2700 :
-                         prt_log_sprintf (&log, "2.7 Gbps\n");
-                         break;
-
-                    case PRT_DP_PHY_LINERATE_5400 :
-                         prt_log_sprintf (&log, "5.4 Gbps\n");
-                         break;
-
-                    case PRT_DP_PHY_LINERATE_8100 :
-                         prt_log_sprintf (&log, "8.1 Gbps\n");
-                         break;
-
-                    default :
-                         prt_log_sprintf (&log, "unknown\n");
-                         break;
-               }
+               prt_log_sprintf (&log, "Link up\n");
 
                // After the link is up the colorbar is started
                #ifdef AUTO_COLORBAR
@@ -1260,13 +1259,23 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("w - Config\n");
+     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
+     #ifdef ADVANCED
+         prt_printf ("t - PHY test\n");
+         prt_printf ("y - AUX test\n");
+     #endif
          prt_printf ("u - Read DPCD\n");
          prt_printf ("i - Write DPCD\n");
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
+     #ifdef ADVANCED
+         prt_printf ("s - Config\n");
+     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1278,6 +1287,9 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
+     #ifdef ADVANCED
+         prt_printf ("b - PRBS\n");
+     #endif
          prt_printf ("\n");
      }
 

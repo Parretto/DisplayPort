@@ -16,7 +16,9 @@
     v1.4 - Updated DRP peripheral with PIO
     v1.5 - Added support for Tentiva DP21TX and DP21RX cards
     v1.6 - Added DPTX secondary packet interface
-    
+    v1.7 - Added CDR lock
+
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -33,6 +35,7 @@
 
 `default_nettype none
 
+// Module
 module dp_ref_amd_zcu102
 (
     // Clock
@@ -78,8 +81,7 @@ module dp_ref_amd_zcu102
     output wire [3:0]       GT_TX_OUT_N,
 
     // Misc
-    output wire [7:0]       LED_OUT,
-    output wire [7:0]       DEBUG_OUT   
+    output wire [7:0]       LED_OUT   
 );
 
 // Parameters
@@ -109,7 +111,7 @@ localparam P_VTB_OVL        = (P_MST) ? 1 : 0;          // VTB Overlay
 localparam P_SDP            = 1;                        // SDP support
 
 localparam P_PHY_CTL_DRP_PORTS  = 5;
-localparam P_PHY_CTL_PIO_IN     = 3;
+localparam P_PHY_CTL_PIO_IN     = 8;
 localparam P_PHY_CTL_PIO_OUT    = 16;
 
 // Interfaces
@@ -192,6 +194,7 @@ logic [3:0]                             txpolarity_to_phy;
 wire [P_PHY_DAT_WIDTH-1:0]              gtwiz_userdata_rx_from_phy;
 wire [63:0]                             rxctrl0_from_phy;
 logic [3:0]                             rxpolarity_to_phy;
+wire [3:0]                              rx_cdrlock_from_phy;
 
 logic [1:0]                             dclk_gt_linerate_cap;
 logic [1:0]                             dclk_gt_linerate;
@@ -229,9 +232,6 @@ wire [(P_PPC*P_BPC)-1:0]                g_from_vtb[0:1];
 wire [(P_PPC*P_BPC)-1:0]                b_from_vtb[0:1];
 wire [1:0]                              de_from_vtb;
 
-// Audio
-wire [23:0]                             ch_from_aud[2];
-
 // DIA
 wire                                    dia_rdy_from_app;
 wire [31:0]                             dia_dat_from_vtb;
@@ -249,10 +249,11 @@ wire [P_PHY_CTL_PIO_OUT-1:0]            pio_dat_from_phy_ctl;
 wire                                    tx_pll_and_dp_rst_from_phy_ctl;
 wire                                    tx_dp_rst_from_phy_ctl;
 wire                                    rx_pll_and_dp_rst_from_phy_ctl;
-wire                                    rx_dp_rst_from_phy_ctl;
+(* mark_debug = "true" *) wire                                    rx_dp_rst_from_phy_ctl;
 wire [1:0]                              tx_linerate_from_phy_ctl;
 wire [4:0]                              tx_diffctrl_from_phy_ctl;
 wire [4:0]                              tx_postcursor_from_phy_ctl;
+
 
 // Heartbeat
 wire                                    led_from_sys_hb;
@@ -850,6 +851,7 @@ endgenerate
     assign pio_dat_to_phy_ctl[0]            = &pwrgd_from_phy;
     assign pio_dat_to_phy_ctl[1]            = tx_rst_done_from_phy;
     assign pio_dat_to_phy_ctl[2]            = rx_rst_done_from_phy;
+    assign pio_dat_to_phy_ctl[3+:4]         = rx_cdrlock_from_phy;
 
     // PIO out mapping
     assign tx_pll_and_dp_rst_from_phy_ctl   = pio_dat_from_phy_ctl[0];
@@ -890,10 +892,10 @@ generate
             .gtwiz_reset_rx_cdr_stable_out              (),
             .gtwiz_reset_tx_done_out                    (tx_rst_done_from_phy),
             .gtwiz_reset_rx_done_out                    (rx_rst_done_from_phy),
- 
+            
             .rxpmaresetdone_out                         (),
             .txpmaresetdone_out                         (),
-
+            
             // CPLL
             .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
 
@@ -962,7 +964,7 @@ generate
             .drprdy_out                                 (drp_rdy_from_phy[3:0]),
 
             .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          ({6'h0, drp_adr_from_phy_ctl[(4*10)+:10]}),
+            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
             .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
             .drpen_common_in                            (drp_en_from_phy_ctl[4]),
             .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),
@@ -1003,7 +1005,7 @@ generate
  
             .rxpmaresetdone_out                         (),
             .txpmaresetdone_out                         (),
-
+            
             // CPLL
             .gtrefclk0_in                               ({4{clk_from_phy_ibuf[0]}}),     // GT reference clock 0
 
@@ -1061,10 +1063,11 @@ generate
             .rxbyteisaligned_out                        (),
             .rxbyterealign_out                          (),
             .rxcommadet_out                             (),
-
+            .rxcdrlock_out                              (rx_cdrlock_from_phy),
+            
             // DRP
             .drpclk_in                                  ({4{drp_clk_from_pll}}),
-            .drpaddr_in                                 (drp_adr_from_phy_ctl[0+:(4*10)]),
+            .drpaddr_in                                 ({6'h0, drp_adr_from_phy_ctl[0+:(4*10)]}),
             .drpdi_in                                   (drp_dat_from_phy_ctl[0+:(4*16)]),
             .drpen_in                                   (drp_en_from_phy_ctl[3:0]),
             .drpwe_in                                   (drp_wr_from_phy_ctl[3:0]),
@@ -1072,7 +1075,7 @@ generate
             .drprdy_out                                 (drp_rdy_from_phy[3:0]),
 
             .drpclk_common_in                           (drp_clk_from_pll),
-            .drpaddr_common_in                          ({6'h0, drp_adr_from_phy_ctl[(4*10)+:10]}),
+            .drpaddr_common_in                          (drp_adr_from_phy_ctl[(4*10)+:10]),
             .drpdi_common_in                            (drp_dat_from_phy_ctl[(4*16)+:16]),
             .drpen_common_in                            (drp_en_from_phy_ctl[4]),
             .drpwe_common_in                            (drp_wr_from_phy_ctl[4]),

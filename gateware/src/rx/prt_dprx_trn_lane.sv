@@ -27,8 +27,9 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
+// Module
 module prt_dprx_trn_lane
 #(
     parameter                   P_SPL = 2           // Symbols per lane
@@ -72,14 +73,14 @@ typedef struct {
 
 typedef struct {
     logic                           lock;          // Lock (input)
-    logic   [8:0]                   din[0:P_SPL-1];
-    logic   [8:0]                   din_del[0:P_SPL-2];
-    logic   [8:0]                   dat[0:P_SPL-1];
+    logic   [8:0]                   din[P_SPL];
+    logic   [8:0]                   din_del[P_SPL-1];
+    logic   [8:0]                   dat[P_SPL];
     logic   [1:0]                   aln_ph;
 } lnk_struct;
 
 typedef struct {
-    logic   [8:0]                   dat[0:P_SPL-1];
+    logic   [8:0]                   dat[P_SPL];
 } scrm_struct;
 
 typedef struct {
@@ -119,18 +120,6 @@ trn_struct      clk_trn;
 genvar i;
 
 // Logic
-
-// Lattice Debug
-(* syn_keep = 1 *) wire [8:0] debug_l0;
-(* syn_keep = 1 *) wire [8:0] debug_l1;
-(* syn_keep = 1 *) wire [8:0] debug_l2;
-(* syn_keep = 1 *) wire [8:0] debug_l3;
-
-assign debug_l0 = clk_lnk.din[0];
-assign debug_l1 = clk_lnk.din[1];
-assign debug_l2 = clk_lnk.din[2];
-assign debug_l3 = clk_lnk.din[3];
-
 
 // Config
     always_ff @ (posedge CLK_IN)

@@ -12,6 +12,8 @@
     v1.0 - Initial release
 	v1.1 - Removed DP application and driver header dependency
     v1.2 - Added PIO
+	v1.3 - Updated RX reset and added CDR lock (RX val)
+
 
     License
     =======
@@ -271,6 +273,7 @@ void prt_phy_lsc_rx_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate)
 }
 
 // Rate 
+// This function will update the PLL dividers
 void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 {
 	// Variables 
@@ -336,11 +339,8 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			break;
 	}
 
-	// PLL reset
-	if (tx == PRT_TRUE)
-		prt_phy_lsc_txpll_rst (phy, PRT_TRUE);
-	else
-		prt_phy_lsc_rxpll_rst (phy, PRT_TRUE);
+	// Assert PLL reset
+	prt_phy_lsc_pll_rst (phy, PRT_TRUE, tx);
 
 	// F divider register
 	if (tx == PRT_TRUE)
@@ -392,83 +392,77 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 	prt_phy_lsc_upd (phy);
 
 	// Release PLL reset
-	if (tx == PRT_TRUE)
-		prt_phy_lsc_txpll_rst (phy, PRT_FALSE);
-	else
-		prt_phy_lsc_rxpll_rst (phy, PRT_FALSE);
+	prt_phy_lsc_pll_rst (phy, PRT_FALSE, tx);
 
-	// Wait for PLL lock
-     // Set alarm 0
-     prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
+	// Wait for MPCS ready
+	lock = prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
 
-     exit_loop = PRT_FALSE;
-     do
-     {
-     	// Get PLL lock
-		if (tx == PRT_TRUE)
-     		lock = prt_phy_lsc_get_txpll_lock (phy);
-     	else
-     		lock = prt_phy_lsc_get_rxpll_lock (phy);
-
-          if (lock == PRT_TRUE)
-          {
-               exit_loop = PRT_TRUE;
-          }
-
-          else if (prt_tmr_is_alrm (phy->tmr, 0))
-          {
-               prt_printf ("PHY: PLL timeout\n");
-               exit_loop = PRT_TRUE;
-          }
-     } while (exit_loop == PRT_FALSE);
-	
-	// Assert PHY reset
-	if (tx == PRT_TRUE)
-		prt_phy_lsc_txrst (phy);
-	else
-		prt_phy_lsc_rxrst (phy);
-}
-
-// TXPLL reset
-void prt_phy_lsc_txpll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst)
-{
-	// Variables 
-	prt_u8 dat;
-
-	// Read register (only channel 0)
-	dat = prt_phy_lsc_rd (phy, 0, 0x66);
-
-	// Set reset bit
-	if (rst)
-		dat |= PRT_PHY_LSC_REG66_TXPLL_RST;
-
-	// Clear reset bit
-	else
-		dat &= ~(PRT_PHY_LSC_REG66_TXPLL_RST);
-
-	for (prt_u8 i; i < 4; i++)
+	/*
+	if (lock != PRT_TRUE)
 	{
-		// Update register
-		prt_phy_lsc_wr (phy, i, 0x66, dat);
+		printf ("PHY: MPCS ready not lock\n");
 	}
+	*/
+	
+	// Assert PCS reset
+	// Only for TX
+	// The RX will be reset during TPS1
+	if (tx == PRT_TRUE)
+		prt_phy_lsc_tx_pcs_rst (phy);
 }
 
-// RXPLL reset
-void prt_phy_lsc_rxpll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst)
+// Wait for lock
+prt_bool prt_phy_lsc_wait_for_lock (prt_phy_lsc_ds_struct *phy, prt_u8 lock)
+{
+	// Variables
+	prt_u32 dat;
+
+    // Set alarm 0
+    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
+
+    while (1)
+    {
+		// Read PIO
+		dat = prt_phy_lsc_pio_dat_get (phy);
+
+		if (dat & lock)
+		{
+			return PRT_TRUE;
+		}
+
+		// Time out
+		else if (prt_tmr_is_alrm (phy->tmr, 0))
+		{
+			return PRT_FALSE;
+		}
+    }
+	 
+	return PRT_FALSE;
+}
+
+// PLL reset
+// This function sets or clears the PLL reset bit
+void prt_phy_lsc_pll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst, prt_u8 tx)
 {
 	// Variables 
 	prt_u8 dat;
+	prt_u8 pllrst;
+
+	if (tx == PRT_TRUE)
+		pllrst = PRT_PHY_LSC_REG66_TXPLL_RST;
+	else
+		pllrst = PRT_PHY_LSC_REG66_RXPLL_RST;
 
 	// Read register (only channel 0)
 	dat = prt_phy_lsc_rd (phy, 0, 0x66);
 
 	// Set reset bit
-	if (rst)
-		dat |= PRT_PHY_LSC_REG66_RXPLL_RST;
+	if (rst == PRT_TRUE)
+		dat |= pllrst;
 
 	// Clear reset bit
 	else
-		dat &= ~(PRT_PHY_LSC_REG66_RXPLL_RST);
+		dat &= ~(pllrst);
 
 	for (prt_u8 i; i < 4; i++)
 	{
@@ -523,19 +517,19 @@ void prt_phy_lsc_rx_pol (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u8 inv)
 // This function resets the MPCS during initialization.
 void prt_phy_lsc_init_rst (prt_phy_lsc_ds_struct *phy)
 {
-    // Assert PHY TX reset
+    // Assert PHY reset
     prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_ALL_RST);
 
 	// Sleep alarm 0
 	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_LSC_RST_PULSE);
      
-     // Release PHY TX reset
+     // Release PHY reset
 	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_ALL_RST);
 }
 
-// PHY TX reset
-// This function resets the TX PMA datapath.
-void prt_phy_lsc_txrst (prt_phy_lsc_ds_struct *phy)
+// PHY TX PCS reset
+// This function resets the TX PCS datapath.
+void prt_phy_lsc_tx_pcs_rst (prt_phy_lsc_ds_struct *phy)
 {
     // Assert PHY TX reset
     prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_TX_RST);
@@ -547,40 +541,57 @@ void prt_phy_lsc_txrst (prt_phy_lsc_ds_struct *phy)
 	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_TX_RST);
 }
 
-// PHY RX reset
-// This function resets the RX PMA datapath.
-void prt_phy_lsc_rxrst (prt_phy_lsc_ds_struct *phy)
+// PHY RX PCS reset
+// This function resets the RX PCS datapath.
+void prt_phy_lsc_rx_pcs_rst (prt_phy_lsc_ds_struct *phy, prt_u8 lanes)
 {
 	// Variables
 	prt_u32 dat;
-	prt_bool exit_loop;
+	prt_u32 msk;
+    prt_bool exit_loop;
 
-    // Assert PHY RX reset
+	// Define mask
+	switch (lanes)	
+	{
+		case 1 : 
+			msk = 0x1;
+			break;
+
+		case 2 : 
+			msk = 0x3;
+			break;
+
+		default : 
+			msk = 0xf;
+			break;
+	}
+
+    // Assert PHY RX PCS reset
     prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 
-	// Wait for PLL lock
-    // Set alarm 0
-    prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
+	// Set alarm 0
+	prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
 
-    exit_loop = PRT_FALSE;
-    do
-    {
-    	// Get PHY ready
-  		dat = prt_phy_lsc_pio_dat_get (phy);
-
-		if (dat & PRT_PHY_LSC_PIO_IN_PHY_RDY)
+	exit_loop = PRT_FALSE;
+	do
+	{
+		// Read PIO
+		dat = prt_phy_lsc_pio_dat_get (phy);
+		dat >>= PRT_PHY_LSC_PIO_IN_RX_VAL_SHIFT;
+		
+		if ((dat & msk) == msk)
 		{
-			exit_loop = PRT_TRUE;
+			exit_loop = PRT_TRUE;	
 		}
 
+		// Time out
 		else if (prt_tmr_is_alrm (phy->tmr, 0))
 		{
-			prt_printf ("PHY: RX RST timeout\n");
-			exit_loop = PRT_TRUE;
+			exit_loop = PRT_TRUE;	
 		}
-    } while (exit_loop == PRT_FALSE);
-    
-    // Release PHY RX reset
+	} while (exit_loop == PRT_FALSE);
+
+    // Release PHY RX PCS reset
 	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 }
 

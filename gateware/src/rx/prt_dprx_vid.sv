@@ -373,37 +373,11 @@ endgenerate
         // Lock
         if (lclk_lnk.lock)
         begin
-            // Four symbols per lane
-            if (P_SPL == 4)
+            for (int i = 0; i < P_SPL; i++)
             begin
-                // Sublane 0
-                if (lclk_lnk.vbid_reg[0][0])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][0];
-
-                // Sublane 1
-                else if (lclk_lnk.vbid_reg[0][1])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][1];
-
-                // Sublane 2
-                else if (lclk_lnk.vbid_reg[0][2])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][2];
-
-                // Sublane 3
-                else if (lclk_lnk.vbid_reg[0][3])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][3];
+                if (lclk_lnk.vbid_reg[0][i])
+                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][i];
             end
-
-            // Two symbols per lane
-            else
-            begin
-                // Sublane 0
-                if (lclk_lnk.vbid_reg[0][0])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][0];
-
-                // Sublane 1
-                else if (lclk_lnk.vbid_reg[0][1])
-                    lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][1];
-            end    
         end
 
         // No lock

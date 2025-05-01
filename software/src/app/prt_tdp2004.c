@@ -5,7 +5,7 @@
 
 
     Module: TI TDP2004 Driver 
-    (c) 2024 by Parretto B.V.
+    (c) 2024 - 2025 by Parretto B.V.
 
     History
     =======
