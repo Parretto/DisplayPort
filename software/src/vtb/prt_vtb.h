@@ -97,6 +97,7 @@
 #define VTB_PRESET_3840X2160P60         8
 #define VTB_PRESET_5120X2160P60         9
 #define VTB_PRESET_7680X4320P30         10
+#define VTB_PRESET_720X1920P60         11
 
 // 1280 x 720p @ 50Hz
 #define VTB_1280X720P50_HTOTAL 		    1980
@@ -196,6 +197,17 @@
 #define VTB_7680X4320P30_VSTART 		14
 #define VTB_7680X4320P30_VSW 			8
 #define VTB_7680X4320P30_PCLK 			1019896
+
+// 720 x 1920 @ 60 Hz
+#define VTB_720X1920P60_HTOTAL         992
+#define VTB_720X1920P60_HWIDTH         720
+#define VTB_720X1920P60_HSTART         208
+#define VTB_720X1920P60_HSW            72
+#define VTB_720X1920P60_VTOTAL         1989
+#define VTB_720X1920P60_VHEIGHT        1920
+#define VTB_720X1920P60_VSTART         66
+#define VTB_720X1920P60_VSW            10
+#define VTB_720X1920P60_PCLK           120000
 
 // TPG format
 #define VTB_TPG_FMT_FULL                0

@@ -47,6 +47,7 @@ prj_add_source $SRC/rx/prt_dprx_scrm.sv
 prj_add_source $SRC/rx/prt_dprx_trn_lane.sv
 prj_add_source $SRC/rx/prt_dprx_trn.sv
 prj_add_source $SRC/rx/prt_dprx_vid_vmap.sv
+prj_add_source $SRC/rx/prt_dprx_vid_lmap.sv
 prj_add_source $SRC/rx/prt_dprx_vid_fifo.sv
 prj_add_source $SRC/rx/prt_dprx_vid.sv
 prj_add_source $SRC/rx/prt_dprx_sdp.sv

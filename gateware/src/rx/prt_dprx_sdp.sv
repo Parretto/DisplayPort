@@ -13,7 +13,8 @@
     v1.1 - Split clock domains
     v1.2 - Added support for shorter audio samples
     v1.3 - Updated support for any length packets
-
+    v1.4 - Added VSC packet snooping
+    
 
     License
     =======
@@ -40,11 +41,20 @@ module prt_dprx_sdp
 
     // Link
     parameter               P_LANES = 4,    	// Lanes
-    parameter               P_SPL = 2        	// Symbols per lane
+    parameter               P_SPL = 2,        	// Symbols per lane
+
+    // Message
+    parameter               P_MSG_IDX     = 5,      // Message index width
+    parameter               P_MSG_DAT     = 16,     // Message data width
+    parameter               P_MSG_ID      = 0       // Message ID
 )
 (
     // Control
     input wire  [1:0]       CTL_LANES_IN,       // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+
+    // Message
+    prt_dp_msg_if.snk       MSG_SNK_IF,         // Sink
+    prt_dp_msg_if.src       MSG_SRC_IF,         // Source
 
     // Link
     input wire              LNK_RST_IN,         // Reset
@@ -68,6 +78,14 @@ localparam P_LEN_FIFO_DAT = 6;
 
 // Structure
 typedef struct {
+    logic   [P_MSG_IDX-1:0]         idx;
+    logic                           first;
+    logic                           last;
+    logic   [P_MSG_DAT-1:0]         dat;
+    logic                           ack;
+} msg_struct;
+
+typedef struct {
     logic   [1:0]                   lanes;                  // Active lanes
     logic                           lock;                   // Lock
     logic                           run;
@@ -86,6 +104,7 @@ typedef struct {
     logic   [P_SPL-1:0]             k[P_LANES];             // k character
     logic   [7:0]                   dat[P_LANES][P_SPL];    // Data
     logic   [P_LANES-1:0]           sop;
+    logic   [4:0]                   vsc_dat;
 } lnk_struct;
 
 typedef struct {
@@ -149,7 +168,16 @@ typedef struct {
     logic                           vld;
 } sdp_struct;
 
+typedef struct {
+    logic                           hdr;
+    logic   [4:0]                   cnt;
+    logic   [1:0]                   csf;
+    logic   [2:0]                   bpc;
+    logic   [4:0]                   dat;
+} vsc_struct;
+
 // Signals
+msg_struct          lclk_msg;    // Message
 lnk_struct          lclk_lnk; 
 aln_struct          lclk_aln; 
 dat_fifo_wr_struct  lclk_dat_fifo;
@@ -157,6 +185,7 @@ len_fifo_wr_struct  lclk_len_fifo;
 dat_fifo_rd_struct  sclk_dat_fifo;
 len_fifo_rd_struct  sclk_len_fifo;
 sdp_struct          sclk_sdp;
+vsc_struct          sclk_vsc;
 
 genvar i, j, n;
 
@@ -165,6 +194,37 @@ genvar i, j, n;
     begin
         lclk_lnk.lanes <= CTL_LANES_IN;
     end
+
+// Message
+// Message Slave Ingress
+    prt_dp_msg_slv_ing
+    #(
+        .P_ID           (P_MSG_ID),       // Identifier
+        .P_IDX_WIDTH    (P_MSG_IDX),      // Index width
+        .P_DAT_WIDTH    (P_MSG_DAT)       // Data width
+    )
+    MSG_SLV_ING_INST
+    (
+        // Reset and clock
+        .RST_IN         (LNK_RST_IN),
+        .CLK_IN         (LNK_CLK_IN),
+
+        // MSG sink
+        .MSG_SNK_IF     (MSG_SNK_IF),
+
+        // MSG source
+        .MSG_SRC_IF     (MSG_SRC_IF),
+
+        // Ingress
+        .ING_IDX_OUT    (lclk_msg.idx),       // Index
+        .ING_FIRST_OUT  (lclk_msg.first),     // First
+        .ING_LAST_OUT   (lclk_msg.last),      // Last
+        .ING_DAT_IN     (lclk_msg.dat),       // Data
+        .ING_ACK_OUT    (lclk_msg.ack)
+    );
+
+    assign lclk_msg.dat[0+:$size(lclk_lnk.vsc_dat)] = lclk_lnk.vsc_dat;
+    assign lclk_msg.dat[P_MSG_DAT-1:$size(lclk_lnk.vsc_dat)] = 0;
 
 // Inputs
 // Combinatorial
@@ -2268,6 +2328,82 @@ endgenerate
         else
             sclk_sdp.vld <= 0;
     end
+
+// VSC snooping
+
+// Counter
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        // Run
+        if (sclk_sdp.run)
+        begin
+            // Increment
+            if (sclk_sdp.vld)
+                sclk_vsc.cnt <= sclk_vsc.cnt + 'd1;
+            
+            else
+                sclk_vsc.cnt <= 0;
+        end
+
+        // Idle
+        else
+            sclk_vsc.cnt <= 0;
+    end
+
+// Header flag
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        // Reset
+        if (sclk_sdp.rst)
+            sclk_vsc.hdr <= 0;
+
+        else
+        begin
+            // Clear
+            if (sclk_sdp.eop)
+                sclk_vsc.hdr <= 0;
+
+            // Set
+            else if (sclk_sdp.sop && (sclk_sdp.dat == 'h13_05_07_00))
+                sclk_vsc.hdr <= 1;
+        end
+    end
+
+// Data 
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        // Reset
+        if (sclk_sdp.rst)
+        begin
+            sclk_vsc.csf <= 0;
+            sclk_vsc.bpc <= 0;
+        end
+
+        else
+        begin
+            // DB16 & DB17
+            if (sclk_vsc.hdr && (sclk_vsc.cnt == 'd7))
+            begin
+                sclk_vsc.csf <= sclk_sdp.dat[4+:2]; // Colorimetry format - DB16 bits 5:4
+                sclk_vsc.bpc <= sclk_sdp.dat[8+:3]; // Component bit depth - DB17 bits 2:0
+            end
+        end
+    end
+
+    assign sclk_vsc.dat = {sclk_vsc.bpc, sclk_vsc.csf};
+
+// VSC clock domain converter
+	prt_dp_lib_cdc_vec
+	#(
+		.P_WIDTH		($size(sclk_vsc.dat))
+	)
+	VSC_DAT_CDC_INST
+	(
+		.SRC_CLK_IN		(SDP_CLK_IN),	    // Clock
+		.SRC_DAT_IN		(sclk_vsc.dat),	    // Data
+		.DST_CLK_IN		(LNK_CLK_IN),	    // Clock
+		.DST_DAT_OUT	(lclk_lnk.vsc_dat)	// Data
+	);
 
 // Outputs
 generate

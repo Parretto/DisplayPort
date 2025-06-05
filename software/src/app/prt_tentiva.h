@@ -98,6 +98,8 @@ typedef struct {
 #define PRT_TENTIVA_SC_STA                      2
 #define PRT_TENTIVA_SC_PHY_CLK                  3
 #define PRT_TENTIVA_SC_VID_CLK                  4
+#define PRT_TENTIVA_SC_CTL_CB1_SEL              (1 << 0)
+#define PRT_TENTIVA_SC_CTL_CB2_SEL              (1 << 1)
 #define PRT_TENTIVA_SC_STA_PHY_CLK_LOCK         (1 << 0)
 #define PRT_TENTIVA_SC_STA_VID_CLK_LOCK         (1 << 1)
 
@@ -121,9 +123,17 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, uint8_t id);
 void prt_tentiva_id_rd (prt_tentiva_ds_struct *tentiva);
 prt_sta_type prt_tentiva_eeprom_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t id);
 prt_sta_type prt_tentiva_eeprom_rd (prt_i2c_ds_struct *i2c, uint8_t slave);
-prt_sta_type prt_tentiva_sc_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat);
-prt_sta_type prt_tentiva_sc_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat);
+
+// System controller
+uint8_t prt_tentiva_sc_ver (prt_i2c_ds_struct *i2c);
+uint8_t prt_tentiva_sc_sta (prt_i2c_ds_struct *i2c);
+prt_sta_type prt_tentiva_sc_sta_rd (prt_i2c_ds_struct *i2c, uint8_t dat);
+prt_sta_type prt_tentiva_sc_reg_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat);
+prt_sta_type prt_tentiva_sc_reg_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat);
+prt_sta_type prt_tentiva_sc_cb_sel (prt_i2c_ds_struct *i2c, uint8_t cb, uint8_t set);
+
 void prt_tentiva_tst (prt_tentiva_ds_struct *tentiva);
+
 
 // TDP142
 void prt_tentiva_tdp142_snoop_dis (prt_tentiva_ds_struct *tentiva);

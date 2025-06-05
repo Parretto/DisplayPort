@@ -85,11 +85,12 @@ typedef struct {
 #define PRT_PHY_LSC_LINERATE_1485           2
 #define PRT_PHY_LSC_LINERATE_2700           3
 #define PRT_PHY_LSC_LINERATE_5400           4
-#define PRT_PHY_LSC_LINERATE_8100           5
+#define PRT_PHY_LSC_LINERATE_5940           5
+#define PRT_PHY_LSC_LINERATE_8100           6
 
 // PIO in
 #define PRT_PHY_LSC_PIO_IN_RDY              (1 << 0)
-#define PRT_PHY_LSC_PIO_IN_RX_VAL_SHIFT     1
+#define PRT_PHY_LSC_PIO_IN_RXVAL            (1 << 1)
 
 // PIO out
 #define PRT_PHY_LSC_PIO_OUT_ALL_RST         (1 << 0)
@@ -100,6 +101,7 @@ typedef struct {
 void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
 prt_u8 prt_phy_lsc_rd (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr);
 void prt_phy_lsc_wr (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u8 dat);
+void prt_phy_lsc_wr_all (prt_phy_lsc_ds_struct *phy, prt_u16 adr, prt_u8 dat);
 prt_bool prt_phy_lsc_wait_for_lock (prt_phy_lsc_ds_struct *phy, prt_u8 lock);
 void prt_phy_lsc_tx_vap (prt_phy_lsc_ds_struct *phy, prt_u8 volt, prt_u8 pre);
 void prt_phy_lsc_init_rst (prt_phy_lsc_ds_struct *phy);
@@ -109,12 +111,14 @@ void prt_phy_lsc_rx_pcs_rst (prt_phy_lsc_ds_struct *phy, prt_u8 lanes);
 prt_u8 prt_phy_lsc_enc_pll_m (prt_u8 m);
 prt_u8 prt_phy_lsc_enc_pll_f (prt_u8 f);
 prt_u8 prt_phy_lsc_enc_pll_n (prt_u8 n);
+prt_u8 prt_phy_lsc_enc_pma_clk_div (prt_u8 div);
 void prt_phy_lsc_tx_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate);
 void prt_phy_lsc_rx_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate);
 void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_bool tx);
 void prt_phy_lsc_upd (prt_phy_lsc_ds_struct *phy);
 void prt_phy_lsc_tx_pol (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u8 inv);
 void prt_phy_lsc_rx_pol (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u8 inv);
+void prt_phy_lsc_rx_no_fcmp (prt_phy_lsc_ds_struct *phy);
 void prt_phy_lsc_prbs_gen (prt_phy_lsc_ds_struct *phy, prt_u8 en);
 void prt_phy_lsc_prbs_clr (prt_phy_lsc_ds_struct *phy);
 prt_bool prt_phy_lsc_prbs_lock (prt_phy_lsc_ds_struct *phy, prt_u8 lane);

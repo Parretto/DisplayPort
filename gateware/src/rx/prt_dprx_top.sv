@@ -69,6 +69,7 @@ module prt_dprx_top
 
     // Link
     input wire                                  LNK_CLK_IN,         // Clock
+    input wire                                  LNK_LOCK_IN,        // Lock
     input wire [(P_LANES * P_SPL * 9)-1:0]      LNK_DAT_IN,         // Data
     output wire                                 LNK_SYNC_OUT,       // Sync
     output wire [7:0]                           LNK_VBID_OUT,       // VB-ID 
@@ -100,8 +101,8 @@ localparam P_SIM =
 localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_rom.hex" : "none";
-localparam P_RAM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_ram.hex" : "none";
+localparam P_ROM_INIT = "none";
+localparam P_RAM_INIT = "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -118,6 +119,7 @@ localparam P_MSG_ID_CTL = 'h10;     // Message ID control
 localparam P_MSG_ID_TRN = 'h11;     // Message ID training 
 localparam P_MSG_ID_MSA = 'h12;     // Message ID main stream attributes
 localparam P_MSG_ID_VID = 'h13;     // Message ID video
+localparam P_MSG_ID_SDP = 'h14;     // Message ID sdp
 
 // Interfaces
 // Message
@@ -284,7 +286,8 @@ genvar i, j;
         .P_MSG_ID_CTL       (P_MSG_ID_CTL),     // Message ID control
         .P_MSG_ID_TRN       (P_MSG_ID_TRN),     // Message ID training
         .P_MSG_ID_MSA       (P_MSG_ID_MSA),     // Message ID msa
-        .P_MSG_ID_VID       (P_MSG_ID_VID)      // Message ID video
+        .P_MSG_ID_VID       (P_MSG_ID_VID),     // Message ID video
+        .P_MSG_ID_SDP       (P_MSG_ID_SDP)      // Message ID sdp
     )
     LNK_INST
     (
@@ -341,7 +344,7 @@ genvar i, j;
     endgenerate
 
     // Lock
-    assign lnk_if.lock = 1'b1;
+    assign lnk_if.lock = LNK_LOCK_IN;
 
 // Outputs
 assign HB_OUT = pio_from_pm[0];

@@ -54,6 +54,9 @@ void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u
 	// Else the DP link training fails in single lane DP configuration. 
 	// By unbonding the RX channels, the signals mpcs_rx_out_clk_o all drive their own recovered clock.
 	prt_phy_lsc_unbond (phy);
+
+	// Disable frequency comparator
+	prt_phy_lsc_rx_no_fcmp (phy);
 }
 
 // Read
@@ -125,6 +128,16 @@ void prt_phy_lsc_wr (prt_phy_lsc_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u
 	phy->dev->sta = PRT_PHY_LSC_DEV_STA_RDY;
 }
 
+// Write all
+void prt_phy_lsc_wr_all (prt_phy_lsc_ds_struct *phy, prt_u16 adr, prt_u8 dat)
+{
+	for (prt_u8 i = 0; i < 4; i++)
+	{
+		// Update register
+		prt_phy_lsc_wr (phy, i, adr, dat);
+	}
+}
+
 // Get TX PLL lock
 prt_bool prt_phy_lsc_get_txpll_lock (prt_phy_lsc_ds_struct *phy)
 {
@@ -162,11 +175,8 @@ prt_bool prt_phy_lsc_get_rxpll_lock (prt_phy_lsc_ds_struct *phy)
 // Update settings
 void prt_phy_lsc_upd (prt_phy_lsc_ds_struct *phy)
 {
-	for (prt_u8 i = 0; i < 4; i++)
-	{
-		// Update settings
-		prt_phy_lsc_wr (phy, i, 0x80, 0x01);
-	}
+	// Update settings
+	prt_phy_lsc_wr_all (phy, 0x80, 0x01);
 }
 
 // Voltage and pre-emphasis
@@ -260,6 +270,19 @@ prt_u8 prt_phy_lsc_enc_pll_n (prt_u8 n)
 	return dat;
 }
 
+// Encode PMA clock divider
+prt_u8 prt_phy_lsc_enc_pma_clk_div (prt_u8 div)
+{
+	prt_u8 dat;
+
+	if (div == 2)
+		dat = 2;
+	else
+		dat = 0;
+
+	return dat;
+}
+
 // TX rate 
 void prt_phy_lsc_tx_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate)
 {
@@ -280,26 +303,9 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 	prt_u8 m;
 	prt_u8 f;
 	prt_u8 n;
+	prt_u8 pma_clk_div;
 	prt_u8 dat;
-	prt_bool exit_loop;
 	prt_u16 adr;
-	prt_bool lock;
-
-	// Disable the frequency comparator for RXPLL
-	if (tx == PRT_FALSE)
-	{
-		// Read register (only channel 0)
-		dat = prt_phy_lsc_rd (phy, 0, 0x0e);
-
-		// Set NO_FMCP bit
-		dat |= PRT_PHY_LSC_REG0E_NO_FCMP;
-
-		// Write all channels
-		for (prt_u8 i = 0; i < 4; i++)
-		{
-			prt_phy_lsc_wr (phy, i, 0x0e, dat);
-		}
-	}
 
 	switch (rate)
 	{
@@ -307,7 +313,8 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 		case PRT_PHY_LSC_LINERATE_1485 : 
 			m = prt_phy_lsc_enc_pll_m (4);
 			f = prt_phy_lsc_enc_pll_f (1);
-			n = prt_phy_lsc_enc_pll_n (20);
+			n = prt_phy_lsc_enc_pll_n (10);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (2);
 			break;
 
 		// 2.7 Gbps
@@ -315,6 +322,7 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			m = prt_phy_lsc_enc_pll_m (2);
 			f = prt_phy_lsc_enc_pll_f (1);
 			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
 			break;
 
 		// 5.4 Gbps
@@ -322,6 +330,15 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			m = prt_phy_lsc_enc_pll_m (1);
 			f = prt_phy_lsc_enc_pll_f (2);
 			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
+			break;
+
+		// 5.940 Gbps
+		case PRT_PHY_LSC_LINERATE_5940 : 
+			m = prt_phy_lsc_enc_pll_m (1);
+			f = prt_phy_lsc_enc_pll_f (2);
+			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
 			break;
 
 		// 8.1 Gbps
@@ -329,6 +346,7 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			m = prt_phy_lsc_enc_pll_m (1);
 			f = prt_phy_lsc_enc_pll_f (3);
 			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
 			break;
 
 		// 1.62 Gbps
@@ -336,6 +354,7 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			m = prt_phy_lsc_enc_pll_m (4);
 			f = prt_phy_lsc_enc_pll_f (1);
 			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
 			break;
 	}
 
@@ -351,20 +370,19 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 	// Read register (only channel 0)
 	dat = prt_phy_lsc_rd (phy, 0, adr);
 	
-	// Clear PLL F bits
-	dat &= 0xf0;
+	// Clear div_mode & PLL F bits
+	dat &= 0xc0;
+
+	// Set div_mode
+	dat |= (pma_clk_div << 4);
 
 	// Set PLL F
 	dat |= f;
 
-	for (prt_u8 i; i < 4; i++)
-	{
-		// Update register
-		prt_phy_lsc_wr (phy, i, adr, dat);
-	}
+	// Update register
+	prt_phy_lsc_wr_all (phy, adr, dat);
 	
 	// M and N dividers register 
-	// F divider register
 	if (tx == PRT_TRUE)
 		adr = 0x05;
 	else
@@ -382,11 +400,8 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 	// Set PLL N
 	dat |= n;
 
-	for (prt_u8 i; i < 4; i++)
-	{
-		// Update register
-		prt_phy_lsc_wr (phy, i, adr, dat);
-	}
+	// Update register
+	prt_phy_lsc_wr_all (phy, adr, dat);
 	
 	// Update settings
 	prt_phy_lsc_upd (phy);
@@ -394,21 +409,16 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 	// Release PLL reset
 	prt_phy_lsc_pll_rst (phy, PRT_FALSE, tx);
 
-	// Wait for MPCS ready
-	lock = prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
-
-	/*
-	if (lock != PRT_TRUE)
-	{
-		printf ("PHY: MPCS ready not lock\n");
-	}
-	*/
-	
-	// Assert PCS reset
 	// Only for TX
+	// Wait for MPCS ready and assert PCS reset
 	// The RX will be reset during TPS1
 	if (tx == PRT_TRUE)
+	{
+		// Wait for MPCS ready
+		prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
+	
 		prt_phy_lsc_tx_pcs_rst (phy);
+	}
 }
 
 // Wait for lock
@@ -464,7 +474,7 @@ void prt_phy_lsc_pll_rst (prt_phy_lsc_ds_struct *phy, prt_u8 rst, prt_u8 tx)
 	else
 		dat &= ~(pllrst);
 
-	for (prt_u8 i; i < 4; i++)
+	for (prt_u8 i = 0; i < 4; i++)
 	{
 		// Update register
 		prt_phy_lsc_wr (phy, i, 0x66, dat);
@@ -546,52 +556,23 @@ void prt_phy_lsc_tx_pcs_rst (prt_phy_lsc_ds_struct *phy)
 void prt_phy_lsc_rx_pcs_rst (prt_phy_lsc_ds_struct *phy, prt_u8 lanes)
 {
 	// Variables
-	prt_u32 dat;
-	prt_u32 msk;
-    prt_bool exit_loop;
+    prt_bool lock;
 
-	// Define mask
-	switch (lanes)	
+	// Assert PHY RX PCS reset
+	prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
+
+	// First wait for MPCS ready
+	lock = prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
+
+	// Then wait for MPCS RXVAL
+	// Not all four lanes can be active.
+	// So we loop through all the individual lanes
+	for (prt_u8 i = 0; i < lanes; i++)
 	{
-		case 1 : 
-			msk = 0x1;
-			break;
-
-		case 2 : 
-			msk = 0x3;
-			break;
-
-		default : 
-			msk = 0xf;
-			break;
+		lock = prt_phy_lsc_wait_for_lock (phy, (PRT_PHY_LSC_PIO_IN_RXVAL << i));
 	}
 
-    // Assert PHY RX PCS reset
-    prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
-
-	// Set alarm 0
-	prt_tmr_set_alrm (phy->tmr, 0, PRT_PHY_LSC_LOCK_TIMEOUT);
-
-	exit_loop = PRT_FALSE;
-	do
-	{
-		// Read PIO
-		dat = prt_phy_lsc_pio_dat_get (phy);
-		dat >>= PRT_PHY_LSC_PIO_IN_RX_VAL_SHIFT;
-		
-		if ((dat & msk) == msk)
-		{
-			exit_loop = PRT_TRUE;	
-		}
-
-		// Time out
-		else if (prt_tmr_is_alrm (phy->tmr, 0))
-		{
-			exit_loop = PRT_TRUE;	
-		}
-	} while (exit_loop == PRT_FALSE);
-
-    // Release PHY RX PCS reset
+	// Release PHY RX PCS reset
 	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 }
 
@@ -688,11 +669,24 @@ void prt_phy_lsc_unbond (prt_phy_lsc_ds_struct *phy)
 	// Exclude channel from bonded channel group
 	dat |= PRT_PHY_LSC_REG120_RX_BOND_MASK;
 
-	for (prt_u8 i = 0; i < 4; i++)
-	{
-		// Update settings
-		prt_phy_lsc_wr (phy, i, 0x120, dat);
-	}
+	// Update settings
+	prt_phy_lsc_wr_all (phy, 0x120, dat);
+}
+
+// RX disable frequency comparator
+void prt_phy_lsc_rx_no_fcmp (prt_phy_lsc_ds_struct *phy)
+{
+	// Variables
+	prt_u8 dat;
+
+	// Read register (only channel 0)
+	dat = prt_phy_lsc_rd (phy, 0, 0x0e);
+
+	// Set NO_FMCP bit
+	dat |= PRT_PHY_LSC_REG0E_NO_FCMP;
+
+	// Write all channels
+	prt_phy_lsc_wr_all (phy, 0x0e, dat);
 }
 
 //  PIO Data set

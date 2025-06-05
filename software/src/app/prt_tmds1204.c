@@ -59,6 +59,8 @@ prt_sta_type prt_tmds1204_id (prt_i2c_ds_struct *i2c, uint8_t slave)
 
 	sta = prt_tmds1204_rd (i2c, slave, 0x08, &dat);
 
+	//prt_printf ("status: %d | dat:%d\n", sta, dat);
+
 	if (dat == 0x03)
 		return PRT_STA_OK;
 	else
@@ -81,9 +83,6 @@ prt_sta_type prt_tmds1204_run (prt_i2c_ds_struct *i2c, uint8_t slave)
 	// HDMI clock tx slew rate control
 	sta = prt_tmds1204_wr (i2c, slave, 0x0c, 0x00);
  
-    // Linear mode, DC-coupled TX, 0dB DCG, Term fixed at 100Ω, disable CTLE bypass
-	sta = prt_tmds1204_wr (i2c, slave, 0x0d, 0x97);
-
     // HDMI 1.4, 2.0 and 2.1 CTLE selection
 	sta = prt_tmds1204_wr (i2c, slave, 0x0e, 0x97);
     
@@ -128,6 +127,28 @@ prt_sta_type prt_tmds1204_run (prt_i2c_ds_struct *i2c, uint8_t slave)
 
     // Enable all four lanes
     sta = prt_tmds1204_wr (i2c, slave, 0x11, 0x0f);
+
+/*
+	PRBS mode
+
+	// FANOUT disabled, Rate snoop disabled and TXFFE controlled by 35h, 41h, and 42h
+	sta = prt_tmds1204_wr (i2c, slave, 0x0a, 0x0e);
+
+	// Linear mode, AC-coupled TX, 0dB DCG, Term fixed at 100Ω, CTLE bypass enable
+	sta = prt_tmds1204_wr (i2c, slave, 0x0d, 0xe4);
+
+	// Disable all four lanes.
+	sta = prt_tmds1204_wr (i2c, slave, 0x11, 0x00);
+
+	// Take out of PD state. Should be done after initialization is complete.
+	sta = prt_tmds1204_wr (i2c, slave, 0x09, 0x00);
+	
+	// Disable FRL
+	sta = prt_tmds1204_wr (i2c, slave, 0x31, 0x00);
+
+	// Enable all four lanes
+	sta = prt_tmds1204_wr (i2c, slave, 0x11, 0x0f);
+*/	
 
 	return sta;
 }

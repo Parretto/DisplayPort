@@ -249,7 +249,7 @@ wire [P_PHY_CTL_PIO_OUT-1:0]            pio_dat_from_phy_ctl;
 wire                                    tx_pll_and_dp_rst_from_phy_ctl;
 wire                                    tx_dp_rst_from_phy_ctl;
 wire                                    rx_pll_and_dp_rst_from_phy_ctl;
-(* mark_debug = "true" *) wire                                    rx_dp_rst_from_phy_ctl;
+wire                                    rx_dp_rst_from_phy_ctl;
 wire [1:0]                              tx_linerate_from_phy_ctl;
 wire [4:0]                              tx_diffctrl_from_phy_ctl;
 wire [4:0]                              tx_postcursor_from_phy_ctl;

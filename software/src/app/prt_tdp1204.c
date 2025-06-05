@@ -59,6 +59,8 @@ prt_sta_type prt_tdp1204_id (prt_i2c_ds_struct *i2c, uint8_t slave)
 
 	sta = prt_tdp1204_rd (i2c, slave, 0x08, &dat);
 
+	//prt_printf ("status: %d | dat:%d\n", sta, dat);
+
 	if (dat == 0x03)
 		return PRT_STA_OK;
 	else
@@ -89,9 +91,6 @@ prt_sta_type prt_tdp1204_run (prt_i2c_ds_struct *i2c, uint8_t slave)
 
     // Take out of PD state. Should be done after initialization is complete.
 	sta = prt_tdp1204_wr (i2c, slave, 0x09, 0x00);
-
-    // Take out of PD state. Should be done after initialization is complete. Ignore HPD pin
-	//sta = prt_tdp1204_wr (i2c, slave, 0x09, 0x06);
 
     // Limited mode, DC-coupled TX, 0dB DCG, Term open, disable CTLE bypass
     sta = prt_tdp1204_wr (i2c, slave, 0x0d, 0x20);
@@ -132,6 +131,30 @@ prt_sta_type prt_tdp1204_run (prt_i2c_ds_struct *i2c, uint8_t slave)
     // Enable all four lanes
     sta = prt_tdp1204_wr (i2c, slave, 0x11, 0x0f);
 
+	// Enable DDC buffer
+	sta = prt_tdp1204_wr (i2c, slave, 0x10, 0x03);
+
+/*
+	PRBS mode
+
+    // HPD_OUT_SEL is open drain, Rate snoop disabled and TXFFE controlled by 35h, 41h, and 42h
+	sta = prt_tdp1204_wr (i2c, slave, 0x0a, 0x1d);
+
+	// Disable all four lanes.
+	sta = prt_tdp1204_wr (i2c, slave, 0x11, 0x00);
+
+	// Take out of PD state. Should be done after initialization is complete.
+	sta = prt_tdp1204_wr (i2c, slave, 0x09, 0x00);
+	
+	// Limited mode, DC-coupled TX, 0dB DCG, Term open, CTLE bypass enabled
+	sta = prt_tdp1204_wr (i2c, slave, 0x0d, 0x24);
+
+	// Enable all four lanes
+	sta = prt_tdp1204_wr (i2c, slave, 0x11, 0x0f);
+
+	// Enable DDC buffer
+	sta = prt_tdp1204_wr (i2c, slave, 0x10, 0x03);
+*/	
 	return sta;
 }
 

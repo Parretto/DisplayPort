@@ -40,7 +40,7 @@ module prt_dprx_msa
     // Message
     parameter               P_MSG_IDX     = 5,      // Message index width
     parameter               P_MSG_DAT     = 16,     // Message data width
-    parameter               P_MSG_ID_MSA  = 0       // Message ID main stream attributes
+    parameter               P_MSG_ID      = 0       // Message ID 
 )
 (
     // Reset and clock
@@ -148,7 +148,7 @@ genvar i, j;
 // Message Slave Ingress
     prt_dp_msg_slv_ing
     #(
-        .P_ID           (P_MSG_ID_MSA),   // Identifier
+        .P_ID           (P_MSG_ID),       // Identifier
         .P_IDX_WIDTH    (P_MSG_IDX),      // Index width
         .P_DAT_WIDTH    (P_MSG_DAT)       // Data width
     )
@@ -164,7 +164,7 @@ genvar i, j;
         // MSG source
         .MSG_SRC_IF     (MSG_SRC_IF),
 
-        // Inggress
+        // Ingress
         .ING_IDX_OUT    (clk_msg.idx),       // Index
         .ING_FIRST_OUT  (clk_msg.first),     // First
         .ING_LAST_OUT   (clk_msg.last),      // Last

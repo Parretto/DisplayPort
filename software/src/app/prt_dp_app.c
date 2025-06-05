@@ -214,11 +214,6 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
-#ifdef SCALER
-     // Assign scaler base address
-     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
-#endif
-
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
@@ -495,6 +490,9 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
+// If the advanced option is not defined, then the DP is pre-configured.
+#ifndef ADVANCED
+
      /*
           DPTX
      */
@@ -611,6 +609,7 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
+#endif
 
      // Menu
      show_menu ();
@@ -647,57 +646,31 @@ int main (void)
                          prt_dp_sta (&dptx);
                          break;
 
-                    // MST enable / disable
-                    case 't' :
+                    // Force training
+                    case 'r' :
+                         prt_printf ("DPTX: Training\n");
+                         prt_printf ("Select maximum line rate:\n");
+                         prt_printf (" 1 - 1.62 Gbps\n");
+                         prt_printf (" 2 - 2.7 Gbps\n");
+                         prt_printf (" 3 - 5.4 Gbps\n");
+                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
+                              prt_printf (" 4 - 8.1 Gbps\n");
+                         #endif
+                         cmd = prt_uart_get_char ();
 
-                         // Disable
-                         if (dp_app.tx.mst)
+                         switch (cmd)
                          {
-                              prt_printf ("\nDPTX: MST stop\n");
-
-                              mst_sta = prt_dptx_mst_stp (&dptx);
-
-                              // Clear flag
-                              dp_app.tx.mst = false;
-
-                              // Start colorbar
-                              dp_app.tx.colorbar = true;
+                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
+                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
+                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
+                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
                          }
 
-                         // Enable
-                         else
-                         {
-                              prt_printf ("\nDPTX: MST start\n");
-                              
-                              // First stop the video
-                              prt_dp_vid_stp (&dptx, 0);
+                         // Set max rate
+                         prt_dp_set_lnk_max_rate (&dptx, dat);
 
-                              mst_sta = prt_dptx_mst_str (&dptx);
-
-                              switch (mst_sta)
-                              {
-                                   case PRT_DP_MST_OK            : prt_printf ("DPTX: MST ok\n"); break;
-                                   case PRT_DP_MST_NO_LOGIC      : prt_printf ("DPTX: MST logic not enabled\n"); break;
-                                   case PRT_DP_MST_SNK_NO_CAP    : prt_printf ("DPTX: MST not supported by sink\n"); break;
-                                   default                       : prt_printf ("DPTX: MST error\n"); break;
-                              }
-
-                              // Set flag
-                              if (mst_sta == PRT_DP_MST_OK)
-                              {
-                                   // Set MST flag
-                                   dp_app.tx.mst = true;
-                                   
-                                   // Start colorbar
-                                   dp_app.tx.colorbar = true;
-                              }
-
-                              else
-                              {
-                                   // Clear MST flag
-                                   dp_app.tx.mst = false;
-                              }
-                         }
+                         // Force training
+                         prt_dptx_trn (&dptx);
                          break;
 
                     // DPCD read
@@ -1176,8 +1149,32 @@ int main (void)
           prt_log_sprintf (&log, " | Vstart : %d", tp.vstart);
           prt_log_sprintf (&log, " | Vheight : %d", tp.vheight);
           prt_log_sprintf (&log, " | Vsw : %d\n", tp.vsw);
-          prt_log_sprintf (&log, "\tBPC : %d\n", tp.bpc);
+          prt_log_sprintf (&log, "\tBPC : %d", tp.bpc);
+          prt_log_sprintf (&log, " | Colorspace : ");
 
+          switch (tp.csf)
+          {
+               case PRT_DP_CSF_RGB :
+                    prt_log_sprintf (&log, "RGB\n");
+                    break;
+
+               case PRT_DP_CSF_YCBCR444 :
+                    prt_log_sprintf (&log, "YCbCr 444\n");
+                    break;
+
+               case PRT_DP_CSF_YCBCR422 :
+                    prt_log_sprintf (&log, "YCbCr 422\n");
+                    break;
+
+               case PRT_DP_CSF_YCBCR420 :
+                    prt_log_sprintf (&log, "YCbCr 420\n");
+                    break;
+
+               default :
+                    prt_log_sprintf (&log, "Unknown\n");
+                    break;
+          }
+                    
           // Start pass-through
           dp_app.rx.pass = true;
      }
@@ -1259,23 +1256,13 @@ int main (void)
 
          prt_printf ("\n__DPTX__\n");
          prt_printf ("q - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("w - Config\n");
-     #endif
          prt_printf ("e - Status\n");
          prt_printf ("r - Read EDID\n");
-     #ifdef ADVANCED
-         prt_printf ("t - PHY test\n");
-         prt_printf ("y - AUX test\n");
-     #endif
          prt_printf ("u - Read DPCD\n");
          prt_printf ("i - Write DPCD\n");
 
          prt_printf ("\n__DPRX__\n");
          prt_printf ("a - Ping\n");
-     #ifdef ADVANCED
-         prt_printf ("s - Config\n");
-     #endif
          prt_printf ("d - Status\n");
          prt_printf ("f - HPD\n");
 
@@ -1286,10 +1273,6 @@ int main (void)
          prt_printf ("z - Colorbar\n");
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
-
-     #ifdef ADVANCED
-         prt_printf ("b - PRBS\n");
-     #endif
          prt_printf ("\n");
      }
 

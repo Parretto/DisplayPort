@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added colorspace 
 
     License
     =======
@@ -61,16 +62,17 @@
 #define PRT_DP_EVT_ERR							(1<<1)
 #define PRT_DP_EVT_HPD							(1<<2)
 #define PRT_DP_EVT_STA							(1<<3)
-#define PRT_DP_EVT_PHY_RST						(1<<4)
-#define PRT_DP_EVT_PHY_RATE						(1<<5)
-#define PRT_DP_EVT_PHY_VAP						(1<<6)
-#define PRT_DP_EVT_TRN							(1<<7)
-#define PRT_DP_EVT_LNK							(1<<8)
-#define PRT_DP_EVT_VID							(1<<9)
-#define PRT_DP_EVT_MSA							(1<<10)
-#define PRT_DP_EVT_DPCD							(1<<11)
-#define PRT_DP_EVT_EDID							(1<<12)
-#define PRT_DP_EVT_DEBUG						(1<<13)
+#define PRT_DP_EVT_PWR_CTL						(1<<4)
+#define PRT_DP_EVT_PHY_RST						(1<<5)
+#define PRT_DP_EVT_PHY_RATE						(1<<6)
+#define PRT_DP_EVT_PHY_VAP						(1<<7)
+#define PRT_DP_EVT_TRN							(1<<8)
+#define PRT_DP_EVT_LNK							(1<<9)
+#define PRT_DP_EVT_VID							(1<<10)
+#define PRT_DP_EVT_MSA							(1<<11)
+#define PRT_DP_EVT_DPCD							(1<<12)
+#define PRT_DP_EVT_EDID							(1<<13)
+#define PRT_DP_EVT_DEBUG						(1<<14)
 
 // Line rate
 #define PRT_DP_PHY_LINERATE_1620		0x06
@@ -113,6 +115,7 @@ typedef enum {
 	PRT_DP_CB_HPD, 
 	PRT_DP_CB_STA, 
 	PRT_DP_CB_TRN, 
+	PRT_DP_CB_PWR_CTL, 
 	PRT_DP_CB_PHY_RST, 
 	PRT_DP_CB_PHY_RATE, 
 	PRT_DP_CB_PHY_VAP, 
@@ -122,6 +125,15 @@ typedef enum {
 	PRT_DP_CB_DPCD, 
 	PRT_DP_CB_DBG
 } prt_dp_cb_type;
+
+// Enum colorspace format types
+typedef enum {
+	PRT_DP_CSF_UNKNOWN = 0, 
+	PRT_DP_CSF_RGB = 1, 
+	PRT_DP_CSF_YCBCR444 = 2, 
+	PRT_DP_CSF_YCBCR422 = 3, 
+	PRT_DP_CSF_YCBCR420 = 4
+} prt_dp_csf_type;
 
 // Device structure
 typedef struct {
@@ -155,6 +167,11 @@ typedef struct {
 	uint8_t fail;	// Fail
 	uint8_t tps;	// Training pattern
 } prt_dp_trn_struct;
+
+// Power control
+typedef struct {
+	uint8_t dat;	// Data
+} prt_dp_pwr_ctl_struct;
 
 // Mail structure
 typedef struct {
@@ -202,7 +219,9 @@ typedef struct {
 	uint16_t vheight;		// Vertical height
 	uint16_t vstart;		// Vertical start
 	uint16_t vsw;			// Vertical sync width
+	uint8_t misc[2];		// MISC
 	uint8_t bpc;			// Bits per component
+	prt_dp_csf_type csf;	// Colorspace format
 } prt_dp_tp_struct;
 
 // Link
@@ -239,6 +258,7 @@ typedef struct {
 	prt_dp_cb		hpd;		// HPD Callback
 	prt_dp_cb		sta;		// Status Callback
 	prt_dp_cb		trn;		// Training Callback
+	prt_dp_cb		pwr_ctl;	// Power control (RX Only)
 	prt_dp_cb		phy_rst;	// PHY reset
 	prt_dp_cb		phy_rate;	// PHY rate Callback
 	prt_dp_cb		phy_vap;	// PHY voltage and preamble Callback
@@ -261,6 +281,7 @@ typedef struct {
 	prt_dp_sta_struct						sta;			// Status
 	prt_dp_trn_struct						trn;			// Training
 	prt_dp_hpd_type 						hpd;			// HPD
+	prt_dp_pwr_ctl_struct					pwr_ctl;		// Power control
 	prt_dp_lnk_struct						lnk;			// Link
 	prt_dp_vid_struct						vid[2];			// Video
 	prt_dp_edid_struct						edid;			// EDID
@@ -300,7 +321,6 @@ uint8_t prt_dp_get_lnk_lanes (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_volt (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_pre (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_ssc (prt_dp_ds_struct *dp);
-
 
 // DPTX
 uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t stream);

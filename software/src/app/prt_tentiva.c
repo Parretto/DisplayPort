@@ -328,7 +328,7 @@ prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, uint32_t 
 		if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID)
 		{
 			// Program system clock with PHY clock frequency
-			prt_tentiva_sc_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_PHY_CLK, freq);
+			prt_tentiva_sc_reg_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_PHY_CLK, freq);
 			
 			// Wait for lock
 			sta = prt_tentiva_get_lock (tentiva, PRT_TENTIVA_SC_STA_PHY_CLK_LOCK);
@@ -397,7 +397,7 @@ prt_sta_type prt_tentiva_set_vid_freq (prt_tentiva_ds_struct *tentiva, uint32_t 
 	if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID)
 	{
 		// Program system clock with PHY clock frequency
-		prt_tentiva_sc_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_VID_CLK, freq);
+		prt_tentiva_sc_reg_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_VID_CLK, freq);
 		
 		// Wait for lock
 		sta = prt_tentiva_get_lock (tentiva, PRT_TENTIVA_SC_STA_VID_CLK_LOCK);
@@ -476,7 +476,7 @@ prt_sta_type prt_tentiva_get_lock (prt_tentiva_ds_struct *tentiva, uint32_t lock
 		if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID)
 		{
 			// Read status register from system controller
-			prt_tentiva_sc_rd (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_STA, (uint8_t*) &dat);
+			dat = prt_tentiva_sc_sta (tentiva->i2c);
 		}
 
     	// Tentiva Rev.C board
@@ -568,6 +568,7 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 {
  	// Variables
  	prt_sta_type sta;
+    uint8_t ver;
  	uint8_t id;
 
  	// Base board
@@ -590,6 +591,15 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 	}
 	else
 		prt_printf ("not found!\n");
+
+
+	// System controller version
+	if (prt_tentiva_has_sc (tentiva))
+	{
+		ver = prt_tentiva_sc_ver (tentiva->i2c);
+
+		prt_printf ("Tentiva System Controller version %d.%d\n", ((ver >> 4) & 0xf), (ver & 0xf));
+	}
 
 	// Slot
 	for (uint8_t i = 0; i < 2; i++)
@@ -813,8 +823,8 @@ prt_sta_type prt_tentiva_eeprom_rd (prt_i2c_ds_struct *i2c, uint8_t slave)
 	return sta;
 }
 
-// System controller write
-prt_sta_type prt_tentiva_sc_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat)
+// System controller register write
+prt_sta_type prt_tentiva_sc_reg_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -847,8 +857,8 @@ prt_sta_type prt_tentiva_sc_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t a
 	return sta;
 }
 
-// System controller read
-prt_sta_type prt_tentiva_sc_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat)
+// System controller register read
+prt_sta_type prt_tentiva_sc_reg_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat)
 {
 	// Variables
 	prt_sta_type sta;
@@ -883,3 +893,74 @@ prt_sta_type prt_tentiva_sc_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t a
 	// Return
 	return sta;
 }
+
+// Tentiva clock buffer select
+// This function drives the clock buffer select
+prt_sta_type prt_tentiva_sc_cb_sel (prt_i2c_ds_struct *i2c, uint8_t cb, uint8_t set)
+{
+	// Variables
+	uint8_t dat;
+	uint8_t cb_sel;
+	prt_sta_type sta;
+
+	// Read control register
+	sta = prt_tentiva_sc_reg_rd (i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_CTL, &dat);
+
+	if (sta != PRT_STA_OK)
+		return PRT_STA_FAIL;
+
+	// Mask
+	if (cb == 2)
+		cb_sel = PRT_TENTIVA_SC_CTL_CB2_SEL;
+	else
+		cb_sel = PRT_TENTIVA_SC_CTL_CB1_SEL;
+
+	// Clear bit
+	dat &= (~cb_sel);
+
+	// Set bit
+	if (set == PRT_TRUE)
+		dat |= cb_sel;
+		
+	// Write control register
+	sta = prt_tentiva_sc_reg_wr (i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_CTL, dat);
+
+	return sta;
+}
+
+// Tentiva system controller version
+// This function reads the system controller version
+uint8_t prt_tentiva_sc_ver (prt_i2c_ds_struct *i2c)
+{
+	// Variables
+	uint8_t dat;
+	prt_sta_type sta;
+
+	// Read version register
+	sta = prt_tentiva_sc_reg_rd (i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_VER, &dat);
+
+	if (sta != PRT_STA_OK)
+		return 0;
+
+	else 
+		return dat;
+}
+
+// Tentiva system controller status register
+// This function reads the system controller status register
+uint8_t prt_tentiva_sc_sta (prt_i2c_ds_struct *i2c)
+{
+	// Variables
+	uint8_t dat;
+	prt_sta_type sta;
+
+	// Read version register
+	sta = prt_tentiva_sc_reg_rd (i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_STA, &dat);
+
+	if (sta != PRT_STA_OK)
+		return 0;
+
+	else 
+		return dat;
+}
+

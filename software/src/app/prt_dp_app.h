@@ -145,10 +145,6 @@ void set_edid (prt_bool user);
 // UART
 uint32_t uart_read_hex (void);
 
-// PRBS
-void prbs (void);
-void prbs_menu (void);
-
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)
      #define ZCU102_I2C_MUX_U34_ADR          0x74

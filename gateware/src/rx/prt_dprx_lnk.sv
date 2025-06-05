@@ -14,6 +14,7 @@
     v1.2 - Added training TPS4
     v1.3 - Added 10-bits video support
     v1.4 - Added secondary data packet 
+    v1.5 - Added sdp vsc snooping
 
     License
     =======
@@ -54,7 +55,8 @@ module prt_dprx_lnk
     parameter               P_MSG_ID_CTL  = 'h14,    // Message ID control
     parameter               P_MSG_ID_TRN  = 'h10,    // Message ID training
     parameter               P_MSG_ID_MSA  = 'h12,    // Message ID msa
-    parameter               P_MSG_ID_VID  = 'h13     // Message ID video
+    parameter               P_MSG_ID_VID  = 'h13,    // Message ID video
+    parameter               P_MSG_ID_SDP  = 'h14     // Message ID sdp
 )
 (
     // System
@@ -106,7 +108,7 @@ wire [1:0]  bpc_from_ctl;
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
-) lnk_msg_if[6]();
+) lnk_msg_if[7]();
 
 // Video message
 prt_dp_msg_if
@@ -203,10 +205,10 @@ genvar i;
 // To save an extra video CDC back to the system clock domain, the link message is split into two interfaces.  
 // One interface is connected to the system CDC and the other is routed to the video CDC.
 
-    assign {lnk_msg_if[5].som, lnk_msg_if[4].som} = {2{lnk_msg_if[3].som}};
-    assign {lnk_msg_if[5].eom, lnk_msg_if[4].eom} = {2{lnk_msg_if[3].eom}};
-    assign {lnk_msg_if[5].dat, lnk_msg_if[4].dat} = {2{lnk_msg_if[3].dat}};
-    assign {lnk_msg_if[5].vld, lnk_msg_if[4].vld} = {2{lnk_msg_if[3].vld}};
+    assign {lnk_msg_if[6].som, lnk_msg_if[5].som} = {2{lnk_msg_if[4].som}};
+    assign {lnk_msg_if[6].eom, lnk_msg_if[5].eom} = {2{lnk_msg_if[4].eom}};
+    assign {lnk_msg_if[6].dat, lnk_msg_if[5].dat} = {2{lnk_msg_if[4].dat}};
+    assign {lnk_msg_if[6].vld, lnk_msg_if[5].vld} = {2{lnk_msg_if[4].vld}};
 
 // System message Clock domain converter
     prt_dp_msg_cdc
@@ -223,7 +225,7 @@ genvar i;
         .B_CLK_IN           (SYS_CLK_IN),
 
         // Port A 
-        .A_MSG_SNK_IF       (lnk_msg_if[4]),   // Sink
+        .A_MSG_SNK_IF       (lnk_msg_if[5]),   // Sink
 
         // Port B
         .B_MSG_SRC_IF       (MSG_SRC_IF)
@@ -245,7 +247,7 @@ genvar i;
         .B_CLK_IN           (VID_CLK_IN),
 
         // Port A 
-        .A_MSG_SNK_IF       (lnk_msg_if[5]),   // Sink
+        .A_MSG_SNK_IF       (lnk_msg_if[6]),   // Sink
 
         // Port B
         .B_MSG_SRC_IF       (vid_msg_if[0])
@@ -514,7 +516,7 @@ endgenerate
         // Message
         .P_MSG_IDX          (P_MSG_IDX),        // Index width
         .P_MSG_DAT          (P_MSG_DAT),        // Data width
-        .P_MSG_ID_MSA       (P_MSG_ID_MSA)      // Message ID Training
+        .P_MSG_ID           (P_MSG_ID_MSA)      // Message ID Training
     )
     MSA_INST
     (
@@ -543,18 +545,27 @@ generate
     begin : gen_sdp
         prt_dprx_sdp
         #(
-                // System
-                .P_SIM              (P_SIM),            // Simulation
-                .P_VENDOR           (P_VENDOR),         // Vendor
-                
-                // Link
-                .P_LANES            (P_LANES),          // Lanes
-                .P_SPL              (P_SPL)             // Symbols per lane
+            // System
+            .P_SIM                  (P_SIM),            // Simulation
+            .P_VENDOR               (P_VENDOR),         // Vendor
+            
+            // Link
+            .P_LANES                (P_LANES),          // Lanes
+            .P_SPL                  (P_SPL),            // Symbols per lane
+
+            // Message
+            .P_MSG_IDX              (P_MSG_IDX),        // Index width
+            .P_MSG_DAT              (P_MSG_DAT),        // Data width
+            .P_MSG_ID               (P_MSG_ID_SDP)      // Message ID Training
         )
         SDP_INST
         (
             // Control
             .CTL_LANES_IN           (lanes_from_ctl),   // Active lanes (1 - 1 lane / 2 - 2 lanes / 3 - 4 lanes)
+
+            // Message
+            .MSG_SNK_IF             (lnk_msg_if[3]),     // Sink
+            .MSG_SRC_IF             (lnk_msg_if[4]),     // Source
 
             // Link
             .LNK_RST_IN             (LNK_RST_IN),       // Reset
@@ -572,6 +583,7 @@ generate
     begin : gen_no_sdp
         assign lnk_from_sdp.lock = lnk_from_msa.lock;
         
+        // Bypass link
         for (i = 0; i < P_LANES; i++)
         begin
             assign lnk_from_sdp.sol[i]      = lnk_from_msa.sol[i];
@@ -584,6 +596,13 @@ generate
             assign lnk_from_sdp.dat[i]      = lnk_from_msa.dat[i];
         end
 
+        // Bypass message
+        assign lnk_msg_if[4].som = lnk_msg_if[3].som;
+        assign lnk_msg_if[4].eom = lnk_msg_if[3].eom;
+        assign lnk_msg_if[4].dat = lnk_msg_if[3].dat;
+        assign lnk_msg_if[4].vld = lnk_msg_if[3].vld;
+
+        // Disable external SDP interface
         assign SDP_SRC_IF.sop = 0;
         assign SDP_SRC_IF.eop = 0;
         assign SDP_SRC_IF.dat = 0;

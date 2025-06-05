@@ -46,6 +46,7 @@
   #define PRT_DP_MAIL_AUX_TST          0x22    // AUX test
   #define PRT_DP_MAIL_PHY_RST_REQ      0x23    // PHY reset request / RX Only
   #define PRT_DP_MAIL_PHY_RST_ACK      0x24    // PHY reset acknowledge / RX Only 
+  #define PRT_DP_MAIL_PWR_CTL          0x25    // Power control / RX Only
   
   #define PRT_DP_MAIL_TRN_STR          0x30    // Training start / TX only
   #define PRT_DP_MAIL_TRN_PASS         0x31    // Training pass

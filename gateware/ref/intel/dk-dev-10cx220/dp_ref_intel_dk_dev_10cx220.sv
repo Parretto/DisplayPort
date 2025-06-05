@@ -5,7 +5,7 @@
 
 
     Module: DP reference design running on Intel Cyclone 10GX
-    (c) 2021 - 2024 by Parretto B.V.
+    (c) 2021 - 2025 by Parretto B.V.
 
     History
     =======
@@ -13,6 +13,8 @@
     v1.1 - Removed video global clock buffer
     v1.2 - Inverted PHY TX disparity signals
     v1.3 - Added 10-bits video 
+    v1.4 - Added support for Tentiva DP21TX and DP21RX cards
+    v1.5 - Added secondary packet interface
 
     License
     =======
@@ -54,12 +56,15 @@ module dp_ref_intel_dk_dev_10cx220
     output wire             DPTX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPTX_AUX_RX_IN,             // AUX Receive
     input wire              DPTX_HPD_IN,                // HPD
+    output wire             DPTX_I2C_SEL_OUT,           // I2C select (DP21 TX)
 
     // DP RX
     output wire             DPRX_AUX_EN_OUT,            // AUX Enable
     output wire             DPRX_AUX_TX_OUT,            // AUX Transmit
     input wire              DPRX_AUX_RX_IN,             // AUX Receive
     output wire             DPRX_HPD_OUT,               // HPD
+    output wire             DPRX_I2C_SEL_OUT,           // I2C select (DP21 RX)
+    input wire              DPRX_CABDET_IN,             // Cable detect
 
     // PHY
     input wire              PHY_REFCLK_IN,              // PHY Reference clock
@@ -71,13 +76,13 @@ module dp_ref_intel_dk_dev_10cx220
 );
 
 // Parameters
-localparam P_VENDOR             = "intel";
+localparam P_VENDOR             = "ALTERA";
 localparam P_SYS_FREQ           = 50_000_000;      // System frequency - 50 MHz
 localparam P_BEAT               = P_SYS_FREQ / 1_000_000;   // Beat value. 
 localparam P_REF_VER_MAJOR      = 1;     // Reference design version major
 localparam P_REF_VER_MINOR      = 0;     // Reference design minor
 localparam P_PIO_IN_WIDTH       = 4;
-localparam P_PIO_OUT_WIDTH      = 3;
+localparam P_PIO_OUT_WIDTH      = 5;
 
 localparam P_LANES              = 4;
 localparam P_SPL                = 2;      // Symbols per lane. Valid options - 2, 4. 
@@ -90,8 +95,8 @@ localparam P_PHY_RX_MST_CLK     = 0;    // PHY RX master clock
 
 localparam P_APP_ROM_SIZE       = 64;
 localparam P_APP_RAM_SIZE       = 64;
-localparam P_APP_ROM_INIT       = "dp_app_int_c10gx_rom.hex";
-localparam P_APP_RAM_INIT       = "dp_app_int_c10gx_ram.hex";
+localparam P_APP_ROM_INIT       = "dp_app_int_c10gx_rom.mif";
+localparam P_APP_RAM_INIT       = "dp_app_int_c10gx_ram.mif";
 
 localparam P_PHY_CTL_RCFG_PORTS = 5;
 localparam P_PHY_CTL_PIO_IN     = 5;
@@ -99,6 +104,7 @@ localparam P_PHY_CTL_PIO_OUT    = 5;
 
 localparam P_MST                = 0;                        // MST support
 localparam P_VTB_OVL            = (P_MST) ? 1 : 0;          // VTB Overlay
+localparam P_SDP                = 1;                        // SDP support
 
 // Interfaces
 
@@ -158,6 +164,8 @@ wire [P_PIO_OUT_WIDTH-1:0]                  pio_dat_from_app;
 
 wire                                        dptx_rst_from_app;
 wire                                        dprx_rst_from_app;
+wire                                        tx_card_from_app;
+wire                                        rx_card_from_app;
 
 // PHY PLL
 wire                                        pwrdwn_to_phy_pll;
@@ -192,6 +200,10 @@ wire [3:0] 	                                rcfg_wait_from_phy;
 wire [(P_LANES*P_SPL*11)-1:0]               lnk_dat_from_dptx;
 wire                                        irq_from_dptx;
 wire                                        hb_from_dptx;
+wire                                        sdp_sop_to_dptx;
+wire                                        sdp_eop_to_dptx;
+wire [31:0]                                 sdp_dat_to_dptx;
+wire                                        sdp_vld_to_dptx;
 
 // DPRX
 wire [(P_LANES*P_SPL*9)-1:0]                lnk_dat_to_dprx;
@@ -202,6 +214,10 @@ wire                                        vid_sof_from_dprx;   // Start of fra
 wire                                        vid_eol_from_dprx;   // End of line
 wire [P_AXI_WIDTH-1:0]                      vid_dat_from_dprx;   // Data
 wire                                        vid_vld_from_dprx;   // Valid
+wire                                        sdp_sop_from_dprx;
+wire                                        sdp_eop_from_dprx;
+wire [31:0]                                 sdp_dat_from_dprx;
+wire                                        sdp_vld_from_dprx;
 
 // VTB
 wire [1:0]                                  lock_from_vtb;
@@ -336,20 +352,24 @@ genvar i;
         .MISC_IF            (misc_if),
 
         // Aqua 
-        .AQUA_SEL_IN        (1'b0),
-        .AQUA_CTL_IN        (1'b0),
-        .AQUA_CLK_IN        (1'b0),
-        .AQUA_DAT_IN        (1'b0)
+        .AQUA_SEL_IN        (0),
+        .AQUA_CTL_IN        (0),
+        .AQUA_CLK_IN        (0),
+        .AQUA_DAT_IN        (0)
     );
 
     // PIO in mapping
-    assign pio_dat_to_app[0]            = TENTIVA_GT_CLK_LOCK_IN; 
-    assign pio_dat_to_app[1]            = TENTIVA_VID_CLK_LOCK_IN;
+    assign pio_dat_to_app[0]            = (P_PPC == 4) ? 1 : 0;             // Pixels per clock
+    assign pio_dat_to_app[1]            = (P_BPC == 10) ? 1 : 0;            // Bits per component
+    assign pio_dat_to_app[2]            = TENTIVA_GT_CLK_LOCK_IN; 
+    assign pio_dat_to_app[3]            = TENTIVA_VID_CLK_LOCK_IN;
 
     // PIO out mapping
     assign TENTIVA_CLK_SEL_OUT          = pio_dat_from_app[0];
     assign dptx_rst_from_app            = pio_dat_from_app[1];
     assign dprx_rst_from_app            = pio_dat_from_app[2];
+    assign tx_card_from_app             = pio_dat_from_app[3];      // Tentiva TX card 0 - DP1.4 / 1 - DP2.1
+    assign rx_card_from_app             = pio_dat_from_app[4];      // Tentiva RX card 0 - DP1.4 / 1 - DP2.1
 
 
 // Displayport TX
@@ -359,6 +379,7 @@ genvar i;
         .P_VENDOR           (P_VENDOR),     // Vendor
         .P_BEAT             (P_BEAT),       // Beat value. The system clock is 100 MHz
         .P_MST              (P_MST),        // MST support
+        .P_SDP              (P_SDP),        // SDP support
 
         // Link
         .P_LANES            (P_LANES),      // Lanes
@@ -398,6 +419,14 @@ genvar i;
         .VID0_B_IN          (b_from_vtb[0]),            // Blue
         .VID0_DE_IN         (de_from_vtb[0]),           // Data enable
 
+        // Secondary data packet
+        .SDP_CLK_IN         (clk_from_sys_pll),         // Clock
+        .SDP_RDY_OUT        (),                         // Ready
+        .SDP_SOP_IN         (sdp_sop_to_dptx),        // Start of packet
+        .SDP_EOP_IN         (sdp_eop_to_dptx),        // End of packet
+        .SDP_DAT_IN         (sdp_dat_to_dptx),        // Data
+        .SDP_VLD_IN         (sdp_vld_to_dptx),        // Valid
+
         // Video stream 1
         .VID1_CLK_IN        (TENTIVA_VID_CLK_IN),
         .VID1_CKE_IN        (1'b1),
@@ -413,18 +442,25 @@ genvar i;
         .LNK_DAT_OUT        (lnk_dat_from_dptx)
     );
 
-// TX mapping
-// PHY lane 0 -> DP lane 1
-    assign tx_dat_to_phy[(0*16)+:16]    = {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8]};     // TX data
-    assign tx_datk_to_phy[(0*2)+:2]     = {lnk_dat_from_dptx[(3*11)+8], lnk_dat_from_dptx[(2*11)+8]};       // K character
-    assign tx_disp_val_to_phy[(0*2)+:2] = ~{lnk_dat_from_dptx[(3*11)+9], lnk_dat_from_dptx[(2*11)+9]};      // Disparity value (0-negative / 1-positive) Must be inverted for Cyclone 10 GX PHY
-    assign tx_disp_ctl_to_phy[(0*2)+:2] = {lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10]};     // Disparity control (0-automatic / 1-force)
+    // Route the SDP packets from the DP RX to the DP TX
+    assign sdp_sop_to_dptx = 0; //sdp_sop_from_dprx;
+    assign sdp_eop_to_dptx = 0; //sdp_eop_from_dprx;
+    assign sdp_dat_to_dptx = 32'h0; //sdp_dat_from_dprx;
+    assign sdp_vld_to_dptx = 0; //sdp_vld_from_dprx;
 
-// PHY lane 1 -> DP lane 0
-    assign tx_dat_to_phy[(1*16)+:16]    = {lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};     // TX data
-    assign tx_datk_to_phy[(1*2)+:2]     = {lnk_dat_from_dptx[(1*11)+8], lnk_dat_from_dptx[(0*11)+8]};       // K character
-    assign tx_disp_val_to_phy[(1*2)+:2] = ~{lnk_dat_from_dptx[(1*11)+9], lnk_dat_from_dptx[(0*11)+9]};      // Disparity value (0-negative / 1-positive) Must be inverted for Cyclone 10 GX PHY
-    assign tx_disp_ctl_to_phy[(1*2)+:2] = {lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};     // Disparity control (0-automatic / 1-force)
+// TX mapping
+
+// PHY lane 0 -> DP lane 0
+    assign tx_dat_to_phy[(0*16)+:16]    = {lnk_dat_from_dptx[(1*11)+:8], lnk_dat_from_dptx[(0*11)+:8]};     // TX data
+    assign tx_datk_to_phy[(0*2)+:2]     = {lnk_dat_from_dptx[(1*11)+8], lnk_dat_from_dptx[(0*11)+8]};       // K character
+    assign tx_disp_val_to_phy[(0*2)+:2] = ~{lnk_dat_from_dptx[(1*11)+9], lnk_dat_from_dptx[(0*11)+9]};      // Disparity value (0-negative / 1-positive) Must be inverted for Cyclone 10 GX PHY
+    assign tx_disp_ctl_to_phy[(0*2)+:2] = {lnk_dat_from_dptx[(1*11)+10], lnk_dat_from_dptx[(0*11)+10]};     // Disparity control (0-automatic / 1-force)
+
+// PHY lane 1 -> DP lane 1
+    assign tx_dat_to_phy[(1*16)+:16]    = {lnk_dat_from_dptx[(3*11)+:8], lnk_dat_from_dptx[(2*11)+:8]};     // TX data
+    assign tx_datk_to_phy[(1*2)+:2]     = {lnk_dat_from_dptx[(3*11)+8], lnk_dat_from_dptx[(2*11)+8]};       // K character
+    assign tx_disp_val_to_phy[(1*2)+:2] = ~{lnk_dat_from_dptx[(3*11)+9], lnk_dat_from_dptx[(2*11)+9]};      // Disparity value (0-negative / 1-positive) Must be inverted for Cyclone 10 GX PHY
+    assign tx_disp_ctl_to_phy[(1*2)+:2] = {lnk_dat_from_dptx[(3*11)+10], lnk_dat_from_dptx[(2*11)+10]};     // Disparity control (0-automatic / 1-force)
 
 // PHY lane 2 -> DP lane 2
     assign tx_dat_to_phy[(2*16)+:16]    = {lnk_dat_from_dptx[(5*11)+:8], lnk_dat_from_dptx[(4*11)+:8]};     // TX data
@@ -445,6 +481,7 @@ genvar i;
         .P_VENDOR           (P_VENDOR),   // Vendor
         .P_BEAT             (P_BEAT),     // Beat value. 
         .P_MST              (P_MST),      // MST support
+        .P_SDP              (P_SDP),      // SDP support
 
         // Link
         .P_LANES            (P_LANES),    // Lanes
@@ -476,8 +513,10 @@ genvar i;
 
         // Link
         .LNK_CLK_IN         (rx_clk_from_phy[P_PHY_RX_MST_CLK]),        // Clock
+        .LNK_LOCK_IN        (1'b1),                 // Lock
         .LNK_DAT_IN         (lnk_dat_to_dprx),      // Data
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
+        .LNK_VBID_OUT       (),
 
         // Video
         .VID_CLK_IN         (TENTIVA_VID_CLK_IN),    // Clock
@@ -487,34 +526,35 @@ genvar i;
         .VID_DAT_OUT        (vid_dat_from_dprx),    // Data
         .VID_VLD_OUT        (vid_vld_from_dprx),    // Valid
 
-        // Secondary data packet
-        .SDP_SOP_OUT        (),                     // Start of packet
-        .SDP_EOP_OUT        (),                     // End of packet
-        .SDP_DAT_OUT        (),                     // Data
-        .SDP_VLD_OUT        ()                      // Valid
+        // Secondary Data Packet
+        .SDP_CLK_IN         (clk_from_sys_pll),     // Clock
+        .SDP_SOP_OUT        (sdp_sop_from_dprx),    // Start of packet
+        .SDP_EOP_OUT        (sdp_eop_from_dprx),    // End of packet
+        .SDP_DAT_OUT        (sdp_dat_from_dprx),    // Data
+        .SDP_VLD_OUT        (sdp_vld_from_dprx)     // Valid
     );
 
     // Map data
+    // PHY lane 0 -> DP lane 0
+    assign {lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} = rx_dat_from_phy[(0*16)+:16]; 
+    assign lnk_dat_to_dprx[(0*9)+8] = rx_datk_from_phy[(0*2)+0];
+    assign lnk_dat_to_dprx[(1*9)+8] = rx_datk_from_phy[(0*2)+1];
 
-    // PHY lane 0 -> DP lane 2 
-    assign {lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} = rx_dat_from_phy[(0*16)+:16]; 
-    assign lnk_dat_to_dprx[(4*9)+8] = rx_datk_from_phy[(0*2)+0];
-    assign lnk_dat_to_dprx[(5*9)+8] = rx_datk_from_phy[(0*2)+1];
+    // PHY lane 1 -> DP lane 1 
+    assign {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8]} = rx_dat_from_phy[(1*16)+:16];  
+    assign lnk_dat_to_dprx[(2*9)+8] = rx_datk_from_phy[(1*2)+0];
+    assign lnk_dat_to_dprx[(3*9)+8] = rx_datk_from_phy[(1*2)+1];
 
-    // PHY lane 1 -> DP lane 3 
-    assign {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8]} = rx_dat_from_phy[(1*16)+:16]; 
-    assign lnk_dat_to_dprx[(6*9)+8] = rx_datk_from_phy[(1*2)+0];
-    assign lnk_dat_to_dprx[(7*9)+8] = rx_datk_from_phy[(1*2)+1];
+    // PHY lane 2 -> DP lane 2 
+    assign {lnk_dat_to_dprx[(5*9)+:8], lnk_dat_to_dprx[(4*9)+:8]} = rx_dat_from_phy[(2*16)+:16]; 
+    assign lnk_dat_to_dprx[(4*9)+8] = rx_datk_from_phy[(2*2)+0];
+    assign lnk_dat_to_dprx[(5*9)+8] = rx_datk_from_phy[(2*2)+1];
 
-    // PHY lane 2 -> DP lane 1 
-    assign {lnk_dat_to_dprx[(3*9)+:8], lnk_dat_to_dprx[(2*9)+:8]} = rx_dat_from_phy[(2*16)+:16];  
-    assign lnk_dat_to_dprx[(2*9)+8] = rx_datk_from_phy[(2*2)+0];
-    assign lnk_dat_to_dprx[(3*9)+8] = rx_datk_from_phy[(2*2)+1];
+    // PHY lane 3 -> DP lane 3 
+    assign {lnk_dat_to_dprx[(7*9)+:8], lnk_dat_to_dprx[(6*9)+:8]} = rx_dat_from_phy[(3*16)+:16]; 
+    assign lnk_dat_to_dprx[(6*9)+8] = rx_datk_from_phy[(3*2)+0];
+    assign lnk_dat_to_dprx[(7*9)+8] = rx_datk_from_phy[(3*2)+1];
 
-    // PHY lane 3 -> DP lane 0 
-    assign {lnk_dat_to_dprx[(1*9)+:8], lnk_dat_to_dprx[(0*9)+:8]} = rx_dat_from_phy[(3*16)+:16]; 
-    assign lnk_dat_to_dprx[(0*9)+8] = rx_datk_from_phy[(3*2)+0];
-    assign lnk_dat_to_dprx[(1*9)+8] = rx_datk_from_phy[(3*2)+1];
 
 // Video toolbox 0
     prt_vtb_top
@@ -720,7 +760,7 @@ endgenerate
         .tx_forcedisp               (tx_disp_ctl_to_phy),
         .tx_dispval                 (tx_disp_val_to_phy), 
         .unused_tx_parallel_data    (424'h0), 
-        .tx_polinv                  (4'b1100),                  // DP lanes 2 and 3 are inverted
+        .tx_polinv                  (4'b0000),            
 
         // RX
         .rx_analogreset             ({4{rx_arst_to_phy}}), 
@@ -737,7 +777,7 @@ endgenerate
         .rx_disperr                 (),
         .rx_runningdisp             (),
         .unused_rx_parallel_data    (),
-        .rx_polinv                  (4'b1111),              // All DP lanes are inverted
+        .rx_polinv                  (4'b0000),             
 
         // Reconfig
 		.reconfig_reset             ({4{clk_rst}}),    
@@ -777,7 +817,9 @@ endgenerate
     assign LED_OUT[1]   = led_from_vid_hb;
     assign LED_OUT[2]   = hb_from_dptx;
     assign LED_OUT[3]   = hb_from_dprx;
-  
+    assign DPTX_I2C_SEL_OUT = 1;    // Only for DP21 TX card. Select FMC I2C interface
+    assign DPRX_I2C_SEL_OUT = 1;    // Only for DP21 RX card. Select FMC I2C interface
+
 endmodule
 
 `default_nettype wire

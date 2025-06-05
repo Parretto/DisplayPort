@@ -47,6 +47,7 @@ add_files $SRC/rx/prt_dprx_scrm.sv
 add_files $SRC/rx/prt_dprx_trn_lane.sv
 add_files $SRC/rx/prt_dprx_trn.sv
 add_files $SRC/rx/prt_dprx_vid_vmap.sv
+add_files $SRC/rx/prt_dprx_vid_lmap.sv
 add_files $SRC/rx/prt_dprx_vid_fifo.sv
 add_files $SRC/rx/prt_dprx_vid.sv
 add_files $SRC/rx/prt_dprx_sdp.sv

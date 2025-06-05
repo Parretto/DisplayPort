@@ -10,6 +10,7 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - Added video last signal
 
     License
     =======
@@ -52,7 +53,8 @@ module prt_dprx_vid_fifo
     input wire [P_STRIPES-1:0]              VID_RD_IN[P_LANES][P_SEGMENTS],                 // Read
     output wire [1:0]                       VID_DAT_OUT[P_LANES][P_SEGMENTS][P_STRIPES],    // Data
     output wire [P_STRIPES-1:0]             VID_DE_OUT[P_LANES][P_SEGMENTS],                // Data enable
-    output wire [5:0]                       VID_LVL_OUT                                     // Level
+    output wire [5:0]                       VID_LVL_OUT,                                    // Level
+    output wire                             VID_LAST_OUT                                    // Last
 );
 
 // Parameters
@@ -72,9 +74,8 @@ typedef struct {
     logic   [5:0]                   head;
     logic   [5:0]                   head_last;
     logic                           last;
-    logic                           eol;
-    logic                           eol_re;
-    logic   [7:0]                   eol_pipe;
+    logic                           last_re;
+    logic   [7:0]                   last_pipe;
 } lnk_fifo_struct;
 
 typedef struct {
@@ -86,12 +87,15 @@ typedef struct {
     logic   [P_STRIPES-1:0]         ep[P_LANES][P_SEGMENTS];
     logic   [5:0]                   head_cdc;
     logic   [5:0]                   head_last_cdc;
-    logic                           eol_cdc;
-    logic                           eol_cdc_re;
-    logic                           lnk_eol;
+    logic                           last_cdc;
+    logic                           last_cdc_re;
+    logic                           lnk_last;
     logic   [5:0]                   head;
     logic   [5:0]                   tail;
     logic   [5:0]                   lvl;
+    logic                           vid_last;
+    logic   [7:0]                   vid_last_pipe;
+    logic                           vid_last_re;
 } vid_fifo_struct;
 
 // Signals
@@ -108,7 +112,6 @@ genvar i, j, k;
 
 // Link Inputs
     assign lclk_fifo.clr = LNK_CLR_IN;
-    assign lclk_fifo.last = LNK_LAST_IN;
 
 generate
     for (i = 0; i < P_LANES; i++)
@@ -143,7 +146,7 @@ generate
                 // Clear
                 // When the fifo is cleared
                 // Also to prevent race conditions the head counters are cleared on the (delayed) end of line
-                if (lclk_fifo.clr || lclk_fifo.eol_pipe[$high(lclk_fifo.eol_pipe)])
+                if (lclk_fifo.clr || lclk_fifo.last_pipe[$high(lclk_fifo.last_pipe)])
                     lclk_fifo.head_lane[i] <= 0;
 
                 // Increment
@@ -179,43 +182,45 @@ endgenerate
             lclk_fifo.head <= lclk_fifo.head_tmp[1];
     end
 
-// End-of-line
+// Last 
 // This flag is asserted at the end of a line. 
 // This flag is used by the video domain to control the head value.
+// And to generate the video last signal.
     always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
     begin
         // Reset
         if (LNK_RST_IN)
-            lclk_fifo.eol <= 0;
+            lclk_fifo.last <= 0;
 
         else
         begin
             // Clear
             if (lclk_fifo.clr)
-                lclk_fifo.eol <= 0;
+                lclk_fifo.last <= 0;
 
-            else if (lclk_fifo.last)
-                lclk_fifo.eol <= 1;
+            // Set
+            else if (LNK_LAST_IN)
+                lclk_fifo.last <= 1;
         end
     end
 
-// End-of-line edge detector
+// Last edge detector
 // This is used to capture the head last value.
     prt_dp_lib_edge
-    LNK_EOL_EDGE_INST
+    LNK_LAST_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),            // Clock
         .CKE_IN    (1'b1),                  // Clock enable
-        .A_IN      (lclk_fifo.eol),         // Input
-        .RE_OUT    (lclk_fifo.eol_re),      // Rising edge
+        .A_IN      (lclk_fifo.last),         // Input
+        .RE_OUT    (lclk_fifo.last_re),      // Rising edge
         .FE_OUT    ()                       // Falling edge
     );
 
-// End-of-line pipeline
-// The end-of-line needs to be delayed to compensate the head calculation delay.
+// Last pipeline
+// The last needs to be delayed to compensate the head calculation delay.
     always_ff @ (posedge LNK_CLK_IN)
     begin
-        lclk_fifo.eol_pipe <= {lclk_fifo.eol_pipe[0+:$high(lclk_fifo.eol_pipe)], lclk_fifo.eol_re};
+        lclk_fifo.last_pipe <= {lclk_fifo.last_pipe[0+:$high(lclk_fifo.last_pipe)], lclk_fifo.last_re};
     end
 
 // Head last
@@ -229,7 +234,7 @@ endgenerate
         else
         begin
             // Load
-            if (lclk_fifo.eol_pipe[2])
+            if (lclk_fifo.last_pipe[2])
                 lclk_fifo.head_last <= lclk_fifo.head;
         end
     end
@@ -315,14 +320,14 @@ endgenerate
         .DST_DAT_OUT    (vclk_fifo.head_last_cdc)   // Data
     );
 
-// End-of-line clock domain crossing
+// Last clock domain crossing
     prt_dp_lib_cdc_bit
-    VCLK_EOL_CDC_INST
+    VCLK_LAST_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),           // Clock
-        .SRC_DAT_IN     (lclk_fifo.eol),        // Data
+        .SRC_DAT_IN     (lclk_fifo.last),        // Data
         .DST_CLK_IN     (VID_CLK_IN),           // Clock
-        .DST_DAT_OUT    (vclk_fifo.eol_cdc)     // Data
+        .DST_DAT_OUT    (vclk_fifo.last_cdc)     // Data
     );
 
 /*
@@ -347,32 +352,32 @@ endgenerate
 
 // Last edge detector
     prt_dp_lib_edge
-    VCLK_EOL_CDC_EDGE_INST
+    VCLK_LAST_CDC_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),                // Clock
         .CKE_IN    (1'b1),                      // Clock enable
-        .A_IN      (vclk_fifo.eol_cdc),        // Input
-        .RE_OUT    (vclk_fifo.eol_cdc_re),     // Rising edge
+        .A_IN      (vclk_fifo.last_cdc),        // Input
+        .RE_OUT    (vclk_fifo.last_cdc_re),     // Rising edge
         .FE_OUT    ()                           // Falling edge
     );
 
-// Link end-of-line flag
-// This flag indicates 
+// Link last flag
+// This flag is set when the link domain has reached the end of line.
     always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
     begin
         // Reset
         if (VID_RST_IN)
-            vclk_fifo.lnk_eol <= 0;
+            vclk_fifo.lnk_last <= 0;
 
         else
         begin
             // Clear
             if (vclk_fifo.clr)
-                vclk_fifo.lnk_eol <= 0;
+                vclk_fifo.lnk_last <= 0;
 
             // Set 
-            else if (vclk_fifo.eol_cdc_re)
-                vclk_fifo.lnk_eol <= 1;
+            else if (vclk_fifo.last_cdc_re)
+                vclk_fifo.lnk_last <= 1;
         end
     end
 
@@ -390,7 +395,7 @@ endgenerate
                 vclk_fifo.head <= 0;
 
             // Last
-            else if (vclk_fifo.lnk_eol)
+            else if (vclk_fifo.lnk_last)
                 vclk_fifo.head <= vclk_fifo.head_last_cdc;
 
             // Pass
@@ -429,6 +434,45 @@ endgenerate
             vclk_fifo.lvl = (2**$size(vclk_fifo.tail) - vclk_fifo.tail) + vclk_fifo.head;
     end        
 
+// Video last
+// This flag is asserted when the FIFO has reached the last data
+    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
+    begin
+        // Reset
+        if (VID_RST_IN)
+            vclk_fifo.vid_last <= 0;
+
+        else
+        begin
+            // Clear
+            if (vclk_fifo.clr)
+                vclk_fifo.vid_last <= 0;
+
+            // Set
+            else if (vclk_fifo.lnk_last && (vclk_fifo.head == vclk_fifo.tail))
+                vclk_fifo.vid_last <= 1;
+        end
+    end
+
+// Video last delayed
+// The FIFO might still be producing data.
+// Therefore delay the video last.
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        vclk_fifo.vid_last_pipe <= {vclk_fifo.vid_last_pipe[0+:$high(vclk_fifo.vid_last_pipe)], vclk_fifo.vid_last};
+    end
+
+// Last edge detector
+    prt_dp_lib_edge
+    VCLK_LAST_EDGE_INST
+    (
+        .CLK_IN    (VID_CLK_IN),                // Clock
+        .CKE_IN    (1'b1),                      // Clock enable
+        .A_IN      (vclk_fifo.vid_last_pipe[$high(vclk_fifo.vid_last_pipe)]),   // Input
+        .RE_OUT    (vclk_fifo.vid_last_re),     // Rising edge
+        .FE_OUT    ()                           // Falling edge
+    );
+
 // Outputs
 generate
     for (i = 0; i < P_LANES; i++)
@@ -446,6 +490,7 @@ generate
 endgenerate
 
     assign VID_LVL_OUT = vclk_fifo.lvl;
+    assign VID_LAST_OUT = vclk_fifo.vid_last_re;
 
 endmodule
 

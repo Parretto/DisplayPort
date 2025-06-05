@@ -15,7 +15,8 @@
 	v1.3 - Increased EDID size to 1024 bytes
 	v1.4 - Added training clock recovery signaling
 	v1.5 - Added DPCD messaging
-	v1.6 - Added trainig status
+	v1.6 - Added training status
+	v1.7 - Added power control callback
 
     License
     =======
@@ -60,17 +61,18 @@ void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handl
 {
 	switch (cb_type)
 	{
-		case PRT_DP_CB_HPD 		: dp->cb.hpd = (prt_dp_cb)cb_handler; break;
-		case PRT_DP_CB_STA 		: dp->cb.sta = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_TRN 		: dp->cb.trn = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_PHY_RST 	: dp->cb.phy_rst = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_PHY_RATE : dp->cb.phy_rate = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_PHY_VAP 	: dp->cb.phy_vap = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_LNK 		: dp->cb.lnk = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_VID 		: dp->cb.vid = (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_DPCD 	: dp->cb.dpcd = (prt_dp_cb)cb_handler; break;
-		case PRT_DP_CB_MSA 		: dp->cb.msa = (prt_dp_cb)cb_handler; break;
-		case PRT_DP_CB_DBG 		: dp->cb.dbg = (prt_dp_cb)cb_handler; break;
+		case PRT_DP_CB_HPD 		: dp->cb.hpd 		= (prt_dp_cb)cb_handler; break;
+		case PRT_DP_CB_STA 		: dp->cb.sta 		= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_TRN 		: dp->cb.trn 		= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PWR_CTL 	: dp->cb.pwr_ctl 	= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PHY_RST 	: dp->cb.phy_rst 	= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PHY_RATE : dp->cb.phy_rate 	= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PHY_VAP 	: dp->cb.phy_vap 	= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_LNK 		: dp->cb.lnk 		= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_VID 		: dp->cb.vid 		= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_DPCD 	: dp->cb.dpcd 		= (prt_dp_cb)cb_handler; break;
+		case PRT_DP_CB_MSA 		: dp->cb.msa 		= (prt_dp_cb)cb_handler; break;
+		case PRT_DP_CB_DBG 		: dp->cb.dbg 		= (prt_dp_cb)cb_handler; break;
 		default : break;
 	}
 }
@@ -89,6 +91,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->cb.hpd = 0;
 	dp->cb.sta = 0;
 	dp->cb.trn = 0;
+	dp->cb.pwr_ctl = 0;
 	dp->cb.phy_rst = 0;
 	dp->cb.phy_rate = 0;
 	dp->cb.phy_vap = 0;
@@ -1054,6 +1057,14 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->evt |= PRT_DP_EVT_HPD;
 			break;
 
+		case PRT_DP_MAIL_PWR_CTL:		
+			// Get the power control data
+			dp->pwr_ctl.dat = dp->mail_in.dat[i++];
+			
+			// Set event flag
+			dp->evt |= PRT_DP_EVT_PWR_CTL;
+			break;
+
 		case PRT_DP_MAIL_PHY_RST_REQ:		
 			// Get the training pattern
 			dp->trn.tps = dp->mail_in.dat[i++];
@@ -1287,19 +1298,16 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->vid[stream].tp.vsw = dat;
 
 			// Misc 0
-			dat = dp->mail_in.dat[24];
-
-			// Video 10 bpc
-			if (dat & 0x40)
-				dp->vid[stream].tp.bpc = 10;
-			
-			// Video 8 bpc
-			else
-				dp->vid[stream].tp.bpc = 8;
+			dp->vid[stream].tp.misc[0] = dp->mail_in.dat[23];
 
 			// Misc 1
-			dat = dp->mail_in.dat[23];
-			//dp->vid[stream].tp.misc1 = dat;
+			dp->vid[stream].tp.misc[1] = dp->mail_in.dat[24];
+			
+			// Bits per component
+			dp->vid[stream].tp.bpc = dp->mail_in.dat[25];
+
+			// Colorspace format
+			dp->vid[stream].tp.csf = dp->mail_in.dat[26];
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_MSA;
@@ -1446,6 +1454,13 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->cb.sta (dp);
 		}
 
+		// Power control
+		if (prt_dp_is_evt (dp, PRT_DP_EVT_PWR_CTL) && (dp->cb.pwr_ctl != 0))
+		{
+			// Jump callback
+			dp->cb.pwr_ctl (dp);
+		}
+		
 		// PHY reset
 		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST) && (dp->cb.phy_rst != 0))
 		{
