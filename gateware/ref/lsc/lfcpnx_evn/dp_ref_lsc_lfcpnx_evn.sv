@@ -16,7 +16,8 @@
     v1.4 - Added support for Tentiva DP21TX and DP21RX cards
     v1.5 - Added DPTX secondary packet interface
     v1.6 - Added CDR lock
-
+    v1.7 - Updated PHY reset and MPCS clocking
+    
 
     License
     =======
@@ -233,9 +234,9 @@ wire [(4*9)-1:0]                lmmi_adr_from_phy_ctl;
 wire [(4*8)-1:0]                lmmi_dat_from_phy_ctl;
 wire [P_PHY_CTL_PIO_IN-1:0]     pio_dat_to_phy_ctl;
 wire [P_PHY_CTL_PIO_OUT-1:0]    pio_dat_from_phy_ctl;
-wire                            phy_all_rst_from_phy_ctl;
-wire                            phy_tx_rst_from_phy_ctl;
-wire                            phy_rx_rst_from_phy_ctl;
+wire                            pma_rst_from_phy_ctl;
+wire                            tx_pcs_rst_from_phy_ctl;
+wire                            rx_pcs_rst_from_phy_ctl;
 
 // PHY
 wire                            tx_clk_from_phy;
@@ -244,6 +245,9 @@ logic  [79:0]                   tx_dat_to_phy[4];
 wire [79:0]                     rx_dat_from_phy[4];
 wire [3:0]                      rdy_from_phy;
 wire [3:0]                      rx_val_from_phy;
+wire                            pma_rstn_to_phy;
+wire [3:0]                      tx_pcs_rstn_to_phy;
+wire [3:0]                      rx_pcs_rstn_to_phy;
 
 wire [(4*8)-1:0]                lmmi_dat_from_phy;
 wire [3:0]                      lmmi_vld_from_phy;
@@ -685,9 +689,9 @@ endgenerate
     assign pio_dat_to_phy_ctl[1+:4]     = rx_val_from_phy;
 
     // PIO out mapping
-    assign phy_all_rst_from_phy_ctl     = pio_dat_from_phy_ctl[0];
-    assign phy_tx_rst_from_phy_ctl      = pio_dat_from_phy_ctl[1];
-    assign phy_rx_rst_from_phy_ctl      = pio_dat_from_phy_ctl[2];
+    assign pma_rst_from_phy_ctl         = pio_dat_from_phy_ctl[0];
+    assign tx_pcs_rst_from_phy_ctl      = pio_dat_from_phy_ctl[1];
+    assign rx_pcs_rst_from_phy_ctl      = pio_dat_from_phy_ctl[2];
 
 // PHY TX clock buffer
     BUF
@@ -818,24 +822,24 @@ endgenerate
         .lmmi_rdata_o_3             (lmmi_dat_from_phy[(3*8)+:8]), 
 
         // Reset 
-        .mpcs_perstn_i_3            (~phy_all_rst_from_phy_ctl), 
-        .mpcs_perstn_i_2            (~phy_all_rst_from_phy_ctl), 
-        .mpcs_perstn_i_1            (~phy_all_rst_from_phy_ctl), 
-        .mpcs_perstn_i_0            (~phy_all_rst_from_phy_ctl), 
-        .mpcs_tx_pcs_rstn_i_3       (~phy_tx_rst_from_phy_ctl), 
-        .mpcs_tx_pcs_rstn_i_2       (~phy_tx_rst_from_phy_ctl), 
-        .mpcs_tx_pcs_rstn_i_1       (~phy_tx_rst_from_phy_ctl), 
-        .mpcs_tx_pcs_rstn_i_0       (~phy_tx_rst_from_phy_ctl), 
-        .mpcs_rx_pcs_rstn_i_3       (~phy_rx_rst_from_phy_ctl), 
-        .mpcs_rx_pcs_rstn_i_2       (~phy_rx_rst_from_phy_ctl), 
-        .mpcs_rx_pcs_rstn_i_1       (~phy_rx_rst_from_phy_ctl), 
-        .mpcs_rx_pcs_rstn_i_0       (~phy_rx_rst_from_phy_ctl), 
+        .mpcs_perstn_i_3            (pma_rstn_to_phy), 
+        .mpcs_perstn_i_2            (pma_rstn_to_phy), 
+        .mpcs_perstn_i_1            (pma_rstn_to_phy), 
+        .mpcs_perstn_i_0            (pma_rstn_to_phy), 
+        .mpcs_tx_pcs_rstn_i_3       (tx_pcs_rstn_to_phy[3]), 
+        .mpcs_tx_pcs_rstn_i_2       (tx_pcs_rstn_to_phy[2]), 
+        .mpcs_tx_pcs_rstn_i_1       (tx_pcs_rstn_to_phy[1]), 
+        .mpcs_tx_pcs_rstn_i_0       (tx_pcs_rstn_to_phy[0]), 
+        .mpcs_rx_pcs_rstn_i_3       (rx_pcs_rstn_to_phy[3]), 
+        .mpcs_rx_pcs_rstn_i_2       (rx_pcs_rstn_to_phy[2]), 
+        .mpcs_rx_pcs_rstn_i_1       (rx_pcs_rstn_to_phy[1]), 
+        .mpcs_rx_pcs_rstn_i_0       (rx_pcs_rstn_to_phy[0]), 
 
         // MPCS Clocks
-        .mpcs_clkin_i_3             (clk_from_sys_pll), 
-        .mpcs_clkin_i_2             (clk_from_sys_pll), 
-        .mpcs_clkin_i_1             (clk_from_sys_pll), 
-        .mpcs_clkin_i_0             (clk_from_sys_pll), 
+        .mpcs_clkin_i_3             (clk_from_sys_buf),     // 125 MHz clock
+        .mpcs_clkin_i_2             (clk_from_sys_buf),     // 125 MHz clock
+        .mpcs_clkin_i_1             (clk_from_sys_buf),     // 125 MHz clock
+        .mpcs_clkin_i_0             (clk_from_sys_buf),     // 125 MHz clock
         .mpcs_rx_usr_clk_i_3        (clk_from_rx_buf), 
         .mpcs_rx_usr_clk_i_2        (clk_from_rx_buf), 
         .mpcs_rx_usr_clk_i_1        (clk_from_rx_buf), 
@@ -882,14 +886,6 @@ endgenerate
         .mpcs_rxerr_i_2             (1'b0), 
         .mpcs_rxerr_i_1             (1'b0), 
         .mpcs_rxerr_i_0             (1'b0), 
-        //.mpcs_rate_i_3              (2'b00), 
-        //.mpcs_rate_i_2              (2'b00), 
-        //.mpcs_rate_i_1              (2'b00), 
-        //.mpcs_rate_i_0              (2'b00), 
-        //.mpcs_speed_o_3             (), 
-        //.mpcs_speed_o_2             (), 
-        //.mpcs_speed_o_1             (), 
-        //.mpcs_speed_o_0             (), 
         .mpcs_txval_i_3             (&rdy_from_phy), 
         .mpcs_txval_i_2             (&rdy_from_phy), 
         .mpcs_txval_i_1             (&rdy_from_phy), 
@@ -978,6 +974,16 @@ endgenerate
         .mpcs_rx_deskew_en_i_0      (1'b0) 
     );
 
+// PHY reset
+    assign pma_rstn_to_phy = (sclk_rst) ? 0 : ~pma_rst_from_phy_ctl;
+    assign rx_pcs_rstn_to_phy[0] = (rx_pcs_rst_from_phy_ctl) ? 0 : rx_val_from_phy[0];
+    assign rx_pcs_rstn_to_phy[1] = (rx_pcs_rst_from_phy_ctl) ? 0 : rx_val_from_phy[1];
+    assign rx_pcs_rstn_to_phy[2] = (rx_pcs_rst_from_phy_ctl) ? 0 : rx_val_from_phy[2];
+    assign rx_pcs_rstn_to_phy[3] = (rx_pcs_rst_from_phy_ctl) ? 0 : rx_val_from_phy[3];
+    assign tx_pcs_rstn_to_phy[0] = ~tx_pcs_rst_from_phy_ctl;
+    assign tx_pcs_rstn_to_phy[1] = ~tx_pcs_rst_from_phy_ctl;
+    assign tx_pcs_rstn_to_phy[2] = ~tx_pcs_rst_from_phy_ctl;
+    assign tx_pcs_rstn_to_phy[3] = ~tx_pcs_rst_from_phy_ctl;
 
 // TX mapping
     always_ff @ (posedge clk_from_tx_buf)
