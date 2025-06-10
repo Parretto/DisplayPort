@@ -515,7 +515,7 @@ wire                            led_from_vid_hb;
 
         // Link
         .LNK_CLK_IN         (clk_from_rx_buf),      // Clock
-        .LNK_LOCK_IN        (1),                    // Lock
+        .LNK_LOCK_IN        (rx_val_from_phy[0]),   // Lock
         .LNK_DAT_IN         (lnk_dat_to_dprx),      // Data
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
         .LNK_VBID_OUT       (),
@@ -844,7 +844,7 @@ endgenerate
         .mpcs_tx_usr_clk_i_2        (clk_from_tx_buf), 
         .mpcs_tx_usr_clk_i_1        (clk_from_tx_buf), 
         .mpcs_tx_usr_clk_i_0        (clk_from_tx_buf), 
-        .mpcs_rx_out_clk_o_3        (), // Tentiva DP14RX - This is the master clock
+        .mpcs_rx_out_clk_o_3        (), 
         .mpcs_rx_out_clk_o_2        (), 
         .mpcs_rx_out_clk_o_1        (), 
         .mpcs_rx_out_clk_o_0        (rx_clk_from_phy), // Tentiva DP21RX - This is the master clock
@@ -882,14 +882,14 @@ endgenerate
         .mpcs_rxerr_i_2             (1'b0), 
         .mpcs_rxerr_i_1             (1'b0), 
         .mpcs_rxerr_i_0             (1'b0), 
-        .mpcs_rate_i_3              (2'b00), 
-        .mpcs_rate_i_2              (2'b00), 
-        .mpcs_rate_i_1              (2'b00), 
-        .mpcs_rate_i_0              (2'b00), 
-        .mpcs_speed_o_3             (), 
-        .mpcs_speed_o_2             (), 
-        .mpcs_speed_o_1             (), 
-        .mpcs_speed_o_0             (), 
+        //.mpcs_rate_i_3              (2'b00), 
+        //.mpcs_rate_i_2              (2'b00), 
+        //.mpcs_rate_i_1              (2'b00), 
+        //.mpcs_rate_i_0              (2'b00), 
+        //.mpcs_speed_o_3             (), 
+        //.mpcs_speed_o_2             (), 
+        //.mpcs_speed_o_1             (), 
+        //.mpcs_speed_o_0             (), 
         .mpcs_txval_i_3             (&rdy_from_phy), 
         .mpcs_txval_i_2             (&rdy_from_phy), 
         .mpcs_txval_i_1             (&rdy_from_phy), 
@@ -1154,16 +1154,6 @@ endgenerate
     assign LED_OUT[5]   = led_from_vid_hb;
     assign LED_OUT[6]   = tx_card_from_app; 
     assign LED_OUT[7]   = rx_card_from_app;
-
-    // Debug
-    assign DEBUG_OUT[0] = 0;
-    assign DEBUG_OUT[1] = 0;
-    assign DEBUG_OUT[2] = 0;
-    assign DEBUG_OUT[3] = 0;
-    assign DEBUG_OUT[4] = 0;
-    assign DEBUG_OUT[5] = 0;
-    assign DEBUG_OUT[6] = 0;
-    assign DEBUG_OUT[7] = 0;
 
     assign DPTX_I2C_SEL_OUT = 1;    // Only for DP21 TX card. Select FMC I2C interface
     assign DPRX_I2C_SEL_OUT = 1;    // Only for DP21 RX card. Select FMC I2C interface

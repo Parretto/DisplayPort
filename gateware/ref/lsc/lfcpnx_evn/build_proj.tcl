@@ -89,22 +89,6 @@ prj_add_source $SRC/misc/prt_dp_msg_cdc.sv
 prj_add_source $SRC/misc/prt_hb.sv
 prj_add_source $SRC/misc/prt_uart.sv
 
-# Scaler
-prj_add_source $SRC/scaler/prt_scaler_lib.sv 
-prj_add_source $SRC/scaler/prt_scaler_agnt_lut.sv
-prj_add_source $SRC/scaler/prt_scaler_agnt.sv
-prj_add_source $SRC/scaler/prt_scaler_coef.sv
-prj_add_source $SRC/scaler/prt_scaler_ctl.sv
-prj_add_source $SRC/scaler/prt_scaler_krnl_mac.sv
-prj_add_source $SRC/scaler/prt_scaler_krnl_mux.sv
-prj_add_source $SRC/scaler/prt_scaler_krnl.sv
-prj_add_source $SRC/scaler/prt_scaler_lbf.sv 
-prj_add_source $SRC/scaler/prt_scaler_lst.sv 
-prj_add_source $SRC/scaler/prt_scaler_slw_mux.sv
-prj_add_source $SRC/scaler/prt_scaler_slw.sv
-prj_add_source $SRC/scaler/prt_scaler_tg.sv 
-prj_add_source $SRC/scaler/prt_scaler_top.sv
-
 # Top
 prj_add_source ../../ref/lsc/lfcpnx_evn/dp_ref_lsc_lfcpnx_evn.sv
 
@@ -124,24 +108,25 @@ file copy -force ../../ref/lsc/lfcpnx_evn/sys_pll.cfg ./sys_pll/.
 prj_add_source ./sys_pll/sys_pll.ipx
 
 # RISC-V ROM
-file mkdir ./prt_riscv_rom_lat
-#file copy -force ../../../software/build/bin/dp_app_lsc_lfcpnx_rom.mem ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.ipx ./prt_riscv_rom_lat/.
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lat.cfg ./prt_riscv_rom_lat/.
-prj_add_source ./prt_riscv_rom_lat/prt_riscv_rom_lat.ipx
+file mkdir ./prt_riscv_rom_lsc
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lsc.ipx ./prt_riscv_rom_lsc/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_rom_lsc.cfg ./prt_riscv_rom_lsc/.
+prj_add_source ./prt_riscv_rom_lsc/prt_riscv_rom_lsc.ipx
 
 # RISC-V RAM
-file mkdir ./prt_riscv_ram_lat
-#file copy -force ../../../software/build/bin/dp_app_lsc_lfcpnx_ram.mem ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.ipx ./prt_riscv_ram_lat/.
-file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lat.cfg ./prt_riscv_ram_lat/.
-prj_add_source ./prt_riscv_ram_lat/prt_riscv_ram_lat.ipx
+file mkdir ./prt_riscv_ram_lsc
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lsc.ipx ./prt_riscv_ram_lsc/.
+file copy -force ../../ref/lsc/lfcpnx_evn/prt_riscv_ram_lsc.cfg ./prt_riscv_ram_lsc/.
+prj_add_source ./prt_riscv_ram_lsc/prt_riscv_ram_lsc.ipx
 
 # Set top level
 prj_set_impl_opt -impl impl1 top dp_ref_lsc_lfcpnx_evn
 
 # Update and regenrate IPs
 ip_upgrade -all -force_update
+
+# Set Bitstream IP eval
+prj_set_strategy_value -strategy Strategy1 bit_ip_eval=True
 
 # Run synthesis
 prj_run_synthesis

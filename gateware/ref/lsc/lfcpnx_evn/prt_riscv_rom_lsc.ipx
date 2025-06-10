@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<RadiantModule architecture="jd5d00" date="2025 03 19 13:20:43" device="LFCPNX-100" device_int="jd5d80" display_module="Large_RAM_SP" display_vendor="latticesemi.com" family="LFCPNX" gen_platform="Radiant" gen_platform_version="2024.2.0.3.0" generator="ipgen" library="module" module="large_ram_sp" name="prt_riscv_rom_lsc" operation="Commercial" package="LFG672" package_int="LFG672" partnumber="LFCPNX-100-9LFG672C" source_format="Verilog" speed="9_High-Performance_1.0V" speed_int="12" vendor="latticesemi.com" version="1.2.0">
+ <Package>
+  <File modified="2025 03 19 13:20:43" name="rtl/prt_riscv_rom_lsc_bb.v" type="black_box_verilog"/>
+  <File modified="2025 03 19 13:20:43" name="prt_riscv_rom_lsc.cfg" type="cfg"/>
+  <File modified="2025 03 19 13:20:43" name="misc/prt_riscv_rom_lsc_tmpl.v" type="template_verilog"/>
+  <File modified="2025 03 19 13:20:43" name="misc/prt_riscv_rom_lsc_tmpl.vhd" type="template_vhdl"/>
+  <File modified="2025 03 19 13:20:43" name="rtl/prt_riscv_rom_lsc.v" type="top_level_verilog"/>
+  <File modified="2025 03 19 13:20:43" name="testbench/dut_params.v" type="dependency_file"/>
+  <File modified="2025 03 19 13:20:43" name="testbench/dut_inst.v" type="dependency_file"/>
+  <File modified="2025 03 19 13:20:43" name="eval/dut_params.v" type="dependency_file"/>
+  <File modified="2025 03 19 13:20:43" name="eval/dut_inst.v" type="dependency_file"/>
+  <File modified="2025 03 19 13:20:43" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2025 03 19 13:20:43" name="design.xml" type="IP-XACT_design"/>
+  <File modified="2020 02 19 20:11:38" name="testbench/lscc_rstclk_gen.v" type="testbench_verilog"/>
+  <File modified="2021 05 31 19:50:16" name="testbench/lram_mem_master.v" type="testbench_verilog"/>
+  <File modified="2021 05 31 19:53:24" name="testbench/tb_top.v" type="testbench_verilog"/>
+  <File modified="2020 02 26 19:33:35" name="testbench/lram_mem_model.v" type="testbench_verilog"/>
+  <File modified="2023 09 28 02:24:10" name="eval/constraint.pdc" type="eval"/>
+ </Package>
+</RadiantModule>
