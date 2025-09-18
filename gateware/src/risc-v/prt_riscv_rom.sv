@@ -30,7 +30,6 @@
 module prt_riscv_rom
 #(
     parameter P_VENDOR      = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
-    parameter P_FAMILY      = "none",       // Family (Only used for Lattice)
     parameter P_ADR         = 16,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -87,6 +86,8 @@ logic [1:0]             clk_vld;
     assign clk_wr = INIT_VLD_IN;
 
 generate
+
+    // AMD
     if (P_VENDOR == "AMD")
     begin : gen_rom_amd
         xpm_memory_spram
@@ -128,11 +129,12 @@ generate
         );
     end
 
-    else if (P_VENDOR == "LSC")
+    // Lattice
+    else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
     begin : gen_rom_lsc
 
         // Avant
-        if (P_FAMILY == "LAV-AT")
+        if (P_VENDOR == "LSC_LAV")
         begin : gen_rom_lsc_lav
             prt_riscv_rom_lsc
             ROM_INST
@@ -169,6 +171,7 @@ generate
         end
     end
 
+    // Altera
     else if (P_VENDOR == "ALTERA")
     begin : gen_rom_altera
         altera_syncram

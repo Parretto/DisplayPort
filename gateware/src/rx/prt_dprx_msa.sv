@@ -81,33 +81,33 @@ typedef struct {
 } msg_struct;
 
 typedef struct {
-    logic   [P_RAM_ADR-1:0]     wp[0:P_LANES-1][0:P_SPL-1];     // Write pointer
-    logic   [P_SPL-1:0]         wr[0:P_LANES-1];                // Write
-    logic   [P_RAM_DAT-1:0]     din[0:P_LANES-1][0:P_SPL-1];    // Write data
-    logic   [P_RAM_ADR-1:0]     rp[0:P_LANES-1][0:P_SPL-1];     // Read pointer
-    logic   [P_SPL-1:0]         rd[0:P_LANES-1];                // Read
-    logic   [P_RAM_DAT-1:0]     dout[0:P_LANES-1][0:P_SPL-1];   // Read data
+    logic   [P_RAM_ADR-1:0]     wp[P_LANES][P_SPL];     // Write pointer
+    logic   [P_SPL-1:0]         wr[P_LANES];                // Write
+    logic   [P_RAM_DAT-1:0]     din[P_LANES][P_SPL];    // Write data
+    logic   [P_RAM_ADR-1:0]     rp[P_LANES][P_SPL];     // Read pointer
+    logic   [P_SPL-1:0]         rd[P_LANES];                // Read
+    logic   [P_RAM_DAT-1:0]     dout[P_LANES][P_SPL];   // Read data
 } ram_struct;
 
 typedef struct {
     logic   [1:0]               lanes;                          // Active lanes
     logic                       lock;                           // Lock
-    logic   [P_SPL-1:0]         sol[0:P_LANES-1];               // Start of line
-    logic   [P_SPL-1:0]         eol[0:P_LANES-1];               // End of line
-    logic   [P_SPL-1:0]         vid[0:P_LANES-1];               // Video packet
-    logic   [P_SPL-1:0]         sdp[0:P_LANES-1];               // Secondary data packet
-    logic   [P_SPL-1:0]         msa[0:P_LANES-1];               // Main stream attributes (msa)
-    logic   [P_SPL-1:0]         vbid[0:P_LANES-1];              // VB-ID
-    logic   [P_SPL-1:0]         k[0:P_LANES-1];                 // k character
-    logic   [7:0]               dat[0:P_LANES-1][0:P_SPL-1];    // Data
+    logic   [P_SPL-1:0]         sol[P_LANES];               // Start of line
+    logic   [P_SPL-1:0]         eol[P_LANES];               // End of line
+    logic   [P_SPL-1:0]         vid[P_LANES];               // Video packet
+    logic   [P_SPL-1:0]         sdp[P_LANES];               // Secondary data packet
+    logic   [P_SPL-1:0]         msa[P_LANES];               // Main stream attributes (msa)
+    logic   [P_SPL-1:0]         vbid[P_LANES];              // VB-ID
+    logic   [P_SPL-1:0]         k[P_LANES];                 // k character
+    logic   [7:0]               dat[P_LANES][P_SPL];    // Data
 } lnk_struct;
 
 typedef struct {
     logic   [P_LANES-1:0]       sop;
     logic   [P_LANES-1:0]       eop;
-    logic   [1:0]               ph[P_LANES-1:0];
-    logic   [P_SPL-1:0]         rd[0:P_LANES-1];                // Read
-    logic   [7:0]               dat[0:P_LANES-1][0:P_SPL-1];
+    logic   [1:0]               ph[P_LANES];
+    logic   [P_SPL-1:0]         rd[P_LANES];                // Read
+    logic   [7:0]               dat[P_LANES][P_SPL];
     logic   [P_LANES-1:0]       irq_lane;
     logic                       irq_all;
 } msa_struct;

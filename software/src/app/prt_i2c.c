@@ -105,7 +105,7 @@ prt_sta_type prt_i2c_wr (prt_i2c_ds_struct *i2c)
 		sta = PRT_STA_FAIL;
 	}
 
-	if ((sta == PRT_STA_OK) && (i2c->no_stop == PRT_FALSE))
+	if (((sta == PRT_STA_OK) && (i2c->no_stop == PRT_FALSE)) || (sta == PRT_STA_FAIL))
 	{
 		// Stop condition
 		i2c->dev->ctl = PRT_I2C_CTL_RUN | PRT_I2C_CTL_STP;
@@ -187,7 +187,7 @@ prt_sta_type prt_i2c_rd (prt_i2c_ds_struct *i2c)
 		sta = PRT_STA_FAIL;
 	}
 
-	if ((sta == PRT_STA_OK) && (i2c->no_stop == PRT_FALSE))
+	if (((sta == PRT_STA_OK) && (i2c->no_stop == PRT_FALSE)) || (sta == PRT_STA_FAIL))
 	{
 		// Stop condition
 		i2c->dev->ctl = PRT_I2C_CTL_RUN | PRT_I2C_CTL_STP;

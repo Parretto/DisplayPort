@@ -83,6 +83,8 @@ logic						clk_fl;
 
 // RAM instantiation
 generate
+
+	// AMD
 	if (P_VENDOR == "AMD")
 	begin : gen_ram_amd
 
@@ -136,7 +138,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "LSC")
+	// Lattice
+	else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
@@ -169,6 +172,7 @@ generate
 		);	
 	end
 
+	// Altera
 	else if (P_VENDOR == "ALTERA")
 	begin : gen_ram_altera
 
@@ -444,6 +448,8 @@ logic	[1:0]				bclk_de;
 
 // RAM instantiation
 generate
+
+	// AMD
 	if (P_VENDOR == "AMD")
 	begin : gen_ram_amd
 
@@ -501,7 +507,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "LSC")
+	// LAttice
+	else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 	begin : gen_ram_lsc
 		
 		// Block ram
@@ -588,6 +595,7 @@ generate
 		end
 	end
 
+	// Altera
 	else if (P_VENDOR == "ALTERA")
 	begin : gen_ram_altera
 		
@@ -935,6 +943,8 @@ logic  clk_b_vld;
 
 // RAM instantiation
 generate
+
+	// AMD
 	if (P_VENDOR == "AMD")
 	begin : gen_ram_amd
 		xpm_memory_sdpram 
@@ -987,7 +997,7 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "LSC")
+	else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
@@ -1019,6 +1029,7 @@ generate
 		);
 	end
 
+	// Altera
 	else if (P_VENDOR == "ALTERA")
 	begin : gen_ram_altera
 
@@ -1133,6 +1144,8 @@ logic bclk_vld;
 
 // RAM instantiation
 generate
+
+	// AMD
 	if (P_VENDOR == "AMD")
 	begin : gen_ram_amd
 		
@@ -1190,7 +1203,8 @@ generate
 		);
 	end
 
-	else if (P_VENDOR == "LSC")
+	// Lattice
+	else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 	begin : gen_ram_lsc
 
 		// One single clock read latency is assumed.
@@ -1223,6 +1237,7 @@ generate
 		);
 	end
 
+	// Altera
 	else if (P_VENDOR == "ALTERA")
 	begin : gen_ram_altera
 

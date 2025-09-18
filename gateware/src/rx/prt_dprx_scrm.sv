@@ -11,6 +11,8 @@
     =======
     v1.0 - Initial release
     v1.1 - Initial MST support
+    v1.2 - Updated watchdog reset
+
 
     License
     =======
@@ -76,19 +78,23 @@ logic                  clk_en;
 logic                  clk_mst;
 logic                  clk_lock_in;        // Input lock
 logic                  clk_lock;          // Locked
-logic [8:0]            clk_din[0:P_SPL-1];
-logic [8:0]            clk_dat[0:P_SPL-1];
+logic [8:0]            clk_din[P_SPL];
+logic [8:0]            clk_dat[P_SPL];
 logic [P_SPL-1:0]      clk_sr_det;
+logic [P_SPL-1:0]      clk_bf_det;
+logic [P_SPL-1:0]      clk_lfsr_rst;
+logic [15:0]           clk_lfsr_in[P_SPL];
+logic [15:0]           clk_lfsr[P_SPL];
+logic [15:0]           clk_lfsr_reg;
+logic [8:0]            clk_dout[P_SPL];
+
+logic [2:0]            clk_scrm_sidx[P_SPL];
+logic [7:0]            clk_scrm_idx[P_SPL];
+
+logic [3:0]            clk_sr_state;
+logic                  clk_wdg_cnt_ld;
 logic [23:0]           clk_wdg_cnt;
 logic                  clk_wdg_cnt_end;
-logic [P_SPL-1:0]      clk_lfsr_rst;
-logic [15:0]           clk_lfsr_in[0:P_SPL-1];
-logic [15:0]           clk_lfsr[0:P_SPL-1];
-logic [15:0]           clk_lfsr_reg;
-logic [8:0]            clk_dout[0:P_SPL-1];
-
-logic [2:0]            clk_scrm_sidx[0:P_SPL-1];
-logic [7:0]            clk_scrm_idx[0:P_SPL-1];
 
 genvar i;
 
@@ -123,8 +129,21 @@ endgenerate
 
         for (int i = 0; i < P_SPL; i++)
         begin
-            if (clk_din[i] == ((clk_mst) ? P_SYM_K28_5 : P_SYM_K28_0))
+            if (clk_din[i] == ((clk_mst) ? P_SYM_K28_5 : P_SYM_SR))
                 clk_sr_det[i] = 1;
+        end
+    end
+
+// BF detector
+    always_comb
+    begin
+        // Default
+        clk_bf_det = 0;
+
+        for (int i = 0; i < P_SPL; i++)
+        begin
+            if (clk_din[i] == P_SYM_BF)
+                clk_bf_det[i] = 1;
         end
     end
 
@@ -249,7 +268,6 @@ generate
                 // Enabled
                 if (clk_en)
                 begin
-
                     // Don't scramble k symbols
                     if (clk_din[i][8])
                     begin
@@ -275,11 +293,189 @@ generate
     end
 endgenerate
 
+/*
+    Watchdog counter
+*/
+
 // Watchdog counter 
-// The watchdog counter is set when a scrambler reset is detected.
+// The watchdog counter is reloaded when a scrambler reset is detected.
 // When it expires the lock is lost. 
 // The displayport specification defines that the interval between two SR symbols is 512 BS symbols. 
 // The BS period is variable, so a random value is selected.
+    
+// Scrambler reset event detector
+// For the scrambler logic resetting the LFSR, when a single scrambler reset symbol (SR) is detected, is good.
+// However, when the link is unstable, the PHY can output random data including SR symbols.
+// This corrupted symbol will reload the watchdog, resulting that the lock remains asserted.
+// and the DP policy maker will not bring down the link becuase of a scrambler lock lost. 
+// To prevent this, we want to detect a complete scrambler resert event (SR + BF + BF + SR) in enhanced framing mode
+// Only when a full sequence is detected, this will reload the watchdog.
+
+generate
+    if (P_SPL == 4)
+    begin : sr_evt_4spl
+
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
+        begin
+            // Reset
+            if (RST_IN)
+            begin
+                clk_sr_state <= 0;
+                clk_wdg_cnt_ld <= 0;
+            end
+
+            else
+            begin
+                // Default
+                clk_wdg_cnt_ld <= 0;
+
+                case (clk_sr_state)
+
+                    'd0 : 
+                    begin
+                        // Phase 0
+                        if ((clk_sr_det == 'b1001) && (clk_bf_det == 'b0110))
+                            clk_sr_state <= 'd4;
+
+                        // Phase 1a
+                        else if ((clk_sr_det == 'b0010) && (clk_bf_det == 'b1100))
+                            clk_sr_state <= 'd1;
+
+                        // Phase 2a
+                        else if ((clk_sr_det == 'b0100) && (clk_bf_det == 'b1000))
+                            clk_sr_state <= 'd2;
+
+                        // Phase 3a
+                        else if ((clk_sr_det == 'b1000) && (clk_bf_det == 'b0000))
+                            clk_sr_state <= 'd3;
+
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd1 : 
+                    begin
+                        // Phase 1b
+                        if ((clk_sr_det == 'b0001) && (clk_bf_det == 'b0000))
+                            clk_sr_state <= 'd4;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd2 : 
+                    begin
+                        // Phase 2b
+                        if ((clk_sr_det == 'b0010) && (clk_bf_det == 'b0001))
+                            clk_sr_state <= 'd4;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd3 : 
+                    begin
+                        // Phase 3b
+                        if ((clk_sr_det == 'b0100) && (clk_bf_det == 'b0011))
+                            clk_sr_state <= 'd4;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd4 : 
+                    begin
+                        clk_wdg_cnt_ld <= 1;
+                        clk_sr_state <= 'd0;
+                    end
+
+                    default : 
+                    begin
+                        clk_wdg_cnt_ld <= 0;
+                        clk_sr_state <= 'd0;
+                    end
+
+                endcase               
+            end
+
+        end
+    end
+
+    else
+    begin : wdg_ld_2spl
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
+        begin
+            // Reset
+            if (RST_IN)
+            begin
+                clk_sr_state <= 0;
+                clk_wdg_cnt_ld <= 0;
+            end
+
+            else
+            begin
+                // Default
+                clk_wdg_cnt_ld <= 0;
+
+                case (clk_sr_state)
+
+                    'd0 : 
+                    begin
+                        // Phase 0a
+                        if ((clk_sr_det == 'b01) && (clk_bf_det == 'b10))
+                            clk_sr_state <= 'd1;
+
+                        // Phase 1a
+                        else if ((clk_sr_det == 'b10) && (clk_bf_det == 'b00))
+                            clk_sr_state <= 'd2;
+
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd1 : 
+                    begin
+                        // Phase 0b
+                        if ((clk_sr_det == 'b10) && (clk_bf_det == 'b01))
+                            clk_sr_state <= 'd4;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd2 : 
+                    begin
+                        // Phase 1b
+                        if ((clk_sr_det == 'b00) && (clk_bf_det == 'b11))
+                            clk_sr_state <= 'd3;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd3 : 
+                    begin
+                        // Phase 1c
+                        if ((clk_sr_det == 'b01) && (clk_bf_det == 'b00))
+                            clk_sr_state <= 'd4;
+                        else
+                            clk_sr_state <= 'd0;
+                    end
+
+                    'd4 : 
+                    begin
+                        clk_wdg_cnt_ld <= 1;
+                        clk_sr_state <= 'd0;
+                    end
+
+                    default : 
+                    begin
+                        clk_wdg_cnt_ld <= 0;
+                        clk_sr_state <= 'd0;
+                    end
+
+                endcase               
+            end
+        end
+    end
+endgenerate
+
+// Counter
     always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
         // Reset
@@ -291,8 +487,8 @@ endgenerate
             // Input locked
             if (clk_lock_in)
             begin
-                // Set
-                if (|clk_sr_det)
+                // Load
+                if (clk_wdg_cnt_ld)
                     clk_wdg_cnt <= '1;
 
                 // Decrement
@@ -315,18 +511,25 @@ endgenerate
     end
 
 // Locked
-    always_ff @ (posedge CLK_IN)
+    always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
-        if (clk_en)
+        // Reset
+        if (RST_IN)
+            clk_lock <= 0;
+        
+        else
         begin
-            if (clk_wdg_cnt_end)
-                clk_lock <= 0;
+            if (clk_en)
+            begin
+                if (clk_wdg_cnt_end)
+                    clk_lock <= 0;
+                else
+                    clk_lock <= 1;
+            end
+            
             else
                 clk_lock <= 1;
         end
-        
-        else
-            clk_lock <= 1;
     end
 
 // Outputs

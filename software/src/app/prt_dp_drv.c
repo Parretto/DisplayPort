@@ -17,6 +17,8 @@
 	v1.5 - Added DPCD messaging
 	v1.6 - Added training status
 	v1.7 - Added power control callback
+	v1.8 - Enhanced DPTX EDID handling
+
 
     License
     =======
@@ -701,6 +703,10 @@ uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp)
 // Send message
 void prt_dp_mail_send (prt_dp_ds_struct *dp)
 {
+	// To prevent a race condition, the mail ok and error flags are cleared first. 
+	dp->mail_in.ok = PRT_FALSE;
+	dp->mail_in.err = PRT_FALSE;
+
 	// Start of mail token
 	dp->dev->mail_out = PRT_DP_MAIL_SOM;
 
@@ -779,10 +785,6 @@ uint8_t prt_dp_mail_resp (prt_dp_ds_struct *dp)
 	// Variables
 	uint8_t sta;
 	uint8_t exit_loop = PRT_FALSE;
-
-	// Clear flags
-	dp->mail_in.ok = PRT_FALSE;
-	dp->mail_in.err = PRT_FALSE;
 
 	do
 	{
@@ -1420,14 +1422,18 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		// EDID data
 		case PRT_DP_MAIL_EDID_DAT:
 
+			// Length
+			dp->edid.len = dp->mail_in.dat[1];
+
 			// Copy data
-			for (uint8_t i = 0; i < 16; i++)
+			for (uint8_t i = 0; i < dp->edid.len; i++)
 			{
-				dp->edid.dat[dp->edid.adr++] = dp->mail_in.dat[i+1];
+				dp->edid.dat[dp->edid.adr+i] = dp->mail_in.dat[i+2];
 			}
 
-			// Set event flag
-			dp->evt |= PRT_DP_EVT_EDID;
+			// There is no event.
+			// Instead the ready flag is set. 
+			dp->edid.rdy = PRT_TRUE;
 
 			break;
 
@@ -1575,22 +1581,28 @@ void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram)
 }
 
 // Read edid
-// todo: Check function
-uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp)
+uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp, uint16_t adr, uint16_t len, uint8_t *dat)
 {
 	// Variables
 	uint8_t sta;
-	uint8_t done;
 
-	// Reset address
-	dp->edid.adr = 0;
-	done = PRT_FALSE;
-
-	do
+	// One EDID block is 16 bytes
+	for (uint16_t i = 0; i < len; i = i + 16)
 	{
+		// Clear EDID ready flag
+		dp->edid.rdy = PRT_FALSE;
+
+		// Set base address
+		dp->edid.adr = adr + i;
+
+		// Set buffer pointer
+		dp->edid.dat = dat;
+	
 		dp->mail_out.len = 0;
-		dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_EDID_RD;	// Token
-		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr;	// Base address
+		dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_EDID_RD;			// Token
+		dp->mail_out.dat[dp->mail_out.len++] = (dp->edid.adr >> 8) & 0xff;	// Address high
+		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr & 0xff;			// Address low
+		dp->mail_out.dat[dp->mail_out.len++] = 16;							// length (fixed at 16)
 		prt_dp_mail_send (dp);
 
 		// Wait for response
@@ -1598,32 +1610,23 @@ uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp)
 
 		if (sta)
 		{
-			// Wait for edid event
-			while (prt_dp_is_evt (dp, PRT_DP_EVT_EDID));
+			// Wait for edid ready flag
+			while (dp->edid.rdy == PRT_FALSE);
 
-			// Last block
-			if (dp->edid.adr == (15 * 16))
-			{
-				sta = PRT_TRUE;
-				done = PRT_TRUE;
-			}
-
-			else
-				dp->edid.adr += 16;
+			dp->edid.adr += 16;
 		}
 
 		else
 		{
-			sta = PRT_FALSE;
-			done = PRT_TRUE;
+			return PRT_FALSE;
 		}
-	} while (!done);
+	} 
 
-	return sta;
+	return PRT_TRUE;
 }
 
 // Write edid to policy maker
-uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len)
+uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len, uint8_t *dat)
 {
 	// Variables
 	uint8_t sta;
@@ -1633,39 +1636,29 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len)
 	dp->edid.adr = 0;
 	done = PRT_FALSE;
 
-	do
+	for (uint16_t i = 0; i < len; i = i + 16)
 	{
 		dp->mail_out.len = 0;
-		dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_EDID_DAT;	// Token
+		dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_EDID_WR;		// Token
 		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr >> 8;		// Base address high
 		dp->mail_out.dat[dp->mail_out.len++] = dp->edid.adr & 0xff;		// Base address low
+		dp->mail_out.dat[dp->mail_out.len++] = 16;		// Length
 
 		for (uint8_t i = 0; i < 16; i++)
-			dp->mail_out.dat[dp->mail_out.len++] = dp->edid.dat[dp->edid.adr++];	// Data
+			dp->mail_out.dat[dp->mail_out.len++] = dat[dp->edid.adr++];	// Data
 
 		prt_dp_mail_send (dp);
 
 		// Wait for response
 		sta = prt_dp_mail_resp (dp);
 
-		if (sta)
+		if (sta != PRT_TRUE)
 		{
-			// Last block
-			if (dp->edid.adr >= len)
-			{
-				sta = PRT_TRUE;
-				done = PRT_TRUE;
-			}
+			return PRT_FALSE;
 		}
+	}
 
-		else
-		{
-			sta = PRT_FALSE;
-			done = PRT_TRUE;
-		}
-	} while (!done);
-
-	return sta;
+	return PRT_TRUE;
 }
 
 // DPCD block
@@ -1887,20 +1880,6 @@ uint8_t prt_dp_get_id (prt_dp_ds_struct *dp)
 {
 	return dp->id;
 }
-
-// Get EDID data
-uint8_t prt_dp_get_edid_dat (prt_dp_ds_struct *dp, uint8_t index)
-{
-	return dp->edid.dat[index];
-}
-
-// Set EDID data
-void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat)
-{
-	dp->edid.dat[adr] = dat;
-}
-
-
 
 // MST start
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp)

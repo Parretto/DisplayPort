@@ -32,7 +32,6 @@
 module prt_riscv_ram
 #(
     parameter P_VENDOR      = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
-    parameter P_FAMILY      = "none",       // Family (Only used for Lattice)
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -92,6 +91,8 @@ logic [1:0]                 clk_rd_vld;
     assign clk_be = (INIT_VLD_IN) ? 'b1111 : ((clk_wr) ? RAM_IF.wr_strb : 'b0000);
 
 generate
+
+    // AMD
     if (P_VENDOR == "AMD")
     begin : gen_ram_amd
         xpm_memory_spram
@@ -133,11 +134,12 @@ generate
         );
     end
 
-    else if (P_VENDOR == "LSC")
+    // Lattice
+    else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
     begin : gen_ram_lsc
 
         // Avant
-        if (P_FAMILY == "LAV-AT")
+        if (P_VENDOR == "LSC_LAV")
         begin : gen_ram_lsc_lav
             prt_riscv_ram_lsc 
             RAM_INST
@@ -147,7 +149,7 @@ generate
                 .clk_en_i           (1'b1), 
                 .wr_en_i            (clk_wr), 
                 .addr_i             (clk_adr), 
-                .ben_i              (~clk_be),  // The byte lane polarity is inverted
+                .ben_i              (clk_be),  // The byte lanes are active high
                 .wr_data_i          (clk_din),
                 .rd_data_o          (RAM_IF.rd_dat)
             );
@@ -164,7 +166,7 @@ generate
                 .clk_en_i           (1'b1), 
                 .wr_en_i            (clk_wr), 
                 .addr_i             (clk_adr), 
-                .ben_i              (~clk_be),  // The byte lane polarity is inverted
+                .ben_i              (~clk_be),  // The byte lanes are active low
                 .wr_data_i          (clk_din),
                 .rd_data_o          (RAM_IF.rd_dat),
                 .rd_datavalid_o     (),
@@ -174,6 +176,7 @@ generate
         end
     end
 
+    // Altera
     else if (P_VENDOR == "ALTERA")
     begin : gen_ram_altera
         altera_syncram

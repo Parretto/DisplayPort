@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
     v1.1 - Added support for Intel FPGA
+    v1.1 - Added support for Lattice Avant
 
     License
     =======
@@ -84,6 +85,7 @@ logic [P_ADR-1:0]   clk_wp;
     assign clk_wea = (INIT_VLD_IN) ? 'b1111 : RAM_IF.strb;
 
 generate
+    // AMD
     if (P_VENDOR == "AMD")
     begin : gen_ram_amd
         // XPM memory
@@ -135,43 +137,87 @@ generate
         );
     end
 
-    else if (P_VENDOR == "LSC")
+    // Lattice
+    else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
     begin : gen_ram_lsc
-        pmi_ram_dp_be
-        #(
-            .pmi_wr_addr_depth    (P_WRDS),         // integer
-            .pmi_wr_addr_width    (P_ADR),          // integer
-            .pmi_wr_data_width    (P_DAT),          // integer
-            .pmi_rd_addr_depth    (P_WRDS),         // integer
-            .pmi_rd_addr_width    (P_ADR),          // integer
-            .pmi_rd_data_width    (P_DAT),          // integer
-            .pmi_regmode          ("noreg"),        // "reg"|"noreg"
-            .pmi_resetmode        ("async"),        // "async"|"sync"
-            .pmi_init_file        (P_INIT_FILE),    // string
-            .pmi_init_file_format ("hex"),          // "binary"|"hex"
-            .pmi_family           ("LFCPNX"),       // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
-            .pmi_byte_size        (8),              // integer
-            .pmi_gsr              ("disable")
-        ) 
-        RAM_INST
-        (
-            .Reset     (1'b0),  
 
-            .WrClock   (CLK_IN),  
-            .WrClockEn (1'b1),
-            .WrAddress (clk_addra),  
-            .WE        (clk_ena),  
-            .Data      (clk_dina), 
-            .ByteEn    (clk_wea),  
+        // Avant
+        if (P_VENDOR == "LSC_LAV")
+        begin : gen_ram_lsc_lav
+            pmi_ram_dp_be
+            #(
+                .pmi_wr_addr_depth    (P_WRDS),         // integer
+                .pmi_wr_addr_width    (P_ADR),          // integer
+                .pmi_wr_data_width    (P_DAT),          // integer
+                .pmi_rd_addr_depth    (P_WRDS),         // integer
+                .pmi_rd_addr_width    (P_ADR),          // integer
+                .pmi_rd_data_width    (P_DAT),          // integer
+                .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+                .pmi_resetmode        ("async"),        // "async"|"sync"
+                .pmi_init_file        (P_INIT_FILE),    // string
+                .pmi_init_file_format ("hex"),          // "binary"|"hex"
+                .pmi_family           ("LAV-AT"),       // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+                .pmi_byte_size        (8)               // integer
+            ) 
+            RAM_INST
+            (
+                .Reset     (1'b0),  
 
-            .RdClock   (CLK_IN), 
-            .RdClockEn (1'b1),
-            .RdAddress (RAM_IF.rd_adr),  
+                .WrClock   (CLK_IN),  
+                .WrClockEn (1'b1),
+                .WrAddress (clk_addra),  
+                .WE        (clk_ena),  
+                .Data      (clk_dina), 
+                .ByteEn    (clk_wea),  
 
-            .Q         (RAM_IF.dout)  
-        );
+                .RdClock   (CLK_IN), 
+                .RdClockEn (1'b1),
+                .RdAddress (RAM_IF.rd_adr),  
+
+                .Q         (RAM_IF.dout)  
+            );
+        end
+
+        // CertusPro-NX
+        else
+        begin : gen_ram_lsc_lfcpnx
+            pmi_ram_dp_be
+            #(
+                .pmi_wr_addr_depth    (P_WRDS),         // integer
+                .pmi_wr_addr_width    (P_ADR),          // integer
+                .pmi_wr_data_width    (P_DAT),          // integer
+                .pmi_rd_addr_depth    (P_WRDS),         // integer
+                .pmi_rd_addr_width    (P_ADR),          // integer
+                .pmi_rd_data_width    (P_DAT),          // integer
+                .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+                .pmi_resetmode        ("async"),        // "async"|"sync"
+                .pmi_init_file        (P_INIT_FILE),    // string
+                .pmi_init_file_format ("hex"),          // "binary"|"hex"
+                .pmi_family           ("LFCPNX"),       // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+                .pmi_byte_size        (8),              // integer
+                .pmi_gsr              ("disable")
+            ) 
+            RAM_INST
+            (
+                .Reset     (1'b0),  
+
+                .WrClock   (CLK_IN),  
+                .WrClockEn (1'b1),
+                .WrAddress (clk_addra),  
+                .WE        (clk_ena),  
+                .Data      (clk_dina), 
+                .ByteEn    (clk_wea),  
+
+                .RdClock   (CLK_IN), 
+                .RdClockEn (1'b1),
+                .RdAddress (RAM_IF.rd_adr),  
+
+                .Q         (RAM_IF.dout)  
+            );
+        end
     end
 
+    // Altera
     else if (P_VENDOR == "ALTERA")
     begin : gen_ram_altera
         altera_syncram

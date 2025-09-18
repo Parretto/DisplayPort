@@ -1,18 +1,19 @@
 <?xml version="1.0" ?>
-<RadiantModule architecture="LFCPNX" date="2023 05 12 11:00:59" device="LFCPNX-100" generator="ipgen" library="module" module="mpcs" name="phy" package="LFG672" source_format="Verilog" speed="9_High-Performance_1.0V" vendor="latticesemi.com" version="1.4.0">
+<RadiantModule architecture="jd5d00" date="2025 06 16 11:04:40" device="LFCPNX-100" device_int="jd5d80" display_module="MPCS" display_vendor="latticesemi.com" family="LFCPNX" gen_platform="Radiant" gen_platform_version="2024.2.1.330.0" generator="ipgen" library="module" module="mpcs" name="phy" operation="Commercial" package="LFG672" package_int="LFG672" partnumber="LFCPNX-100-9LFG672C" source_format="Verilog" speed="9_High-Performance_1.0V" speed_int="12" vendor="latticesemi.com" version="1.7.0">
  <Package>
-  <File modified="2023 05 12 11:00:58" name="rtl/phy_bb.v" type="black_box_verilog"/>
-  <File modified="2023 05 12 11:00:58" name="phy.cfg" type="cfg"/>
-  <File modified="2023 05 12 11:00:58" name="misc/phy_tmpl.v" type="template_verilog"/>
-  <File modified="2023 05 12 11:00:58" name="misc/phy_tmpl.vhd" type="template_vhdl"/>
-  <File modified="2023 05 12 11:00:58" name="rtl/phy.v" type="top_level_verilog"/>
-  <File modified="2023 05 12 11:00:58" name="constraints/phy.ldc" type="timing_constraints"/>
-  <File modified="2023 05 12 11:00:58" name="testbench/dut_params.v" type="dependency_file"/>
-  <File modified="2023 05 12 11:00:58" name="testbench/dut_inst.v" type="dependency_file"/>
-  <File modified="2023 05 12 11:00:59" name="component.xml" type="IP-XACT_component"/>
-  <File modified="2023 05 12 11:00:59" name="design.xml" type="IP-XACT_design"/>
-  <File modified="2021 03 30 22:47:43" name="testbench/tb_clkgen.v" type="testbench_verilog"/>
-  <File modified="2021 03 16 01:25:50" name="testbench/tb_lmmi_mst.v" type="testbench_verilog"/>
-  <File modified="2022 02 14 21:20:56" name="testbench/tb_top.v" type="testbench_verilog"/>
+  <File modified="2025 06 16 11:04:40" name="rtl/phy_bb.v" type="black_box_verilog"/>
+  <File modified="2025 06 16 11:04:40" name="phy.cfg" type="cfg"/>
+  <File modified="2025 06 16 11:04:40" name="misc/phy_tmpl.v" type="template_verilog"/>
+  <File modified="2025 06 16 11:04:40" name="misc/phy_tmpl.vhd" type="template_vhdl"/>
+  <File modified="2025 06 16 11:04:40" name="rtl/phy.v" type="top_level_verilog"/>
+  <File modified="2025 06 16 11:04:40" name="constraints/phy.ldc" type="timing_constraints"/>
+  <File modified="2025 06 16 11:04:40" name="testbench/dut_params.v" type="dependency_file"/>
+  <File modified="2025 06 16 11:04:40" name="testbench/dut_inst.v" type="dependency_file"/>
+  <File modified="2025 06 16 11:04:40" name="component.xml" type="IP-XACT_component"/>
+  <File modified="2025 06 16 11:04:40" name="design.xml" type="IP-XACT_design"/>
+  <File modified="2024 02 02 01:31:27" name="testbench/tb_clk_freq_checker.v" type="testbench_verilog"/>
+  <File modified="2023 06 30 03:16:49" name="testbench/tb_clkgen.v" type="testbench_verilog"/>
+  <File modified="2024 03 06 17:39:05" name="testbench/tb_lmmi_mst.v" type="testbench_verilog"/>
+  <File modified="2024 10 07 19:53:19" name="testbench/tb_top.v" type="testbench_verilog"/>
  </Package>
 </RadiantModule>

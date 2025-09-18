@@ -59,9 +59,9 @@ module prt_dprx_top
     output wire                                 HOST_IRQ_OUT, 
 
     // Misc
-    output wire                                 HPD_OUT,
-    output wire                                 HB_OUT,
-
+    output wire                                 HPD_OUT,            // Hot Plug Detect
+    output wire                                 HB_OUT,             // Heart beat
+    
     // AUX
     output wire                                 AUX_EN_OUT,
     output wire                                 AUX_TX_OUT,
@@ -98,11 +98,11 @@ localparam P_SIM =
 0;
 
 // Debug
-localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
+localparam P_DEBUG = 1;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
-localparam P_ROM_INIT = "none";
-localparam P_RAM_INIT = "none";
+localparam P_ROM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_rom.hex" : "none";
+localparam P_RAM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_ram.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_ram.hex" : "none";
 
 // Hardware version
 localparam P_HW_VER_MAJOR = 1;
@@ -367,7 +367,7 @@ generate
         (* mark_debug = "true" *)       wire lclk_dbg;
         
     // Debug (system clock)
-        always_ff @ (SYS_CLK_IN)
+        always_ff @ (posedge SYS_CLK_IN)
         begin
             sclk_dbg <= pio_from_pm[1];
         end
@@ -382,6 +382,7 @@ generate
             .DST_DAT_OUT        (lclk_dbg)       // Data
         );
     end
+    
 endgenerate
 
 endmodule

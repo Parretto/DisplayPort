@@ -1485,6 +1485,8 @@ genvar i;
 generate
 	for (i = 0; i < 2; i++)
 	begin : gen_reg
+
+		// AMD
 		if (P_VENDOR == "AMD")
 		begin : gen_amd
 			// XPM memory
@@ -1536,7 +1538,8 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "LSC")
+		// Lattice
+		else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 		begin : gen_lsc
 			pmi_distributed_dpram
 			#(
@@ -1565,6 +1568,7 @@ generate
 			);
 		end
 
+		// Altera
 		else if (P_VENDOR == "ALTERA")
 		begin : gen_altera
 			altdpram

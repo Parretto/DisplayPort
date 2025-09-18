@@ -5,11 +5,12 @@
 
 
     Module: RISC-V CPU registers
-    (c) 2022 - 2024 by Parretto B.V.
+    (c) 2022 - 2025 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+	v1.1 - Added support for Lattice Avant
 
     License
     =======
@@ -121,7 +122,7 @@ generate
 			);
 		end
 
-		else if (P_VENDOR == "LSC")
+		else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
 		begin : gen_lsc
 			pmi_distributed_dpram
 			#(

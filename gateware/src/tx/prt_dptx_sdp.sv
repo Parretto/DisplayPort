@@ -1940,7 +1940,7 @@ generate
             // Default
             lclk_dat_fifo.rd = '{default: '0};
 
-            if (!lclk_lnk.rd_cnt_end)
+            if (!lclk_sdp.rd_cnt_end)
             begin
                 // 1 lane
                 if (lclk_ctl.lanes == 'd1)

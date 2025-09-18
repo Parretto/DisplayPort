@@ -57,6 +57,9 @@ void prt_phy_lsc_init (prt_phy_lsc_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u
 
 	// Disable frequency comparator
 	prt_phy_lsc_rx_no_fcmp (phy);
+
+	// Disable word alignment
+	//prt_phy_lsc_rx_wa_dis (phy);
 }
 
 // Read
@@ -317,6 +320,14 @@ void prt_phy_lsc_rate (prt_phy_lsc_ds_struct *phy, prt_u8 rate, prt_u8 tx)
 			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (2);
 			break;
 
+		// 2.97 Gbps
+		case PRT_PHY_LSC_LINERATE_2970 : 
+			m = prt_phy_lsc_enc_pll_m (2);
+			f = prt_phy_lsc_enc_pll_f (1);
+			n = prt_phy_lsc_enc_pll_n (20);
+			pma_clk_div = prt_phy_lsc_enc_pma_clk_div (1);
+			break;
+
 		// 2.7 Gbps
 		case PRT_PHY_LSC_LINERATE_2700 : 
 			m = prt_phy_lsc_enc_pll_m (2);
@@ -562,16 +573,22 @@ void prt_phy_lsc_rx_pcs_rst (prt_phy_lsc_ds_struct *phy, prt_u8 lanes)
 	prt_phy_lsc_pio_dat_set (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 
 	// First wait for MPCS ready
-	lock = prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
+	//	lock = prt_phy_lsc_wait_for_lock (phy, PRT_PHY_LSC_PIO_IN_RDY);
+	
+	// Sleep alarm 0
+	prt_tmr_sleep (phy->tmr, 0, PRT_PHY_LSC_RST_PULSE);
 
 	// Then wait for MPCS RXVAL
 	// Not all four lanes can be active.
 	// So we loop through all the individual lanes
+
+	/*
 	for (prt_u8 i = 0; i < lanes; i++)
 	{
 		lock = prt_phy_lsc_wait_for_lock (phy, (PRT_PHY_LSC_PIO_IN_RXVAL << i));
 	}
-
+	*/
+	
 	// Release PHY RX PCS reset
 	prt_phy_lsc_pio_dat_clr (phy, PRT_PHY_LSC_PIO_OUT_RX_RST);
 }
@@ -687,6 +704,22 @@ void prt_phy_lsc_rx_no_fcmp (prt_phy_lsc_ds_struct *phy)
 
 	// Write all channels
 	prt_phy_lsc_wr_all (phy, 0x0e, dat);
+}
+
+// RX disable word alignment
+void prt_phy_lsc_rx_wa_dis (prt_phy_lsc_ds_struct *phy)
+{
+	// Variables
+	prt_u8 dat;
+
+	// Read register (only channel 0)
+	dat = prt_phy_lsc_rd (phy, 0, 0x130);
+
+	// Set WA_DIS bit
+	dat |= PRT_PHY_LSC_REG30_NO_FCMP;
+
+	// Write all channels
+	prt_phy_lsc_wr_all (phy, 0x130, dat);
 }
 
 //  PIO Data set

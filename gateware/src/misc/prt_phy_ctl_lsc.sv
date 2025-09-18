@@ -11,6 +11,8 @@
     =======
     v1.0 - Initial release
 	v1.1 - Added PIO
+	v1.2 - Updated peripheral to support single port
+
 
     License
     =======
@@ -59,7 +61,7 @@ module prt_phy_ctl_lsc
 );
 
 // Parameters
-localparam P_LMMI_PORT_WIDTH = $clog2(P_LMMI_PORTS);
+localparam P_LMMI_PORT_WIDTH = (P_LMMI_PORTS == 1) ? 0 : $clog2(P_LMMI_PORTS);
 
 // Control register bit locations
 localparam P_CTL_WR         = 0;
@@ -261,9 +263,17 @@ genvar i;
 // Port
 	always_ff @ (posedge CLK_IN)
 	begin
-		// Write 
-		if (clk_lmmi.sel && clk_lb.wr)
-			clk_lmmi.port <= clk_lb.din[0+:$size(clk_lmmi.port)];
+		// Single port
+		if (P_LMMI_PORTS == 1)
+			clk_lmmi.port <= 0;
+		
+		// Multiple ports
+		else
+		begin
+			// Write 
+			if (clk_lmmi.sel && clk_lb.wr)
+				clk_lmmi.port <= clk_lb.din[0+:$size(clk_lmmi.port)];
+		end
 	end
 
 // Address

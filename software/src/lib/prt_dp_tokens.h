@@ -72,8 +72,9 @@
   #define PRT_DP_MAIL_DPCD_DEFER       0x74    // DPCD defer
   #define PRT_DP_MAIL_DPCD_BLK         0x75    // DPCD block
   
-  #define PRT_DP_MAIL_EDID_RD          0x80    // EDID read
-  #define PRT_DP_MAIL_EDID_DAT         0x81    // EDID data
+  #define PRT_DP_MAIL_EDID_WR          0x80    // EDID write
+  #define PRT_DP_MAIL_EDID_RD          0x81    // EDID read
+  #define PRT_DP_MAIL_EDID_DAT         0x82    // EDID data
 
   #define PRT_DP_MAIL_MST_STR          0x90    // MST start
   #define PRT_DP_MAIL_MST_STP          0x91    // MST stop

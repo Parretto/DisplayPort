@@ -16,7 +16,7 @@
 	v1.4 - Added multiple clock configurations support
 	v1.5 - Added DP21TX card (TDP2004)
 	v1.6 - Added TDP1204 and TMDS1204 drivers
-	
+	v1.7 - Added support for DP passive RX card
 
     License
     =======
@@ -135,6 +135,9 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 	
 	switch (tentiva->slot_id[0])
 	{
+		// Empty
+		case PRT_TENTIVA_EMPTY_ID :
+			break;
 
 		// MCDP6150 
 		case PRT_TENTIVA_DP14RX_ID : 
@@ -170,6 +173,11 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 			// No initialization is needed
 			break;
 
+		// DP Passive RX
+		case PRT_TENTIVA_DPPASSRX_ID :
+			// No initialization is needed
+			break;
+
 		// TMDS1204 
 		case PRT_TENTIVA_HDMI21RX_ID :
 			sta = prt_tmds1204_init (tentiva->i2c, PRT_TENTIVA_I2C_TMDS1204_SLOT0_ADR);
@@ -196,6 +204,10 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 	
 	switch (tentiva->slot_id[1])
 	{
+		// Empty
+		case PRT_TENTIVA_EMPTY_ID :
+			break;
+
 		// TDP142 
 		case PRT_TENTIVA_DP14TX_ID :
 			sta = prt_tdp142_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP142_SLOT1_ADR, 1);
@@ -220,8 +232,12 @@ prt_sta_type prt_tentiva_cfg (prt_tentiva_ds_struct *tentiva, prt_bool ignore_er
 
 		// TDP1204
 		case PRT_TENTIVA_HDMI21TX_ID :
-			sta = prt_tdp1204_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP1204_SLOT1_ADR);
-
+			//sta = prt_tdp1204_init (tentiva->i2c, PRT_TENTIVA_I2C_TDP1204_SLOT1_ADR);
+			sta = prt_tdp1204_init (tentiva->i2c, 0x5B);
+			sta = prt_tdp1204_init (tentiva->i2c, 0x5c);
+			sta = prt_tdp1204_init (tentiva->i2c, 0x5d);
+			sta = prt_tdp1204_init (tentiva->i2c, 0x5e);
+			
 			if ((sta != PRT_STA_OK) && (ignore_err == PRT_FALSE))
 			{
 				prt_printf ("-- TDP1204 config error -- ");
@@ -624,6 +640,7 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 				case PRT_TENTIVA_DP21TX_ID 		: prt_printf ("DP21TX\n"); break;
 				case PRT_TENTIVA_DP14RX_ID 		: prt_printf ("DP14RX\n"); break;
 				case PRT_TENTIVA_DP21RX_ID 		: prt_printf ("DP21RX\n"); break;
+				case PRT_TENTIVA_DPPASSRX_ID 	: prt_printf ("DPPASSRX\n"); break;
 				case PRT_TENTIVA_HDMI21TX_ID 	: prt_printf ("HDMI21TX\n"); break;
 				case PRT_TENTIVA_HDMI21RX_ID 	: prt_printf ("HDMI21RX\n"); break;
 				case PRT_TENTIVA_EDPTX_ID 		: prt_printf ("EDPTX\n"); break;
@@ -631,7 +648,10 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 			}
 		}
 		else
+		{
 			prt_printf ("empty\n");
+			tentiva->slot_id[i] = PRT_TENTIVA_EMPTY_ID;
+		}
 	}
 }
 
@@ -686,6 +706,12 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, uint8_t id)
 		case PRT_TENTIVA_DP21RX_ID :
 			prt_printf ("DP21RX...");
 			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_DP21RX_ID);
+			break;
+
+		// DPPASSRX
+		case PRT_TENTIVA_DPPASSRX_ID :
+			prt_printf ("DPPASSRX...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_EEPROM_SLOT0_ADR, PRT_TENTIVA_DPPASSRX_ID);
 			break;
 
 		// DP14TX

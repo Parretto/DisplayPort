@@ -11,6 +11,7 @@
     =======
     v1.0 - Initial release
     v1.1 - Added support for Intel FPGA
+    v1.2 - Added support for Lattice Avant
 
     License
     =======
@@ -80,6 +81,8 @@ logic [P_ADR-1:0]   clk_wp;
     assign clk_wea = INIT_VLD_IN;
 
 generate
+
+    // AMD
     if (P_VENDOR == "AMD")
     begin : gen_rom_amd
 
@@ -123,31 +126,65 @@ generate
         );
     end
 
-    else if (P_VENDOR == "LSC")
-    begin : gen_rom_lsc
-        pmi_ram_dq
-        #(
-            .pmi_addr_depth       (P_WRDS),         // integer
-            .pmi_addr_width       (P_ADR),          // integer
-            .pmi_data_width       (P_DAT),          // integer
-            .pmi_regmode          ("noreg"),        // "reg"|"noreg"
-            .pmi_resetmode        ("async"),        // "async"|"sync"
-            .pmi_init_file        (P_INIT_FILE),    // string
-            .pmi_init_file_format ("hex"),          // "binary"|"hex"
-            .pmi_family           ("LFCPNX")        // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
-        ) 
-        ROM_INST
-        (
-            .Reset      (1'b0),  
-            .Clock      (CLK_IN),  
-            .ClockEn    (1'b1),
-            .Address    (clk_addra),  
-            .WE         (clk_wea),  
-            .Data       (clk_dina), 
-            .Q          (ROM_IF.dat)  
-        );
+
+    // Lattice
+    else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
+    begin : gen_ram_lsc
+
+        // Avant
+        if (P_VENDOR == "LSC_LAV")
+        begin : gen_rom_lsc_lav
+            pmi_ram_dq
+            #(
+                .pmi_addr_depth       (P_WRDS),         // integer
+                .pmi_addr_width       (P_ADR),          // integer
+                .pmi_data_width       (P_DAT),          // integer
+                .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+                .pmi_resetmode        ("async"),        // "async"|"sync"
+                .pmi_init_file        (P_INIT_FILE),    // string
+                .pmi_init_file_format ("hex"),          // "binary"|"hex"
+                .pmi_family           ("LAV-AT")        // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+            ) 
+            ROM_INST
+            (
+                .Reset      (1'b0),  
+                .Clock      (CLK_IN),  
+                .ClockEn    (1'b1),
+                .Address    (clk_addra),  
+                .WE         (clk_wea),  
+                .Data       (clk_dina), 
+                .Q          (ROM_IF.dat)  
+            );
+        end
+
+        // CertusPro-NX
+        else
+        begin : gen_rom_lsc_lfcpnx
+            pmi_ram_dq
+            #(
+                .pmi_addr_depth       (P_WRDS),         // integer
+                .pmi_addr_width       (P_ADR),          // integer
+                .pmi_data_width       (P_DAT),          // integer
+                .pmi_regmode          ("noreg"),        // "reg"|"noreg"
+                .pmi_resetmode        ("async"),        // "async"|"sync"
+                .pmi_init_file        (P_INIT_FILE),    // string
+                .pmi_init_file_format ("hex"),          // "binary"|"hex"
+                .pmi_family           ("LFCPNX")        // "LIFCL"|"LFD2NX"|"LFCPNX"|"LFMXO5"|"UT24C"|"UT24CP"|"common"
+            ) 
+            ROM_INST
+            (
+                .Reset      (1'b0),  
+                .Clock      (CLK_IN),  
+                .ClockEn    (1'b1),
+                .Address    (clk_addra),  
+                .WE         (clk_wea),  
+                .Data       (clk_dina), 
+                .Q          (ROM_IF.dat)  
+            );
+        end
     end
 
+    // Altera
     else if (P_VENDOR == "ALTERA")
     begin : gen_rom_altera
         altera_syncram

@@ -16,7 +16,9 @@
     v1.4 - Added training clock recovery callback and DPRX spread spectrum option
     v1.5 - Added support for Tentiva board with system controller
     v1.6 - Added PHY reset callback
-    
+    v1.7 - Added preliminary support for Lattice Avant
+
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -62,17 +64,17 @@
 #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
      #include "prt_phy_amd_us_gth.h"
 
+// Lattice Avant board
+#elif (BOARD == BOARD_LSC_LAV)
+     #include "prt_phy_lsc_lav.h"
+
 // Lattice LFCPNX board
-#elif (BOARD == BOARD_LSC_LFCPNX)
+#elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV))
      #include "prt_phy_lsc_cpnx.h"
 
 // Intel Cyclone 10GX and Arria 10 GX boards
 #elif (BOARD == BOARD_INT_C10GX || BOARD == BOARD_INT_A10GX)
      #include "prt_phy_int_10gx.h"
-
-// Inrevium TB-A7-200T-IMG
-#elif (BOARD == BOARD_TB_A7_200T_IMG)
-     #include "prt_phy_amd_a7_gtp.h"
 #endif
 
 // Data structures
@@ -187,13 +189,13 @@ int main (void)
      // Reset DPRX
      dp_reset (PRT_DPRX_ID);
 
-// AMD ZCU102 board and Alinx AXAU15 board
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+// AMD ZCU102 board 
+#if (BOARD == BOARD_AMD_ZCU102)
      // Initialize PHY
      prt_phy_amd_init (&phy, &tmr, PRT_PHY_BASE);
 
-// Lattice LFCPNX board
-#elif (BOARD == BOARD_LSC_LFCPNX)
+// Lattice LFCPNX board and Avant board
+#elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV))
      // Initialize PHY
      prt_phy_lsc_init (&phy, &tmr, PRT_PHY_BASE);
 
@@ -202,29 +204,25 @@ int main (void)
      // Initialize PHY
      prt_phy_int_init (&phy, &tmr, PRT_PHY_BASE); 
 
-// Inrevium TB-A7-200T-IMG
-#elif (BOARD == BOARD_TB_A7_200T_IMG)
-     // Initialize PHY
-     prt_phy_amd_init (&phy, &tmr, PRT_PHY_BASE);
-#endif
-
      // Assign VTB0 base address
      prt_vtb_set_base (&vtb[0], PRT_VTB0_BASE);
 
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
+#endif 
 
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
      prt_printf ("Board: AMD ZCU102\n");
 
-#elif (BOARD == BOARD_ALINX_AXAU15)
-     prt_printf ("Board: Alinx AXAU15\n");
-
 // Lattice CertusPro-NX
 #elif (BOARD == BOARD_LSC_LFCPNX)
      prt_printf ("Board: Lattice LFCPNX\n");
+
+// Lattice Avant
+#elif (BOARD == BOARD_LSC_LAV)
+     prt_printf ("Board: Lattice Avant-G/X Versa\n");
 
 // Intel Cyclone 10GX
 #elif (BOARD == BOARD_INT_C10GX)
@@ -233,11 +231,6 @@ int main (void)
 // Intel Arria 10GX
 #elif (BOARD == BOARD_INT_A10GX)
      prt_printf ("Board: Intel DK-DEV-10AX115S\n");
-
-// Inrevium TB-A7-200T-IMG
-#elif (BOARD == BOARD_TB_A7_200T_IMG)
-     prt_printf ("Board: Inrevium TB-A7-200T-IMG\n");
-
 #endif
 
 // Get application parameters
@@ -277,6 +270,20 @@ int main (void)
      }
 #endif
 
+// Lattice Avant Versa FMC I2C mux
+#if (BOARD == BOARD_LSC_LAV)
+     prt_printf ("Enable FMC I2C Mux... ");
+     sta = lsc_lav_fmc_i2c_mux ();
+
+     if (sta == PRT_STA_OK)
+          prt_printf ("ok\n");
+     else
+     {
+          prt_printf ("error\n");
+          return -1;
+     }
+#endif
+
      // Initialize Tentiva FMC
      prt_tentiva_init (&tentiva, &pio, &i2c, &tmr,
           PIO_IN_PHY_REFCLK_LOCK, PIO_IN_VID_REFCLK_LOCK, PIO_OUT_TENTIVA_CLK_SEL);
@@ -301,14 +308,14 @@ int main (void)
 
      // Config
      prt_printf ("Tentiva config... ");
-     sta = prt_tentiva_cfg (&tentiva, true);      // Fail on config error
+     sta = prt_tentiva_cfg (&tentiva, false);      // Fail on config error
 
      if (sta == PRT_STA_OK)
           prt_printf ("ok\n");
      else
      {
           prt_printf ("error\n");
-          return -1;
+          //return -1;
      }
 
      // Set the TX card select
@@ -325,7 +332,7 @@ int main (void)
      }
 
      // Set the RX card select
-     if (prt_tentiva_get_slot_id (&tentiva, 0) == PRT_TENTIVA_DP21RX_ID)
+     if ((prt_tentiva_get_slot_id (&tentiva, 0) == PRT_TENTIVA_DP21RX_ID) || (prt_tentiva_get_slot_id (&tentiva, 0) == PRT_TENTIVA_DPPASSRX_ID))
      {
           dp_app.tentiva_dp21rx = true;
           prt_pio_dat_set (&pio, PIO_OUT_RX_CARD);
@@ -490,9 +497,6 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
-// If the advanced option is not defined, then the DP is pre-configured.
-#ifndef ADVANCED
-
      /*
           DPTX
      */
@@ -510,11 +514,11 @@ int main (void)
      // Config
      prt_printf ("DPTX: Config...");
 
-     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+     #if (BOARD == BOARD_AMD_ZCU102) 
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
-     #elif (BOARD == BOARD_LSC_LFCPNX)
+     #elif (BOARD == BOARD_LSC_LFCPNX)|| (BOARD == BOARD_LSC_LAV)
           dat = PRT_DP_PHY_LINERATE_5400;
 
      // Intel Cyclone 10GX
@@ -524,10 +528,6 @@ int main (void)
      // Intel Arria 10GX
      #elif (BOARD == BOARD_INT_A10GX)
           dat = PRT_DP_PHY_LINERATE_8100;
-
-     // Inrevium TB-A7-200T-IMG
-     #elif (BOARD == BOARD_TB_A7_200T_IMG)
-          dat = PRT_DP_PHY_LINERATE_5400;
 
      #endif
 
@@ -559,11 +559,11 @@ int main (void)
      // Config
      prt_printf ("DPRX: Config...");
 
-     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+     #if (BOARD == BOARD_AMD_ZCU102) 
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
-     #elif (BOARD == BOARD_LSC_LFCPNX)
+     #elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV))
           dat = PRT_DP_PHY_LINERATE_5400;
 
      // Intel Cyclone 10GX
@@ -573,10 +573,6 @@ int main (void)
      // Intel Arria 10GX
      #elif (BOARD == BOARD_INT_A10GX)
           dat = PRT_DP_PHY_LINERATE_8100;
-
-     // Inrevium TB-A7-200T-IMG
-     #elif (BOARD == BOARD_TB_A7_200T_IMG)
-          dat = PRT_DP_PHY_LINERATE_5400;
 
      #endif
 
@@ -609,7 +605,6 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
-#endif
 
      // Menu
      show_menu ();
@@ -646,32 +641,64 @@ int main (void)
                          prt_dp_sta (&dptx);
                          break;
 
-                    // Force training
+                    // Read EDID
                     case 'r' :
-                         prt_printf ("DPTX: Training\n");
-                         prt_printf ("Select maximum line rate:\n");
-                         prt_printf (" 1 - 1.62 Gbps\n");
-                         prt_printf (" 2 - 2.7 Gbps\n");
-                         prt_printf (" 3 - 5.4 Gbps\n");
-                         #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_INT_A10GX))
-                              prt_printf (" 4 - 8.1 Gbps\n");
-                         #endif
-                         cmd = prt_uart_get_char ();
+                         show_edid ();
+                         break;
 
-                         switch (cmd)
+                    // MST enable / disable
+                    case 't' :
+
+                         // Disable
+                         if (dp_app.tx.mst)
                          {
-                              case '2' : dat = PRT_DP_PHY_LINERATE_2700; break;
-                              case '3' : dat = PRT_DP_PHY_LINERATE_5400; break;
-                              case '4' : dat = PRT_DP_PHY_LINERATE_8100; break;
-                              default  : dat = PRT_DP_PHY_LINERATE_1620; break;
+                              prt_printf ("\nDPTX: MST stop\n");
+
+                              mst_sta = prt_dptx_mst_stp (&dptx);
+
+                              // Clear flag
+                              dp_app.tx.mst = false;
+
+                              // Start colorbar
+                              dp_app.tx.colorbar = true;
                          }
 
-                         // Set max rate
-                         prt_dp_set_lnk_max_rate (&dptx, dat);
+                         // Enable
+                         else
+                         {
+                              prt_printf ("\nDPTX: MST start\n");
+                              
+                              // First stop the video
+                              prt_dp_vid_stp (&dptx, 0);
 
-                         // Force training
-                         prt_dptx_trn (&dptx);
+                              mst_sta = prt_dptx_mst_str (&dptx);
+
+                              switch (mst_sta)
+                              {
+                                   case PRT_DP_MST_OK            : prt_printf ("DPTX: MST ok\n"); break;
+                                   case PRT_DP_MST_NO_LOGIC      : prt_printf ("DPTX: MST logic not enabled\n"); break;
+                                   case PRT_DP_MST_SNK_NO_CAP    : prt_printf ("DPTX: MST not supported by sink\n"); break;
+                                   default                       : prt_printf ("DPTX: MST error\n"); break;
+                              }
+
+                              // Set flag
+                              if (mst_sta == PRT_DP_MST_OK)
+                              {
+                                   // Set MST flag
+                                   dp_app.tx.mst = true;
+                                   
+                                   // Start colorbar
+                                   dp_app.tx.colorbar = true;
+                              }
+
+                              else
+                              {
+                                   // Clear MST flag
+                                   dp_app.tx.mst = false;
+                              }
+                         }
                          break;
+
 
                     // DPCD read
                     case 'u' :
@@ -1273,6 +1300,7 @@ int main (void)
          prt_printf ("z - Colorbar\n");
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
+
          prt_printf ("\n");
      }
 
@@ -1283,7 +1311,7 @@ int main (void)
 // PHY TX line rate
 void phy_set_tx_linerate (uint8_t linerate)
 {
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+#if (BOARD == BOARD_AMD_ZCU102) 
 
      // Variables
      uint8_t phy_linerate;
@@ -1306,6 +1334,28 @@ void phy_set_tx_linerate (uint8_t linerate)
 
      // Set TX line rate 
      prt_phy_amd_tx_rate (&phy, phy_linerate);
+
+// Lattice Avant
+#elif (BOARD == BOARD_LSC_LAV)
+
+     // Variables
+     uint32_t freq;
+     uint8_t phy_linerate;
+
+     // Find reference clock and PHY linerate
+     switch (linerate)
+     {
+          case PRT_DP_PHY_LINERATE_2700 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
+          case PRT_DP_PHY_LINERATE_5400 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
+          case PRT_DP_PHY_LINERATE_8100 : freq = 135000; phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
+          default : freq = 81000; phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
+     }
+
+     // Set reference clock
+     prt_tentiva_set_phy_freq (&tentiva, freq);
+
+     // Update PHY TX linerate
+     prt_phy_lsc_tx_rate (&phy, phy_linerate);
 
 // Lattice CertusPro-NX
 #elif (BOARD == BOARD_LSC_LFCPNX)
@@ -1377,31 +1427,6 @@ void phy_set_tx_linerate (uint8_t linerate)
 
      // Update PHY TX linerate
      prt_phy_int_tx_rate (&phy, phy_linerate);
-
-// Inrevium TB-A7-200T-IMG
-#elif (BOARD == BOARD_TB_A7_200T_IMG)
-
-     // Variables
-     uint8_t freq;
-     uint8_t phy_linerate;
-
-     // The reference clock is always 135 MHz. 
-
-     // Convert PHY linerate
-     switch (linerate)
-     {
-          case PRT_DP_PHY_LINERATE_2700 : phy_linerate = PRT_PHY_AMD_LINERATE_2700; break;
-          case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_AMD_LINERATE_5400; break;
-          default : phy_linerate = PRT_PHY_AMD_LINERATE_1620; break;
-     }
-
-     // Set TX reference clock
-     // The TX reference clock is driven by the Tentiva PHY clock 0.
-     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
-     prt_tentiva_set_phy_freq (&tentiva, 135000);
-
-     // Set TX line rate 
-     prt_phy_amd_tx_rate (&phy, phy_linerate);
 #endif
 }
 
@@ -1426,7 +1451,7 @@ void phy_set_tx_vap (uint8_t volt, uint8_t pre)
 void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 {
 // AMD ZCU102
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+#if (BOARD == BOARD_AMD_ZCU102) 
 
      // Variables
      uint8_t phy_linerate;
@@ -1447,6 +1472,29 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 
      // Set PHY RX line rate 
      prt_phy_amd_rx_rate (&phy, phy_linerate, ssc);
+
+// Lattice Avant
+#elif (BOARD == BOARD_LSC_LAV)
+     // Variables
+     uint8_t freq;
+     uint8_t phy_linerate;
+
+     // Set RX reference clock
+     // The RX reference clock is driven by the Tentiva PHY clock 0.
+     // The tentiva driver will just return when the PHY clock generator already provides the requested clock.  
+     prt_tentiva_set_phy_freq (&tentiva, 135000);
+
+     // Convert PHY linerate
+     switch (linerate)
+     {
+          case PRT_DP_PHY_LINERATE_2700 : phy_linerate = PRT_PHY_LSC_LINERATE_2700; break;
+          case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_LSC_LINERATE_5400; break;
+          case PRT_DP_PHY_LINERATE_8100 : phy_linerate = PRT_PHY_LSC_LINERATE_8100; break;
+          default : phy_linerate = PRT_PHY_LSC_LINERATE_1620; break;
+     }
+
+     // Set PHY RX linerate
+     prt_phy_lsc_rx_rate (&phy, phy_linerate);
 
 // Lattice CertusPro-NX
 #elif (BOARD == BOARD_LSC_LFCPNX)
@@ -1513,28 +1561,6 @@ void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 
      // Set PHY RX rate
      prt_phy_int_rx_rate (&phy, phy_linerate);
-
-// Inrevium TB-A7-200T-IMG
-#elif (BOARD == BOARD_TB_A7_200T_IMG)
-
-     // Variables
-     uint8_t freq;
-     uint8_t phy_linerate;
-
-     // The reference clock is always 135 MHz. 
-     // The PHY reference clock is set by the TX linerate function
-
-     // Convert PHY linerate
-     switch (linerate)
-     {
-          case PRT_DP_PHY_LINERATE_2700 : phy_linerate = PRT_PHY_AMD_LINERATE_2700; break;
-          case PRT_DP_PHY_LINERATE_5400 : phy_linerate = PRT_PHY_AMD_LINERATE_5400; break;
-          default : phy_linerate = PRT_PHY_AMD_LINERATE_1620; break;
-     }
-
-     // Set RX line rate 
-     prt_phy_amd_rx_rate (&phy, phy_linerate);
-
 #endif
 }
 
@@ -1748,6 +1774,8 @@ prt_sta_type vtb_colorbar (prt_bool force)
                     prt_printf (" a - 7680 x 4320p30\n");
                }
 
+               prt_printf (" c - 720 x 1920p60\n");
+
                cmd = prt_uart_get_char ();
 
                switch (cmd)
@@ -1790,6 +1818,11 @@ prt_sta_type vtb_colorbar (prt_bool force)
                     // 7680 x 4320p @ 30Hz
                     case 'a' :
                          vtb_preset = VTB_PRESET_7680X4320P30;
+                         break;
+
+                    // 720 x 1920p @ 60Hz
+                    case 'c' :
+                         vtb_preset = VTB_PRESET_720X1920P60;
                          break;
 
                     // 1920 x 1080p @ 60Hz
@@ -1846,7 +1879,7 @@ prt_sta_type vtb_colorbar (prt_bool force)
 
           // Set Tentiva video clock
           prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
-          prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
+          //prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
 
           // Copy VTB timing parameters to DP   
           dp_tp.htotal = vtb_tp.htotal;
@@ -2037,15 +2070,9 @@ void set_edid (prt_bool user)
           prt_dp_edid_set (edid);
      }
 
-     // Copy edid to DP driver
-     for (i = 0; i < sizeof(edid_dat); i++)
-     {
-          prt_dp_set_edid_dat (&dprx, i, edid_dat[i]);
-     }
-
      // Write edid to RX policy maker
      prt_printf ("DPRX: Write EDID...");
-     if (prt_dprx_edid_wr (&dprx, sizeof(edid_dat)))
+     if (prt_dprx_edid_wr (&dprx, sizeof(edid_dat), edid_dat))
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
@@ -2056,6 +2083,40 @@ void set_edid (prt_bool user)
           prt_dprx_hpd (&dprx, 3);
      }
 }
+
+// Show EDID
+void show_edid (void)
+{
+     // Variables
+     uint8_t sta;
+     uint16_t addr = 0;
+     uint16_t len = 512;
+     uint8_t dat[512];
+
+     prt_printf ("\nDPTX: Read edid... ");
+
+     // Read EDID from policy maker
+     sta = prt_dptx_edid_rd (&dptx, addr, len, dat);
+
+     if (sta != PRT_TRUE)
+     {
+          prt_printf ("error\n");
+     }
+
+     else
+     {
+          prt_printf ("ok\n");
+          prt_printf ("Data:\n");
+
+          for (uint16_t i = 0; i < len; i=i+16)
+          {
+               for (uint8_t j = 0; j < 16; j++)
+                    prt_printf ("%x ", dat[i+j]);
+               prt_printf ("\n");
+          }
+     }
+}
+
 
 /*
      DPCD
@@ -2133,8 +2194,7 @@ void dpcd_wr (void)
 
 /*
      ZCU102 functions
-*/
-// AMD ZCU102 board 
+*/ 
 #if (BOARD == BOARD_AMD_ZCU102)
 
      // Set FMC I2C mux
@@ -2157,6 +2217,28 @@ void dpcd_wr (void)
           // Enable FMC HPC0 I2C channel on MUX135
           i2c.slave = ZCU102_I2C_MUX_U135_ADR;
           i2c.dat[0] = 1<<0;
+          i2c.len = 1;
+          sta = prt_i2c_wr (&i2c);
+
+          return sta;
+     }
+
+#endif
+
+/*
+     Avant Versa board functions
+*/
+#if (BOARD == BOARD_LSC_LAV)
+
+     // Set FMC I2C mux
+     prt_sta_type lsc_lav_fmc_i2c_mux (void)
+     {
+          // Variables
+          prt_sta_type sta;
+
+          // Enable FMC I2C channel (channel 7)
+          i2c.slave = LSC_LAV_I2C_MUX_ADR;
+          i2c.dat[0] = 1<<7;
           i2c.len = 1;
           sta = prt_i2c_wr (&i2c);
 

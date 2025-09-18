@@ -34,12 +34,10 @@
 
 #define BOARD_AMD_ZCU102           	0
 #define BOARD_LSC_LFCPNX                1
-#define BOARD_INT_C10GX                 2
-#define BOARD_INT_A10GX                 3
-#define BOARD_TB_A7_200T_IMG            4
-#define BOARD_ALINX_AXAU15              5
+#define BOARD_LSC_LAV                   2
+#define BOARD_INT_C10GX                 3
+#define BOARD_INT_A10GX                 4
 
-//#define ADVANCED
 #define AUTO_COLORBAR
 
 #define SYS_CLK_FREQ                    50000000
@@ -141,6 +139,7 @@ void dpcd_wr (void);
 
 // EDID
 void set_edid (prt_bool user);
+void show_edid (void);
 
 // UART
 uint32_t uart_read_hex (void);
@@ -150,4 +149,10 @@ uint32_t uart_read_hex (void);
      #define ZCU102_I2C_MUX_U34_ADR          0x74
      #define ZCU102_I2C_MUX_U135_ADR         0x75
      prt_sta_type amd_zcu102_fmc_i2c_mux (void);
+#endif
+
+// Lattice Avant 
+#if (BOARD == BOARD_LSC_LAV)
+     #define LSC_LAV_I2C_MUX_ADR          0x70
+     prt_sta_type lsc_lav_fmc_i2c_mux (void);
 #endif

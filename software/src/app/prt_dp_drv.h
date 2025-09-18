@@ -11,6 +11,8 @@
     =======
     v1.0 - Initial release
 	v1.1 - Added colorspace 
+	v1.2 - Enhanced DPTX EDID handling
+
 
     License
     =======
@@ -71,24 +73,13 @@
 #define PRT_DP_EVT_VID							(1<<10)
 #define PRT_DP_EVT_MSA							(1<<11)
 #define PRT_DP_EVT_DPCD							(1<<12)
-#define PRT_DP_EVT_EDID							(1<<13)
-#define PRT_DP_EVT_DEBUG						(1<<14)
+#define PRT_DP_EVT_DEBUG						(1<<13)
 
 // Line rate
 #define PRT_DP_PHY_LINERATE_1620		0x06
 #define PRT_DP_PHY_LINERATE_2700		0x0a
 #define PRT_DP_PHY_LINERATE_5400		0x14
 #define PRT_DP_PHY_LINERATE_8100		0x1e
-
-// Video resolution
-#define PRT_DP_VID_RES_RX				0
-#define PRT_DP_VID_RES_480P60			1
-#define PRT_DP_VID_RES_720P50			2
-#define PRT_DP_VID_RES_720P60			3
-#define PRT_DP_VID_RES_1080P50			4
-#define PRT_DP_VID_RES_1080P60			5
-#define PRT_DP_VID_RES_4KP50			6
-#define PRT_DP_VID_RES_4KP60			7
 
 // AUX
 #define PRT_AUX_REQ_STR        		0x100
@@ -194,8 +185,10 @@ typedef struct {
 
 // EDID structure
 typedef struct {
-	uint8_t dat[1024]; 	// Data
-	uint16_t adr;		// Address
+	uint16_t 			adr;		// Address
+	uint8_t 			len; 		// Length
+	uint8_t 			*dat; 		// Pointer to data buffer
+	prt_bool 			rdy; 		// Ready flag
 } prt_dp_edid_struct;
 
 // DPCD structure
@@ -284,7 +277,7 @@ typedef struct {
 	prt_dp_pwr_ctl_struct					pwr_ctl;		// Power control
 	prt_dp_lnk_struct						lnk;			// Link
 	prt_dp_vid_struct						vid[2];			// Video
-	prt_dp_edid_struct						edid;			// EDID
+	volatile prt_dp_edid_struct				edid;			// EDID
 	volatile prt_dp_dpcd_struct				dpcd;			// DPCD
 #ifdef PRT_SIM
 	prt_dp_aux_ds_struct					aux;			// AUX
@@ -329,13 +322,13 @@ uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_trn (prt_dp_ds_struct *dp);
+uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp, uint16_t adr, uint16_t len, uint8_t *dat);
 
 // DPRX
 void prt_dprx_phy_rst_ack (prt_dp_ds_struct *dp);
 prt_dp_tp_struct prt_dprx_tp_get (prt_dp_ds_struct *dp);
 uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp);
-
-uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len);
+uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len, uint8_t *dat);
 uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr);
 void prt_dprx_dpcd_ack (prt_dp_ds_struct *dp);
 void prt_dprx_dpcd_nack (prt_dp_ds_struct *dp);
@@ -359,14 +352,11 @@ void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap);
 uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
-uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
 uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);
 uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd);
 prt_dp_sta_struct prt_dp_get_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_id (prt_dp_ds_struct *dp);
-uint8_t prt_dp_get_edid_dat (prt_dp_ds_struct *dp, uint8_t index);
-void prt_dp_set_edid_dat (prt_dp_ds_struct *dp, uint16_t adr, uint8_t dat);
 void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat);
 uint8_t prt_dp_debug_get (prt_dp_ds_struct *dp);
 

@@ -78,6 +78,8 @@ typedef struct {
 
 #define PRT_PHY_LSC_REG120_RX_BOND_MASK     (1 << 6)
 
+#define PRT_PHY_LSC_REG30_NO_FCMP           (1 << 5)
+
 #define PRT_PHY_LSC_RST_PULSE               2           // PHY reset pulse in us 
 #define PRT_PHY_LSC_LOCK_TIMEOUT            5000        // PHY PLL lock timeout in us
 
@@ -87,6 +89,7 @@ typedef struct {
 #define PRT_PHY_LSC_LINERATE_5400           4
 #define PRT_PHY_LSC_LINERATE_5940           5
 #define PRT_PHY_LSC_LINERATE_8100           6
+#define PRT_PHY_LSC_LINERATE_2970           7
 
 // PIO in
 #define PRT_PHY_LSC_PIO_IN_RDY              (1 << 0)
@@ -124,6 +127,7 @@ void prt_phy_lsc_prbs_clr (prt_phy_lsc_ds_struct *phy);
 prt_bool prt_phy_lsc_prbs_lock (prt_phy_lsc_ds_struct *phy, prt_u8 lane);
 prt_u8 prt_phy_lsc_prbs_cnt (prt_phy_lsc_ds_struct *phy, prt_u8 lane);
 void prt_phy_lsc_unbond (prt_phy_lsc_ds_struct *phy);
+void prt_phy_lsc_rx_wa_dis (prt_phy_lsc_ds_struct *phy);
 void prt_phy_lsc_pio_dat_set (prt_phy_lsc_ds_struct *phy, prt_u32 dat);
 void prt_phy_lsc_pio_dat_clr (prt_phy_lsc_ds_struct *phy, prt_u32 dat);
 void prt_phy_lsc_pio_dat_msk (prt_phy_lsc_ds_struct *phy, prt_u32 dat, prt_u32 msk);

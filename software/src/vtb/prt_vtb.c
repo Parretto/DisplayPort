@@ -177,6 +177,18 @@ void prt_vtb_set_tp (prt_vtb_ds_struct *vtb, prt_vtb_tp_struct *tp, uint8_t pres
 			vtb->tp.pclk    = VTB_720X1920P60_PCLK;
 		break;
 
+		case VTB_PRESET_7680X1260P60 :
+			vtb->tp.htotal  = VTB_7680X1260P60_HTOTAL;
+			vtb->tp.hwidth  = VTB_7680X1260P60_HWIDTH;
+			vtb->tp.hstart  = VTB_7680X1260P60_HSTART;
+			vtb->tp.hsw     = VTB_7680X1260P60_HSW;
+			vtb->tp.vtotal  = VTB_7680X1260P60_VTOTAL;
+			vtb->tp.vheight = VTB_7680X1260P60_VHEIGHT;
+			vtb->tp.vstart  = VTB_7680X1260P60_VSTART;
+			vtb->tp.vsw     = VTB_7680X1260P60_VSW;
+			vtb->tp.pclk    = VTB_7680X1260P60_PCLK;
+		break;
+
 		default :
 			vtb->tp.htotal = tp->htotal;
 			vtb->tp.hwidth = tp->hwidth;
@@ -575,7 +587,13 @@ uint8_t prt_vtb_find_preset (prt_u16 htotal, prt_u16 vtotal, uint32_t *pclk)
 {
 	uint8_t preset = 0;
 
-	if ( (htotal == VTB_1280X720P50_HTOTAL) && (vtotal == VTB_1280X720P50_VTOTAL))
+	if ( (htotal == VTB_7680X1260P60_HTOTAL) && (vtotal == VTB_7680X1260P60_VTOTAL))
+	{
+		preset = VTB_PRESET_7680X1260P60;
+		*pclk = VTB_7680X1260P60_PCLK;
+	}
+
+	else if ( (htotal == VTB_1280X720P50_HTOTAL) && (vtotal == VTB_1280X720P50_VTOTAL))
 	{
 		preset = VTB_PRESET_1280X720P50;
 		*pclk = VTB_1280X720P50_PCLK;
