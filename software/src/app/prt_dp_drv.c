@@ -68,7 +68,7 @@ void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handl
 		case PRT_DP_CB_TRN 		: dp->cb.trn 		= (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_PWR_CTL 	: dp->cb.pwr_ctl 	= (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_PHY_RST 	: dp->cb.phy_rst 	= (prt_dp_cb)cb_handler; break; 
-		case PRT_DP_CB_PHY_RATE : dp->cb.phy_rate 	= (prt_dp_cb)cb_handler; break; 
+		case PRT_DP_CB_PHY_RATE 	: dp->cb.phy_rate 	= (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_PHY_VAP 	: dp->cb.phy_vap 	= (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_LNK 		: dp->cb.lnk 		= (prt_dp_cb)cb_handler; break; 
 		case PRT_DP_CB_VID 		: dp->cb.vid 		= (prt_dp_cb)cb_handler; break; 
@@ -1228,6 +1228,22 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 				// Reason
 				dp->vid[stream].reason = dp->mail_in.dat[1];
+
+				// When the video is down, then also clear the MSA fields
+				dp->vid[stream].tp.mvid = 0;
+				dp->vid[stream].tp.nvid = 0;
+				dp->vid[stream].tp.htotal = 0;
+				dp->vid[stream].tp.hstart = 0;
+				dp->vid[stream].tp.hwidth = 0;
+				dp->vid[stream].tp.hsw = 0;
+				dp->vid[stream].tp.vtotal = 0;
+				dp->vid[stream].tp.vstart = 0;
+				dp->vid[stream].tp.vheight = 0;
+				dp->vid[stream].tp.vsw = 0;
+				dp->vid[stream].tp.misc[0] = 0;
+				dp->vid[stream].tp.misc[1] = 0;
+				dp->vid[stream].tp.bpc = 0;
+				dp->vid[stream].tp.csf = 0;
 			}		
 
 			// Clear video up flag
@@ -1630,11 +1646,9 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len, uint8_t *dat)
 {
 	// Variables
 	uint8_t sta;
-	uint8_t done;
 
 	// Reset base address
 	dp->edid.adr = 0;
-	done = PRT_FALSE;
 
 	for (uint16_t i = 0; i < len; i = i + 16)
 	{

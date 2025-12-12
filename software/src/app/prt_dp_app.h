@@ -37,6 +37,7 @@
 #define BOARD_LSC_LAV                   2
 #define BOARD_INT_C10GX                 3
 #define BOARD_INT_A10GX                 4
+#define BOARD_ALINX_AXAU15              5
 
 #define AUTO_COLORBAR
 
@@ -143,6 +144,10 @@ void show_edid (void);
 
 // UART
 uint32_t uart_read_hex (void);
+
+// PRBS
+void prbs (void);
+void prbs_menu (void);
 
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)

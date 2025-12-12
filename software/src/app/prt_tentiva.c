@@ -602,6 +602,9 @@ void prt_tentiva_scan (prt_tentiva_ds_struct *tentiva)
 		else if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID) 
 			prt_printf ("Rev. D\n");
 
+		else if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVE_ID) 
+			prt_printf ("Rev. E\n");
+
 		else 
 			prt_printf ("Unknown\n");
 	}
@@ -666,7 +669,7 @@ uint8_t prt_tentiva_get_fmc_id (prt_tentiva_ds_struct *tentiva)
 // This function return true when the Tentiva FMC board has a system controller
 bool prt_tentiva_has_sc (prt_tentiva_ds_struct *tentiva)
 {
-	if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID)
+	if ((tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID) || (tentiva->fmc_id == PRT_TENTIVA_FMC_REVE_ID))
 		return true;
 	else
 		return false;
@@ -754,6 +757,12 @@ void prt_tentiva_id_wr (prt_tentiva_ds_struct *tentiva, uint8_t id)
 		case PRT_TENTIVA_FMC_REVD_ID : 
 			prt_printf ("FMC Rev. D board...");
 			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR, PRT_TENTIVA_FMC_REVD_ID);
+			break;
+
+		// FMC board Rev. E
+		case PRT_TENTIVA_FMC_REVE_ID : 
+			prt_printf ("FMC Rev. E board...");
+			sta = prt_tentiva_eeprom_wr (tentiva->i2c, PRT_TENTIVA_I2C_BASE_EEPROM_ADR, PRT_TENTIVA_FMC_REVE_ID);
 			break;
 
 		// Unknown

@@ -10,8 +10,8 @@
     History
     =======
     v1.0 - Initial release
-	v1.1 - Added colorspace 
-	v1.2 - Enhanced DPTX EDID handling
+	  v1.1 - Added colorspace 
+		v1.2 - Enhanced DPTX EDID handling
 
 
     License
@@ -39,24 +39,24 @@
 #define PRT_DPRX_ID 							1
 
 // Control
-#define PRT_DP_CTL_RUN							(1<<0)
-#define PRT_DP_CTL_IE							(1<<1)
-#define PRT_DP_CTL_MEM_STR						(1<<2)
-#define PRT_DP_CTL_MEM_SEL						(1<<3)
-#define PRT_DP_CTL_MAIL_OUT_EN					(1<<4)
-#define PRT_DP_CTL_MAIL_IN_EN					(1<<5)
-#define PRT_DP_CTL_AUX_EN						(1<<6)
+#define PRT_DP_CTL_RUN										(1<<0)
+#define PRT_DP_CTL_IE											(1<<1)
+#define PRT_DP_CTL_MEM_STR								(1<<2)
+#define PRT_DP_CTL_MEM_SEL								(1<<3)
+#define PRT_DP_CTL_MAIL_OUT_EN						(1<<4)
+#define PRT_DP_CTL_MAIL_IN_EN							(1<<5)
+#define PRT_DP_CTL_AUX_EN									(1<<6)
 
 // Status
-#define PRT_DP_STA_IRQ  		 		  		(1<<0)
+#define PRT_DP_STA_IRQ  		 		  				(1<<0)
 #define PRT_DP_STA_MAIL_OUT_EP    				(1<<1)
 #define PRT_DP_STA_MAIL_OUT_OF 	  				(1<<2)
-#define PRT_DP_STA_MAIL_IN_EP	    			(1<<3)
-#define PRT_DP_STA_MAIL_IN_OF	    			(1<<4)
-#define PRT_DP_STA_AUX_EP    	    			(1<<5)
-#define PRT_DP_STA_AUX_OF    	    			(1<<6)
-#define PRT_DP_STA_MAIL_OUT_WRDS_SHIFT 			8
-#define PRT_DP_STA_MAIL_IN_WRDS_SHIFT 			16
+#define PRT_DP_STA_MAIL_IN_EP	    				(1<<3)
+#define PRT_DP_STA_MAIL_IN_OF	    				(1<<4)
+#define PRT_DP_STA_AUX_EP    	    				(1<<5)
+#define PRT_DP_STA_AUX_OF    	    				(1<<6)
+#define PRT_DP_STA_MAIL_OUT_WRDS_SHIFT 		8
+#define PRT_DP_STA_MAIL_IN_WRDS_SHIFT 		16
 #define PRT_DP_STA_AUX_WRDS_SHIFT 				24
 
 // Events

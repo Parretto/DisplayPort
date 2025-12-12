@@ -553,6 +553,7 @@ endgenerate
 
         // Link
         .LNK_CLK_IN         (rxclk_from_phy),        // Clock
+        .LNK_LOCK_IN        (1'b1),                 // Lock
         .LNK_DAT_IN         (lnk_dat_to_dprx),      // Data
         .LNK_SYNC_OUT       (lnk_sync_from_dprx),   // Sync
         .LNK_VBID_OUT       (),

@@ -100,22 +100,6 @@ set_property PACKAGE_PIN AH14 [get_ports {LED_OUT[6]}]
 set_property PACKAGE_PIN AL12 [get_ports {LED_OUT[7]}]
 
 # DEBUG
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[0]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[1]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[2]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[3]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[4]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[5]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[6]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {DEBUG_OUT[7]}]
-set_property PACKAGE_PIN H14 [get_ports {DEBUG_OUT[0]}]
-set_property PACKAGE_PIN J14 [get_ports {DEBUG_OUT[1]}]
-set_property PACKAGE_PIN G14 [get_ports {DEBUG_OUT[2]}]
-set_property PACKAGE_PIN G15 [get_ports {DEBUG_OUT[3]}]
-set_property PACKAGE_PIN J15 [get_ports {DEBUG_OUT[4]}]
-set_property PACKAGE_PIN J16 [get_ports {DEBUG_OUT[5]}]
-set_property PACKAGE_PIN G16 [get_ports {DEBUG_OUT[6]}]
-set_property PACKAGE_PIN H16 [get_ports {DEBUG_OUT[7]}]
 
 # UART
 # ZCU102

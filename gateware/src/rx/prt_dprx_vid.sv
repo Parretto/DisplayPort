@@ -189,7 +189,7 @@ vid_ctl_struct      vclk_ctl;
 msg_struct          vclk_msg;    
 vid_fifo_struct     vclk_fifo;
 vid_map_struct      vclk_map;
-(* mark_debug = "true" *) vid_struct          vclk_vid;
+vid_struct          vclk_vid;
 
 genvar i, j;
 

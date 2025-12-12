@@ -83,6 +83,7 @@ typedef struct {
 #define PRT_TENTIVA_EMPTY_ID					0x00
 #define PRT_TENTIVA_FMC_REVC_ID				    0x22
 #define PRT_TENTIVA_FMC_REVD_ID				    0x23
+#define PRT_TENTIVA_FMC_REVE_ID                 0x24
 #define PRT_TENTIVA_DP14TX_ID				    0x78
 #define PRT_TENTIVA_DP14RX_ID				    0x45
 #define PRT_TENTIVA_EDPTX_ID					0x94
