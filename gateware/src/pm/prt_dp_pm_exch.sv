@@ -5,12 +5,14 @@
 
 
     Module: DP PM Exchange
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-	v1.1 - Added ID register
+    v1.1 - Added ID register
+    v1.2 - Updated host IRQ structure and increased RAM size
+
 
     License
     =======
@@ -35,16 +37,16 @@ module prt_dp_pm_exch
 )
 (
 	// Reset and clock
- 	input wire 				RST_IN,		// System reset
-	input wire 				CLK_IN,		// System clock
+ 	input wire 			RST_IN,		// System reset
+	input wire 			CLK_IN,		// System clock
 
 	// Host local bus interface
 	prt_dp_lb_if.lb_in		HOST_IF,
-  	output wire				HOST_IRQ_OUT,	// Interrupt
+  	output wire			HOST_IRQ_OUT,	// Interrupt
 
 	// Policy maker local bus interface
 	prt_dp_lb_if.lb_in		PM_IF,
- 	output wire				PM_IRQ_OUT,	// Interrupt
+ 	output wire			PM_IRQ_OUT,	// Interrupt
  	output wire 			PM_RST_OUT,	// Reset
 
 	// Memory update
@@ -54,7 +56,7 @@ module prt_dp_pm_exch
 );
 
 // Parameters
-localparam P_RAM_WRDS			= 32;
+localparam P_RAM_WRDS			= 64;
 localparam P_RAM_ADR			= $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT			= 9;
 localparam P_BOXES				= 3;
@@ -62,58 +64,64 @@ localparam P_BOX_WRDS			= P_RAM_WRDS;
 localparam P_BOX_ADR 			= P_RAM_ADR;
 
 localparam P_HOST_CTL_RUN		= 0;
-localparam P_HOST_CTL_IE		= 1;
-localparam P_HOST_CTL_MEM_STR	= 2;
-localparam P_HOST_CTL_MEM_SEL	= 3;
-localparam P_HOST_CTL_BOX_EN	= 4;
-localparam P_HOST_CTL_WIDTH 	= 7;
+localparam P_HOST_CTL_IE			= 1;
+localparam P_HOST_CTL_MEM_STR		= 2;
+localparam P_HOST_CTL_MEM_SEL		= 3;
+localparam P_HOST_CTL_BOX_EN		= 4;
+localparam P_HOST_CTL_WIDTH 		= 7;
 
 localparam P_HOST_STA_IRQ		= 0;
-localparam P_HOST_STA_WIDTH 	= 32;
+localparam P_HOST_STA_WIDTH 		= 32;
 
 localparam P_PM_CTL_IE			= 0;
-localparam P_PM_CTL_BOX_EN		= 1;
-localparam P_PM_CTL_WIDTH 		= 4;
+localparam P_PM_CTL_HIT			= 1;
+localparam P_PM_CTL_BOX_EN		= 2;
+localparam P_PM_CTL_WIDTH 		= 5;
 
 localparam P_PM_STA_IRQ			= 0;
-localparam P_PM_STA_WIDTH 		= 8;
+localparam P_PM_STA_WIDTH 		= 12;
 
 localparam P_ADR_ID 			= 0;
 localparam P_ADR_CTL 			= 1;
 localparam P_ADR_STA 			= 2;
-localparam P_ADR_BOX_MAIL_OUT	= 3;
-localparam P_ADR_BOX_MAIL_IN 	= 4;
+localparam P_ADR_BOX_MAIL_OUT		= 3;
+localparam P_ADR_BOX_MAIL_IN 		= 4;
 localparam P_ADR_BOX_AUX 		= 5;
 localparam P_ADR_MEM 			= 6;
 
 // Structure
 typedef struct {
-	logic	[P_RAM_ADR-1:0]			a_adr;
-	logic							a_wr;
-	logic	[P_RAM_DAT-1:0]			a_din;
-	logic	[P_RAM_ADR-1:0]			b_adr;
-	logic							b_rd;
-	logic	[P_RAM_DAT-1:0]			b_dout;
-	logic							b_vld;
+	logic	[P_RAM_ADR-1:0]		a_adr;
+	logic						a_wr;
+	logic	[P_RAM_DAT-1:0]		a_din;
+	logic	[P_RAM_ADR-1:0]		b_adr;
+	logic						b_rd;
+	logic	[P_RAM_DAT-1:0]		b_dout;
+	logic						b_vld;
+	logic 						som;			// Start of message
+	logic 						eom;			// End of message
 } ram_struct;
 
 typedef struct {
-	logic	[2:0]					adr;
-	logic							wr;
-	logic							rd;
-	logic	[31:0]					din;
-	logic	[31:0]					dout;
-	logic							vld;
+	logic	[2:0]				adr;
+	logic						wr;
+	logic						rd;
+	logic	[31:0]				din;
+	logic	[31:0]				dout;
+	logic						vld;
 
-	logic [P_HOST_CTL_WIDTH-1:0]	ctl_r;
-	logic  							ctl_run;
-	logic  							ctl_ie;
+	logic [P_HOST_CTL_WIDTH-1:0]		ctl_r;
+	logic  						ctl_run;
+	logic  						ctl_ie;
 	logic [P_BOXES-1:0]				ctl_box_en;
-	logic  							ctl_mem_str;
-	logic 							ctl_mem_sel;
+	logic  						ctl_mem_str;
+	logic 						ctl_mem_sel;
 
 	logic   [P_HOST_STA_WIDTH-1:0] 	sta_r;
-	logic							sta_irq;
+	logic						sta_irq;
+	logic  [3:0]					sta_mail_new;
+	logic  [3:0]					sta_mail_head;
+	logic  [3:0]					sta_mail_tail;
 } host_struct;
 
 typedef struct {
@@ -125,21 +133,24 @@ typedef struct {
 	logic	[31:0]				dout;
 	logic						vld;
 
-	logic [P_PM_CTL_WIDTH-1:0]	ctl_r;
-	logic  						ctl_ie;
-	logic [P_BOXES-1:0]			ctl_box_en;
+	logic [P_PM_CTL_WIDTH-1:0]		ctl_r;
+	logic  						ctl_ie;			// Interrupt enable
+	logic [P_BOXES-1:0]				ctl_box_en;
 
-	logic   [P_PM_STA_WIDTH-1:0] sta_r;
+	logic   [P_PM_STA_WIDTH-1:0] 		sta_r;
 	logic						sta_irq;
+	logic  [3:0]					sta_mail_new;
+	logic  [3:0]					sta_mail_head;
+	logic  [3:0]					sta_mail_tail;
 } pm_struct;
 
 typedef struct {
 	logic						wr;
-	logic   [P_BOX_ADR-1:0]		wp;
+	logic   [P_BOX_ADR-1:0]			wp;
 	logic						rd;
 	logic						rd_fe;
-	logic   [P_BOX_ADR-1:0]		rp;
-	logic	[P_BOX_ADR:0]		wrds;
+	logic   [P_BOX_ADR-1:0]			rp;
+	logic	[P_BOX_ADR:0]			wrds;
 	logic						ep;		// Empty
 	logic						of;		// Overflow
 } box_struct;
@@ -152,10 +163,10 @@ typedef struct {
 
 // Signals
 host_struct	clk_host;				// Host
-pm_struct	clk_pm;					// Policy maker
-ram_struct 	clk_ram[0:P_BOXES-1];	// RAM
+pm_struct		clk_pm;				// Policy maker
+ram_struct 	clk_ram[P_BOXES];		// RAM
 mem_struct 	clk_mem;				// Memory
-box_struct	clk_box[0:P_BOXES-1];	// Box
+box_struct	clk_box[P_BOXES];		// Box
 
 genvar i;
 
@@ -171,8 +182,8 @@ genvar i;
 	always_ff @ (posedge CLK_IN)
 	begin
 		clk_host.adr	<= HOST_IF.adr;
-		clk_host.rd		<= HOST_IF.rd;
-		clk_host.wr		<= HOST_IF.wr;
+		clk_host.rd	<= HOST_IF.rd;
+		clk_host.wr	<= HOST_IF.wr;
 		clk_host.din	<= HOST_IF.din;
 	end
 
@@ -231,12 +242,12 @@ genvar i;
 	end
 
 	assign clk_host.ctl_run 		= clk_host.ctl_r[P_HOST_CTL_RUN];			// Run
-	assign clk_host.ctl_ie 			= clk_host.ctl_r[P_HOST_CTL_IE];			// Interrupt enable
+	assign clk_host.ctl_ie 		= clk_host.ctl_r[P_HOST_CTL_IE];			// Interrupt enable
 	assign clk_host.ctl_mem_str 	= clk_host.ctl_r[P_HOST_CTL_MEM_STR];		// Memory start
 	assign clk_host.ctl_mem_sel 	= clk_host.ctl_r[P_HOST_CTL_MEM_SEL];		// Memory select (0-ROM / 1-RAM)
-	assign clk_host.ctl_box_en[0] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN]; 	
-	assign clk_host.ctl_box_en[1] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN+1]; 
-	assign clk_host.ctl_box_en[2] 	= clk_host.ctl_r[P_HOST_CTL_BOX_EN+2]; 
+	assign clk_host.ctl_box_en[0] = clk_host.ctl_r[P_HOST_CTL_BOX_EN]; 	
+	assign clk_host.ctl_box_en[1] = clk_host.ctl_r[P_HOST_CTL_BOX_EN+1]; 
+	assign clk_host.ctl_box_en[2] = clk_host.ctl_r[P_HOST_CTL_BOX_EN+2]; 
 
 // Host Status register
 	assign clk_host.sta_r[P_HOST_STA_IRQ] = clk_host.sta_irq;
@@ -244,19 +255,17 @@ genvar i;
 	// AXI mapping
 	// name 		- order 	- box 
 	// mail out 	- 0 		- 0
-	// mail in 		- 1			- 1
-	// aux in 		- 2 		- 2
+	// mail in 	- 1		- 1
+	// aux in 	- 2 		- 2
 
-	assign clk_host.sta_r[1+:2] 			= {clk_box[0].of, clk_box[0].ep};
-	assign clk_host.sta_r[3+:2] 			= {clk_box[1].of, clk_box[1].ep};
-	assign clk_host.sta_r[5+:2] 			= {clk_box[2].of, clk_box[2].ep};
-	assign clk_host.sta_r[7] 				= 0; // Not used
-	assign clk_host.sta_r[8+:P_BOX_ADR] 	= clk_box[0].wrds;
-	assign clk_host.sta_r[15:13] 			= 0; // Not used
-	assign clk_host.sta_r[16+:P_BOX_ADR] 	= clk_box[1].wrds;
-	assign clk_host.sta_r[23:21] 			= 0; // Not used
-	assign clk_host.sta_r[24+:P_BOX_ADR] 	= clk_box[2].wrds;
-	assign clk_host.sta_r[31:29] 			= 0; // Not used
+	assign clk_host.sta_r[1+:2] 	= {clk_box[0].of, clk_box[0].ep};
+	assign clk_host.sta_r[3+:2] 	= {clk_box[1].of, clk_box[1].ep};
+	assign clk_host.sta_r[5+:2] 	= {clk_box[2].of, clk_box[2].ep};
+	assign clk_host.sta_r[7] 	= 0; // Not used
+	assign clk_host.sta_r[8+:4] 	= clk_host.sta_mail_new; 	// New mail messages
+	assign clk_host.sta_r[18:12] 	= clk_box[0].wrds;
+	assign clk_host.sta_r[25:19] 	= clk_box[1].wrds;
+	assign clk_host.sta_r[31:26] 	= clk_box[2].wrds;
 
 // Host Interrupt
 	always_ff @ (posedge RST_IN, posedge CLK_IN)
@@ -272,11 +281,76 @@ genvar i;
 				clk_host.sta_irq <= 0;
 
 			// Set
-			// When box 1 or box 2 contains data				
-			else if ( clk_host.ctl_ie && (clk_host.ctl_box_en[1] && !clk_box[1].ep) || (clk_host.ctl_box_en[2] && !clk_box[2].ep) )
+			// When the policy maker writes a mail message or when box 2 contains data	
+			else if ( clk_host.ctl_ie && (clk_ram[1].eom || (clk_host.ctl_box_en[2] && !clk_box[2].ep)))
 				clk_host.sta_irq <= 1;
 		end
 	end
+
+// Mail new
+// This process shows the number of unread mail message. 
+	always_ff @ (posedge CLK_IN)
+	begin
+		if (clk_host.sta_mail_head > clk_host.sta_mail_tail)
+			clk_host.sta_mail_new <= clk_host.sta_mail_head - clk_host.sta_mail_tail;
+
+		else if (clk_host.sta_mail_tail > clk_host.sta_mail_head)
+			clk_host.sta_mail_new <= 'd16 - clk_host.sta_mail_tail + clk_host.sta_mail_head;
+
+		else
+			clk_host.sta_mail_new <= 0;
+	end
+
+// Mail head 
+// This progress counts the number of mail messages written by the policy maker. 
+// This is used to determine the (unread) new messages. 
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
+	begin
+		// Reset
+		if (RST_IN)
+			clk_host.sta_mail_head <= 0;
+
+		else
+		begin
+			// Increment
+			// When the end of message is written by the host
+			if (clk_ram[1].eom)
+			begin
+				// Check for overflow
+				if (clk_host.sta_mail_head == 'd15)
+					clk_host.sta_mail_head <= 0;
+
+				else
+					clk_host.sta_mail_head <= clk_host.sta_mail_head + 'd1;
+			end
+		end
+	end	
+
+// Mail tail 
+// This progress counts the number of mail messages read by the host. 
+// This is used to determine the (unread) new messages. 
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
+	begin
+		// Reset
+		if (RST_IN)
+			clk_host.sta_mail_tail <= 0;
+
+		else
+		begin
+			// Increment
+			// When the start of message is read by the host
+			if (clk_ram[1].som)
+			begin
+				// Check for overflow
+				if (clk_host.sta_mail_tail == 'd15)
+					clk_host.sta_mail_tail <= 0;
+
+				else
+					clk_host.sta_mail_tail <= clk_host.sta_mail_tail + 'd1;
+			end
+		end
+	end	
+
 
 /*
 	Policy maker
@@ -331,7 +405,7 @@ genvar i;
 		end
 	end
 
-	assign clk_pm.ctl_ie 			= clk_pm.ctl_r[P_PM_CTL_IE];			// Interrupt enable
+	assign clk_pm.ctl_ie 		= clk_pm.ctl_r[P_PM_CTL_IE];			// Interrupt enable
 	assign clk_pm.ctl_box_en[0] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN+1]; 	// The mail boxes are swapped	
 	assign clk_pm.ctl_box_en[1] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN]; 
 	assign clk_pm.ctl_box_en[2] 	= clk_pm.ctl_r[P_PM_CTL_BOX_EN+2]; 
@@ -342,12 +416,14 @@ genvar i;
 	// LB mapping
 	// name 		- order 	- box 
 	// mail out 	- 0 		- 1
-	// mail in 		- 1			- 0
-	// aux out 		- 2 		- 2
+	// mail in 	- 1		- 0
+	// aux out 	- 2 		- 2
 
-	assign clk_pm.sta_r[1+2] = {clk_box[1].of, clk_box[1].ep};
-	assign clk_pm.sta_r[3+2] = {clk_box[0].of, clk_box[0].ep};
-	assign clk_pm.sta_r[5+2] = {clk_box[2].of, clk_box[2].ep};
+	assign clk_pm.sta_r[1+:2] 	= {clk_box[1].of, clk_box[1].ep};
+	assign clk_pm.sta_r[3+:2] 	= {clk_box[0].of, clk_box[0].ep};
+	assign clk_pm.sta_r[5+:2] 	= {clk_box[2].of, clk_box[2].ep};
+	assign clk_pm.sta_r[7] 		= 0; // Not used
+	assign clk_pm.sta_r[8+:4] 	= clk_pm.sta_mail_new;		// New mail messages
 
 // PM Interrupt
 	always_ff @ (posedge RST_IN, posedge CLK_IN)
@@ -363,11 +439,78 @@ genvar i;
 				clk_pm.sta_irq <= 0;
 
 			// Set
-			// When box 0 (mail host -> pm) contains data
-			else if (clk_pm.ctl_ie && clk_pm.ctl_box_en[0] && !clk_box[0].ep)
+			// When a complete mail message has been written by the host
+			// Don't use the interrupt enable (ie) here. 
+			// This was causing a race condition between a (fast) host and policy maker. 
+			else if (clk_ram[0].eom)
 				clk_pm.sta_irq <= 1;
 		end
 	end
+
+// Mail new
+// This process shows the number of unread messages. 
+	always_ff @ (posedge CLK_IN)
+	begin
+		if (clk_pm.sta_mail_head > clk_pm.sta_mail_tail)
+			clk_pm.sta_mail_new <= clk_pm.sta_mail_head - clk_pm.sta_mail_tail;
+
+		else if (clk_pm.sta_mail_tail > clk_pm.sta_mail_head)
+			clk_pm.sta_mail_new <= 'd16 - clk_pm.sta_mail_tail + clk_pm.sta_mail_head;
+
+		else
+			clk_pm.sta_mail_new <= 0;
+	end
+
+// Mail head 
+// This progress counts the number of messages written by the host. 
+// This is used to determine the (unread) new messages. 
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
+	begin
+		// Reset
+		if (RST_IN)
+			clk_pm.sta_mail_head <= 0;
+
+		else
+		begin
+			// Increment
+			// When the end of message is written by the host
+			if (clk_ram[0].eom)
+			begin
+				// Check for overflow
+				if (clk_pm.sta_mail_head == 'd15)
+					clk_pm.sta_mail_head <= 0;
+
+				else
+					clk_pm.sta_mail_head <= clk_pm.sta_mail_head + 'd1;
+			end
+		end
+	end	
+
+// Mail tail 
+// This progress counts the number of messages read by the policy maker. 
+// This is used to determine the (unread) new messages. 
+	always_ff @ (posedge RST_IN, posedge CLK_IN)
+	begin
+		// Reset
+		if (RST_IN)
+			clk_pm.sta_mail_tail <= 0;
+
+		else
+		begin
+			// Increment
+			// When the start of message is read by policy maker
+			if (clk_ram[0].som)
+			begin
+				// Check for overflow
+				if (clk_pm.sta_mail_tail == 'd15)
+					clk_pm.sta_mail_tail <= 0;
+
+				else
+					clk_pm.sta_mail_tail <= clk_pm.sta_mail_tail + 'd1;
+			end
+		end
+	end	
+
 
 // RAM
 generate
@@ -383,20 +526,20 @@ generate
 		RAM_INST
 		(
 			// Clocks and reset
-			.RST_IN			(RST_IN),				// Reset
+			.RST_IN		(RST_IN),				// Reset
 			.CLK_IN 		(CLK_IN),				// Clock
 
 			// Port A
-			.A_ADR_IN 		(clk_ram[i].a_adr),		// Address
+			.A_ADR_IN 	(clk_ram[i].a_adr),		// Address
 			.A_WR_IN		(clk_ram[i].a_wr),		// Write in
 			.A_DAT_IN		(clk_ram[i].a_din),		// Write data
 
 			// Port B
-			.B_EN_IN 		(1'b1),					// Enable
-			.B_ADR_IN 		(clk_ram[i].b_adr),		// Address
+			.B_EN_IN 		(1'b1),				// Enable
+			.B_ADR_IN 	(clk_ram[i].b_adr),		// Address
 			.B_RD_IN 		(clk_ram[i].b_rd),		// Read in
-			.B_DAT_OUT 		(clk_ram[i].b_dout),	// Read data
-			.B_VLD_OUT 		(clk_ram[i].b_vld)		// Read data valid
+			.B_DAT_OUT 	(clk_ram[i].b_dout),	// Read data
+			.B_VLD_OUT 	(clk_ram[i].b_vld)		// Read data valid
 		);
 
 		// Mapping
@@ -424,6 +567,39 @@ endgenerate
 	assign clk_ram[2].a_wr = clk_box[2].wr;
 	assign clk_ram[2].b_rd = clk_box[2].rd;
 	assign clk_ram[2].a_din = clk_pm.din[0+:P_RAM_DAT];
+
+// Start of message
+// This flag is set when the start of message is read from the RAM
+// This is used to track the number of unread packets and trigger an interrupt. 
+generate
+	for (i = 0; i < 2; i++)
+	begin : ram_som
+		always_comb
+		begin
+			if (clk_ram[i].b_rd && (clk_ram[i].b_dout == 'h100))
+				clk_ram[i].som = 1;
+			else
+				clk_ram[i].som = 0;
+		end
+	end
+endgenerate
+
+// End of message
+// This flag is set when the end of message is written in the RAM
+// This is used to track the number of unread packets and trigger an interrupt. 
+generate
+	for (i = 0; i < 2; i++)
+	begin : ram_eom
+		always_comb
+		begin
+			if (clk_ram[i].a_wr && (clk_ram[i].a_din == 'h1ff))
+				clk_ram[i].eom = 1;
+			else
+				clk_ram[i].eom = 0;
+		end
+	end
+endgenerate
+
 
 /*
 	Memory Initialization

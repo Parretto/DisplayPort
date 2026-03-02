@@ -5,7 +5,7 @@
 
 
     Module: DP PM AUX
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -13,6 +13,7 @@
 	v1.1 - Added RX input filter
 	v1.2 - Improved RX stability
 	v1.3 - Improved RX stop condition handling and sampling
+	v1.4 - Fixed issue with RX AUX data pipeline
 
 
     License
@@ -185,7 +186,9 @@ typedef struct {
 typedef struct {
 	rx_sm_state					sm_cur;
 	rx_sm_state					sm_nxt;
-	logic						run;		// Run
+	logic						run_clr;		// Run clear
+	logic						run_set;		// Run set
+	logic						run;			// Run
 	logic 	[1:0]				flt_cnt;
 	logic 						flt_shft;
 	logic 	[4:0]				flt;
@@ -972,6 +975,8 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 	begin
 		// Default
 		clk_rx_aux.sm_nxt 			= rx_sm_idle;
+		clk_rx_aux.run_clr 			= 0;
+		clk_rx_aux.run_set 			= 0;
 		clk_rx_aux.bit_cnt_ld		= 0;
 		clk_rx_aux.bit_cnt_dec		= 0;
 		clk_rx_fifo.wr 				= 0;
@@ -989,8 +994,8 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 			// Reset
 			rx_sm_rst :
 			begin
-				clk_rx_aux.locked_clr		= 1;		// Clear lock
-				clk_rx_aux.sm_nxt 			= rx_sm_idle;
+				clk_rx_aux.locked_clr = 1;		// Clear lock
+				clk_rx_aux.sm_nxt = rx_sm_idle;
 			end
 
 			// Idle
@@ -999,12 +1004,15 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 				// Wait for rising edge
 				if (clk_rx_aux.rx_re)
 				begin
-					clk_sta.to_en_clr = 1;				// Clear time out
-					clk_rx_aux.pre_cnt_ld = 1;			// Load premable counter
+					clk_sta.to_en_clr = 1;			// Clear time out
+					clk_rx_aux.pre_cnt_ld = 1;		// Load preamble counter
 					clk_rx_aux.sm_nxt = rx_sm_pre;
 				end
 				else
+				begin
+					clk_rx_aux.run_clr = 1;				// Clear run flag
 					clk_rx_aux.sm_nxt = rx_sm_idle;
+				end
 			end
 
 			// Preamble
@@ -1012,7 +1020,11 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 			begin
 				// Wait for a stable preamble
 				if (clk_rx_aux.pre_cnt_end)
+				begin
+					clk_rx_aux.run_set = 1; 		// Set run flag
 					clk_rx_aux.sm_nxt = rx_sm_sync;
+				end
+
 				else
 					clk_rx_aux.sm_nxt = rx_sm_pre;
 			end
@@ -1093,6 +1105,25 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 				clk_rx_aux.sm_nxt = rx_sm_idle;
 
         endcase
+	end
+
+// Run
+	always_ff @ (posedge CLK_IN)
+	begin
+		if (clk_ctl.run)
+		begin
+			// Clear
+			if (clk_rx_aux.run_clr)
+				clk_rx_aux.run <= 0;
+
+			// Set
+			else if (clk_rx_aux.run_set)
+				clk_rx_aux.run <= 1;
+		end
+
+		// Idle
+		else
+			clk_rx_aux.run <= 0;
 	end
 
 // RX filter counter
@@ -1186,40 +1217,23 @@ endgenerate
 	RX_AUX_RX_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),				// Clock
-		.CKE_IN		(clk_rx_aux.run),		// Clock enable
+		.CKE_IN		(1'b1),					// Clock enable
 		.A_IN		(clk_rx_aux.rx),		// Input
 		.RE_OUT		(clk_rx_aux.rx_re),		// Rising edge
 		.FE_OUT		(clk_rx_aux.rx_fe)		// Falling edge
 	);
 
-// Run
-	always_ff @ (posedge CLK_IN)
-	begin
-		if (clk_ctl.run && (clk_tx_aux.sm_cur == tx_sm_idle))
-			clk_rx_aux.run <= 1;
-		else
-			clk_rx_aux.run <= 0;
-	end
-
 // Preamble counter
 // This is used by the state machine to wait for a stable preamble signal
     always_ff @ (posedge CLK_IN)
     begin
-		// Run
-		if (clk_rx_aux.run)
-		begin
-			// Load
-			if (clk_rx_aux.pre_cnt_ld)
-				clk_rx_aux.pre_cnt <= '1;
-			
-			// Decrement
-			else if (clk_rx_aux.rx_re && !clk_rx_aux.pre_cnt_end)
-				clk_rx_aux.pre_cnt <= clk_rx_aux.pre_cnt - 'd1;
-		end
-
-		// Idle
-		else 
-			clk_rx_aux.pre_cnt <= 0;
+		// Load
+		if (clk_rx_aux.pre_cnt_ld)
+			clk_rx_aux.pre_cnt <= '1;
+		
+		// Decrement on falling edge
+		else if (clk_rx_aux.rx_fe && !clk_rx_aux.pre_cnt_end)
+			clk_rx_aux.pre_cnt <= clk_rx_aux.pre_cnt - 'd1;
 	end
 
 // Preamble counter end

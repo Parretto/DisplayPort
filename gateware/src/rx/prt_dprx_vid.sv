@@ -5,7 +5,7 @@
 
 
     Module: DP RX Video
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -14,6 +14,8 @@
     v1.2 - Added 10-bits video support
     v1.3 - Added VB-ID register output
     v1.4 - Added support for YCrCb colorspace 
+    v1.5 - Added video interrupt
+
 
     License
     =======
@@ -65,6 +67,7 @@ module prt_dprx_vid
     input wire              LNK_CLK_IN,         // Clock 
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,         // Sink
     output wire [7:0]       LNK_VBID_OUT,       // VB-ID 
+    output wire             LNK_IRQ_OUT,        // Interrupt. This signal toggles at every end of the vertical blanking period (VerticalBlanking_Flag). It is used by the policy maker to detect a stable video stream.
 
     // Video 
     input wire              VID_RST_IN,         // Reset
@@ -106,7 +109,7 @@ typedef struct {
     logic [P_SPL-1:0]               vid_reg[P_LANES];
     logic [P_SPL-1:0]               vid_reg_del[P_LANES];
     logic                           str;                    // Start
-    logic                           str_sticky;             // Start
+    logic                           str_sticky;             // Start stickey
     logic                           str_toggle;
     logic [P_LANES-1:0]             stp_lane;
     logic                           stp;
@@ -116,10 +119,12 @@ typedef struct {
     logic [7:0]                     vbid_val;               // VB-ID value
     logic                           nvs;                    // No video stream flag
     logic                           vbf;                    // Vertical blanking flag 
+    logic                           vbf_fe;                 // Vertical blanking flag falling edge 
     logic [P_SPL-1:0]               k[P_LANES];
     logic [7:0]                     dat[P_LANES][P_SPL];
     logic [7:0]                     dat_reg[P_LANES][P_SPL];
     logic [7:0]                     dat_reg_del[P_LANES][P_SPL];
+    logic                           irq;
 } lnk_struct;
 
 typedef struct {
@@ -388,6 +393,38 @@ endgenerate
 
     assign lclk_lnk.vbf = lclk_lnk.vbid_val[0];
     assign lclk_lnk.nvs = lclk_lnk.vbid_val[3];
+
+// Veritical Blanking Flag egde detector
+// This is used for the interrupt 
+    prt_dp_lib_edge
+    LNK_VBF_EDGE_INST
+    (
+        .CLK_IN    (LNK_CLK_IN),        // Clock
+        .CKE_IN    (1'b1),              // Clock enable
+        .A_IN      (lclk_lnk.vbf),      // Input
+        .RE_OUT    (),                  // Rising edge
+        .FE_OUT    (lclk_lnk.vbf_fe)    // Falling edge
+    );
+
+// Interrupt
+// This signal toggles at every end of the vertical blanking period (VerticalBlanking_Flag). 
+// The toggling makes it safe to cross to the system clock domain. 
+// It is used by the policy maker to detect a stable video stream.
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Lock
+        if (lclk_lnk.lock)
+        begin
+            // Toggle
+            if (lclk_lnk.vbf_fe)
+                lclk_lnk.irq <= ~lclk_lnk.irq;
+        end
+
+        // Idle
+        else
+            lclk_lnk.irq <= 0;
+    end
+
 
 /*
     Alignment
@@ -1193,6 +1230,7 @@ endgenerate
 // Outputs
     // Link
     assign LNK_VBID_OUT     = lclk_lnk.vbid_val;   // VB-ID
+    assign LNK_IRQ_OUT      = lclk_lnk.irq;        // Interrupt
 
     // Video source
     assign VID_EN_OUT       = ~vclk_vid.nvs;       // Enable

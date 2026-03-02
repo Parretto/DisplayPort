@@ -38,7 +38,9 @@
 #define BOARD_INT_C10GX                 3
 #define BOARD_INT_A10GX                 4
 #define BOARD_ALINX_AXAU15              5
+#define BOARD_ENCLUSTRA_MERCURY         6
 
+//#define ADVANCED
 #define AUTO_COLORBAR
 
 #define SYS_CLK_FREQ                    50000000
@@ -90,6 +92,7 @@ typedef struct {
 
 typedef struct {
      bool pass;
+     bool cr;
 } prt_dp_app_rx_struct;
 
 typedef struct {
@@ -145,9 +148,9 @@ void show_edid (void);
 // UART
 uint32_t uart_read_hex (void);
 
-// PRBS
-void prbs (void);
-void prbs_menu (void);
+// Tasks
+void vtb_task (void);
+
 
 // ZCU102
 #if (BOARD == BOARD_AMD_ZCU102)

@@ -5,13 +5,13 @@
 
 
     Module: DP PM Hart
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
-	v1.1 - Updated register inference 
-	v1.2 - Fixed issue with SRAI instruction / Added SNEZ instruction
+    v1.1 - Updated register inference 
+    v1.2 - Fixed issue with SRAI instruction / Added SNEZ instruction
 
     License
     =======

@@ -5,7 +5,7 @@
 
 
     Module: DP Driver
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -18,6 +18,7 @@
 	v1.6 - Added training status
 	v1.7 - Added power control callback
 	v1.8 - Enhanced DPTX EDID handling
+	v1.9 - Improved mail response handling and fixed bug in PHY reset callback
 
 
     License
@@ -36,8 +37,12 @@
 
 // Includes
 #include <stdint.h>
+#include <stdbool.h>
 #include "prt_types.h"
-#include "prt_printf.h"
+#ifdef PRT_SIM
+	#include "prt_printf.h"
+#endif
+//#include <stdio.h>
 #include "prt_dp_tokens.h"
 #include "prt_dp_drv.h"
 
@@ -46,14 +51,14 @@
 uint8_t prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base)
 {
 	// Variables
-	uint8_t sta = PRT_FALSE;
+	uint8_t sta = false;
 
 	// Set base address
 	dp->dev = (prt_dp_dev_struct *) base;
 
 	// Check if we can read the identification register
 	if (dp->dev->id == 0x00004d47)
-		sta = PRT_TRUE;
+		sta = true;
 
 	return sta;
 }
@@ -101,11 +106,10 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->cb.vid = 0;
 	dp->cb.msa = 0;
 	dp->cb.dpcd = 0;
-	dp->mail_in.err = PRT_FALSE;
-	dp->mail_in.ok = PRT_FALSE;
-	dp->mail_in.proc = PRT_FALSE;
-	dp->trn.pass = PRT_FALSE;
-	dp->trn.fail = PRT_FALSE;
+	dp->mail_in.rrb.head = 0; 
+	dp->mail_in.rrb.tail = 0; 
+	dp->trn.pass = false;
+	dp->trn.fail = false;
 	dp->trn.tps = 0;
 	dp->hpd = PRT_DP_HPD_UNPLUG;
 	dp->lnk.rate = 0;
@@ -113,12 +117,12 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 	dp->lnk.volt = 0;
 	dp->lnk.pre = 0;
 	dp->lnk.ssc = 0;
-	dp->lnk.up = PRT_FALSE;
-	dp->lnk.mst_cap = PRT_FALSE;
-	dp->vid[0].up = PRT_FALSE;
-	dp->vid[0].evt = PRT_FALSE;
-	dp->vid[1].up = PRT_FALSE;
-	dp->vid[1].evt = PRT_FALSE;
+	dp->lnk.up = false;
+	dp->lnk.mst_cap = false;
+	dp->vid[0].up = false;
+	dp->vid[0].evt = false;
+	dp->vid[1].up = false;
+	dp->vid[1].evt = false;
 	dp->debug.head = 0;
 	dp->debug.tail = 0;
 	dp->dpcd.cmd = PRT_DP_DPCD_NONE;
@@ -139,7 +143,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 }
 
 // Ping
-uint8_t prt_dp_ping (prt_dp_ds_struct *dp)
+bool prt_dp_ping (prt_dp_ds_struct *dp)
 {
 	// Variables
 	uint8_t sta;
@@ -149,12 +153,12 @@ uint8_t prt_dp_ping (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 	return sta;
 }
 
 // License key
-uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
+bool prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
 {
 	// Variables
 	uint8_t sta;
@@ -170,12 +174,12 @@ uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 	return sta;
 }
 
 // Config
-uint8_t prt_dp_cfg (prt_dp_ds_struct *dp)
+bool prt_dp_cfg (prt_dp_ds_struct *dp)
 {
 	// Variables
 	uint8_t sta;
@@ -187,10 +191,10 @@ uint8_t prt_dp_cfg (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
-	if (sta != PRT_TRUE)
-		return PRT_FALSE;
+	if (sta != true)
+		return false;
 
 	dp->mail_out.len = 0;
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_CFG;			// Config
@@ -199,10 +203,10 @@ uint8_t prt_dp_cfg (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
-	if (sta != PRT_TRUE)
-		return PRT_FALSE;
+	if (sta != true)
+		return false;
 
 	// DPRX
 	if (dp->id == PRT_DPRX_ID)
@@ -215,10 +219,10 @@ uint8_t prt_dp_cfg (prt_dp_ds_struct *dp)
 		prt_dp_mail_send (dp);
 
 		// Wait for response
-		sta = prt_dp_mail_resp (dp);
+		sta = prt_dp_mail_resp_get (dp);
 
-		if (sta != PRT_TRUE)
-			return PRT_FALSE;
+		if (sta != true)
+			return false;
 	}
 
 	// DPTX
@@ -246,7 +250,7 @@ uint8_t prt_dprx_skip_trn (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -260,7 +264,7 @@ uint8_t prt_dptx_aux_test (prt_dp_ds_struct *dp, uint8_t run)
 
 	dp->mail_out.len = 0;
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_AUX_TST;	// AUX test token
-	if (run == PRT_TRUE)
+	if (run == true)
 		dp->mail_out.dat[dp->mail_out.len++] = 1;	// Enable test
 	else
 		dp->mail_out.dat[dp->mail_out.len++] = 0;	// Disable test
@@ -268,7 +272,7 @@ uint8_t prt_dptx_aux_test (prt_dp_ds_struct *dp, uint8_t run)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 	return sta;
 }
 
@@ -291,7 +295,7 @@ uint8_t prt_dp_run (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -308,7 +312,7 @@ uint8_t prt_dptx_trn (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 	return sta;
 }
 
@@ -326,7 +330,7 @@ uint8_t prt_dptx_phy_test (prt_dp_ds_struct *dp, uint8_t tps, uint8_t volt, uint
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 	return sta;
 }
 
@@ -365,7 +369,7 @@ uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -419,7 +423,7 @@ uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t st
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -449,27 +453,27 @@ uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8
 		dp->mail_out.dat[dp->mail_out.len++] = *(dat+i);				// Data
 
 	// Clear ready flag
-	dp->dpcd.rdy = PRT_FALSE;
+	dp->dpcd.rdy = false;
 
 	// Send mail
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	// Exit when the status isn't true
-	if (sta != PRT_TRUE)
-		return PRT_FALSE;
+	if (sta != true)
+		return false;
 	
 	// Wait for ready flag to be set by mail decoder (interrupt handler) 
-	while (dp->dpcd.rdy == PRT_FALSE);
+	while (dp->dpcd.rdy == false);
 
 	// Return true when there is an acknowledge
 	if (dp->dpcd.cmd == PRT_DP_DPCD_ACK)
-		return PRT_TRUE;
+		return true;
 
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // DPCD read 
@@ -493,20 +497,20 @@ uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8
 	dp->mail_out.dat[dp->mail_out.len++] = dp->dpcd.len;		// Length
 
 	// Clear ready flag
-	dp->dpcd.rdy = PRT_FALSE;
+	dp->dpcd.rdy = false;
 
 	// Send mail
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	// Exit when the status isn't true
-	if (sta != PRT_TRUE)
-		return PRT_FALSE;
+	if (sta != true)
+		return false;
 	
 	// Wait for ready flag to be set by mail decoder (interrupt handler) 
-	while (dp->dpcd.rdy == PRT_FALSE);
+	while (dp->dpcd.rdy == false);
 
 	// Return true when there is an acknowledge
 	if (dp->dpcd.cmd == PRT_DP_DPCD_ACK)
@@ -515,23 +519,24 @@ uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8
 		{
 			*(dat+i) = dp->dpcd.dat[i];
 		}
-		return PRT_TRUE;
+		return true;
 	}
 
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Video start
-uint8_t prt_dp_vid_str (prt_dp_ds_struct *dp, uint8_t stream)
+uint8_t prt_dptx_vid_str (prt_dp_ds_struct *dp, uint8_t stream)
 {
 	// Variables
 	uint8_t tries = 0;
-	uint8_t sta = PRT_FALSE;
+	uint8_t sta = false;
+	bool exit_flag = false; 
 
 	// If the video is already running, then stop the video
 	if (prt_dp_is_vid_up (dp, stream))
-		prt_dp_vid_stp (dp, stream);
+		prt_dptx_vid_stp (dp, stream);
 
 	// Before we start the video, we need to check if a sink is connected
 	if (prt_dp_is_hpd (dp))
@@ -553,20 +558,29 @@ uint8_t prt_dp_vid_str (prt_dp_ds_struct *dp, uint8_t stream)
 				prt_dp_mail_send (dp);
 
 				// Wait for response
-				sta = prt_dp_mail_resp (dp);
+				sta = prt_dp_mail_resp_get (dp);
+
+				if (sta == false)
+					tries++;
+				else
+					exit_flag = true;
 			}
 
 			else
+			{
 				tries++;
+				if (tries >= 10)
+					exit_flag = true;
+			}
 
-		} while ((sta == PRT_FALSE) && (tries < 10));
+		} while (exit_flag == false);
 	}
 
 	return sta;
 }
 
 // Video stop
-uint8_t prt_dp_vid_stp (prt_dp_ds_struct *dp, uint8_t stream)
+uint8_t prt_dptx_vid_stp (prt_dp_ds_struct *dp, uint8_t stream)
 {
 	uint8_t sta;
 
@@ -582,7 +596,7 @@ uint8_t prt_dp_vid_stp (prt_dp_ds_struct *dp, uint8_t stream)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -594,23 +608,23 @@ uint8_t prt_dp_hpd_get (prt_dp_ds_struct *dp)
 }
 
 // Check HPD
-// This function returns PRT_TRUE when the hpd is asserted
-uint8_t prt_dp_is_hpd (prt_dp_ds_struct *dp)
+// This function returns true when the hpd is asserted
+bool prt_dp_is_hpd (prt_dp_ds_struct *dp)
 {
 	if (prt_dp_hpd_get (dp) != PRT_DP_HPD_UNPLUG) 
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Check link
-// This function returns PRT_TRUE when the link is up and running
-uint8_t prt_dp_is_lnk_up (prt_dp_ds_struct *dp)
+// This function returns true when the link is up and running
+bool prt_dp_is_lnk_up (prt_dp_ds_struct *dp)
 {
 	if (dp->lnk.up)
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Get active lanes
@@ -668,13 +682,13 @@ void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap)
 }
 
 // Check video
-// This function returns PRT_TRUE when the video is up and running
-uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream)
+// This function returns true when the video is up and running
+bool prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream)
 {
 	if (dp->vid[stream].up)
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Get video down reason
@@ -684,13 +698,13 @@ uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream)
 }
 
 // Training pass
-// This function returns PRT_TRUE when the training passed
-uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
+// This function returns true when the training passed
+bool prt_dp_is_trn_pass (prt_dp_ds_struct *dp)
 {
 	if (dp->trn.pass)
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Get training pattern
@@ -703,10 +717,6 @@ uint8_t prt_dprx_get_trn_tps (prt_dp_ds_struct *dp)
 // Send message
 void prt_dp_mail_send (prt_dp_ds_struct *dp)
 {
-	// To prevent a race condition, the mail ok and error flags are cleared first. 
-	dp->mail_in.ok = PRT_FALSE;
-	dp->mail_in.err = PRT_FALSE;
-
 	// Start of mail token
 	dp->dev->mail_out = PRT_DP_MAIL_SOM;
 
@@ -717,33 +727,57 @@ void prt_dp_mail_send (prt_dp_ds_struct *dp)
 	dp->dev->mail_out = PRT_DP_MAIL_EOM;
 }
 
-// Check mail
-// Called from interrupt handler
-uint8_t prt_dp_mail_chk (prt_dp_ds_struct *dp)
+// Mail response put
+// This function stores the mail response in a ring buffer. 
+void prt_dp_mail_resp_put (prt_dp_ds_struct *dp, bool resp)
 {
-	// Variables
-	uint32_t dat;
+	// Store response in buffer
+	dp->mail_in.rrb.resp[dp->mail_in.rrb.head] = resp;
 
-	// Read status register
-	dat = dp->dev->sta;
+	// Increment header
+	if (dp->mail_in.rrb.head == 31)
+		dp->mail_in.rrb.head = 0;
+	else
+		dp->mail_in.rrb.head++;
+}
 
-	// Extract mail word words
-	dat >>= PRT_DP_STA_MAIL_IN_WRDS_SHIFT;
-	dat &= 0x1f;
+// Mail response get
+// This function reads the mail response from the ring buffer. 
+// This function is blocking.
+bool prt_dp_mail_resp_get (prt_dp_ds_struct *dp)
+{
+	bool resp;
+	bool exit_flag = false;
 
-	return dat;
+	// Check if there is data in the buffer
+	do
+	{
+		if (dp->mail_in.rrb.head != dp->mail_in.rrb.tail)
+			exit_flag = true;
+	}
+	while (exit_flag == false); 
+
+	// Read response from buffer
+	resp = dp->mail_in.rrb.resp[dp->mail_in.rrb.tail];
+
+	// Increment tail
+	if (dp->mail_in.rrb.tail == 31)
+		dp->mail_in.rrb.tail = 0;
+	else
+		dp->mail_in.rrb.tail++;
+
+	return resp;
 }
 
 // Get message
+// This function reads one mail message data from the exchange module.
+// This function is blocking.
 // Called from interrupt handler
-void prt_dp_mail_get (prt_dp_ds_struct *dp, uint8_t len)
+void prt_dp_mail_get (prt_dp_ds_struct *dp)
 {
 	// Variables
 	uint32_t dat;
-	uint8_t idx;
-
-	// Clear index
-	idx = 0;
+	bool exit_flag = false;
 
 	do
 	{
@@ -759,51 +793,17 @@ void prt_dp_mail_get (prt_dp_ds_struct *dp, uint8_t len)
 		// End of message
 		else if ((dat & 0x1ff) == PRT_DP_MAIL_EOM)
 		{
-			// Set process mail flag
-			dp->mail_in.proc = PRT_TRUE;
+			// Set exit flag
+			exit_flag = true;
 		}
 
 		else
 		{
 			// Copy data
 			dp->mail_in.dat[dp->mail_in.len++] = dat;
-
-			// Clear process mail flag
-			dp->mail_in.proc = PRT_FALSE;
 		}
 
-		// Increment index
-		idx++;
-
-	} while ((idx < len) && (dp->mail_in.proc == PRT_FALSE));
-}
-
-// Mail response
-// To do: add time out
-uint8_t prt_dp_mail_resp (prt_dp_ds_struct *dp)
-{
-	// Variables
-	uint8_t sta;
-	uint8_t exit_loop = PRT_FALSE;
-
-	do
-	{
-		if (dp->mail_in.ok)
-		{
-			// Set status
-			sta = PRT_TRUE;
-			exit_loop = PRT_TRUE;
-		}
-
-		else if (dp->mail_in.err)
-		{
-			// Set status
-			sta = PRT_FALSE;
-			exit_loop = PRT_TRUE;
-		}
-	} while (!exit_loop);
-
-	return sta;
+	} while (exit_flag == false);
 }
 
 #ifdef PRT_SIM
@@ -852,7 +852,7 @@ void prt_dp_get_aux (prt_dp_ds_struct *dp, uint8_t len)
 		if ((dat == PRT_AUX_REQ_STP) || (dat == PRT_AUX_REPLY_STP))
 		{
 			// Set process aux flag
-			dp->aux.proc = PRT_TRUE;
+			dp->aux.proc = true;
 		}
 
 		else
@@ -861,13 +861,13 @@ void prt_dp_get_aux (prt_dp_ds_struct *dp, uint8_t len)
 			dp->aux.dat[dp->aux.len++] = dat;
 		
 			// Clear process aux flag
-			dp->aux.proc = PRT_FALSE;
+			dp->aux.proc = false;
 		}
 
 		// Increment index
 		idx++;
 
-	} while ((idx < len) && (dp->aux.proc == PRT_FALSE));
+	} while ((idx < len) && (dp->aux.proc == false));
 }
 
 // Decode aux
@@ -882,7 +882,7 @@ void prt_dp_decode_aux (prt_dp_ds_struct *dp)
 	uint8_t reply;
 
 	// Clear process mail flag
-	dp->aux.proc = PRT_FALSE;
+	dp->aux.proc = false;
 
 	switch (dp->aux.dat[0])
 	{
@@ -991,6 +991,7 @@ void prt_dp_decode_aux (prt_dp_ds_struct *dp)
 #endif
 
 // Decode mail
+// This function decodes one mail message.
 // Called from interrupt handler
 void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 {
@@ -999,19 +1000,14 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 	uint8_t stream;
 	uint8_t i = 0;
 
-	// Clear mail flags
-	dp->mail_in.proc = PRT_FALSE;
-
 	switch (dp->mail_in.dat[i++])
 	{
 		case PRT_DP_MAIL_ERR:
-			// Set error flag
-			dp->mail_in.err = PRT_TRUE;
+			prt_dp_mail_resp_put (dp, false);
 			break;
 
 		case PRT_DP_MAIL_OK:
-			// Set ok flag
-			dp->mail_in.ok = PRT_TRUE;
+			prt_dp_mail_resp_put (dp, true);
 			break;
 
 		case PRT_DP_MAIL_DEBUG:
@@ -1096,10 +1092,10 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.pre = dp->mail_in.dat[i++];
 
 			// Set training pass flag
-			dp->trn.pass = PRT_TRUE;
+			dp->trn.pass = true;
 
 			// Clear training fail flag
-			dp->trn.fail = PRT_FALSE;
+			dp->trn.fail = false;
 
 			// Clear training pattern
 			dp->trn.tps = 0;
@@ -1123,10 +1119,10 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.pre = 0;
 			
 			// Set training fail flag
-			dp->trn.fail = PRT_TRUE;
+			dp->trn.fail = true;
 
 			// Clear training pass flag
-			dp->trn.pass = PRT_FALSE;
+			dp->trn.pass = false;
 
 			// Clear training pattern
 			dp->trn.tps = 0;
@@ -1164,7 +1160,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 		case PRT_DP_MAIL_LNK_UP:
 			// Set link up flag
-			dp->lnk.up = PRT_TRUE;
+			dp->lnk.up = true;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_LNK;
@@ -1172,7 +1168,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 		case PRT_DP_MAIL_LNK_DOWN:
 			// Clear link up flag
-			dp->lnk.up = PRT_FALSE;
+			dp->lnk.up = false;
 
 			// Reason
 			dp->lnk.reason = dp->mail_in.dat[i++];
@@ -1199,12 +1195,12 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			}
 			
 			// Set video up flag
-			dp->vid[stream].up = PRT_TRUE;
+			dp->vid[stream].up = true;
 
 			// Set the video event flag
 			// To prevent race conditions, besides the dp video event flag,
 			// each video stream has its own event flag.
-			dp->vid[stream].evt = PRT_TRUE;
+			dp->vid[stream].evt = true;
 
 			// Set dp event flag
 			dp->evt |= PRT_DP_EVT_VID;
@@ -1247,12 +1243,12 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			}		
 
 			// Clear video up flag
-			dp->vid[stream].up = PRT_FALSE;
+			dp->vid[stream].up = false;
 
 			// Set the video event flag
 			// To prevent race conditions, besides the dp video event flag,
 			// each video stream has its own event flag.
-			dp->vid[stream].evt = PRT_TRUE;
+			dp->vid[stream].evt = true;
 
 			// Set event flag
 			dp->evt |= PRT_DP_EVT_VID;
@@ -1411,7 +1407,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			// There is no event.
 			// Instead the ready flag is set. 
 			// This signals the dpcd_wr or dpcd_rd function that the response has been received.
-			dp->dpcd.rdy = PRT_TRUE;
+			dp->dpcd.rdy = true;
 
 			break;
 
@@ -1431,7 +1427,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			// There is no event.
 			// Instead the ready flag is set. 
 			// This signals the dpcd_wr or dpcd_rd function that the response has been received.
-			dp->dpcd.rdy = PRT_TRUE;
+			dp->dpcd.rdy = true;
 
 			break;
 
@@ -1449,10 +1445,8 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 
 			// There is no event.
 			// Instead the ready flag is set. 
-			dp->edid.rdy = PRT_TRUE;
-
+			dp->edid.rdy = true;
 			break;
-
 
 			default:
 			//prt_printf ("Unknown token (%x)\n", dp->mail_in.dat[0]);
@@ -1484,16 +1478,19 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 		}
 		
 		// PHY reset
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST) && (dp->cb.phy_rst != 0))
+		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST))
 		{
-			// Jump callback
-			dp->cb.phy_rst (dp);
-		}
+			if (dp->cb.phy_rst != 0)
+			{
+				// Jump callback
+				dp->cb.phy_rst (dp);
+			}
 
-		// If the callback was not registered, then send an acknowledge immediately.
-		else
-		{
-			prt_dprx_phy_rst_ack (dp);
+			// If the callback was not registered, then send an acknowledge immediately.
+			else
+			{
+				prt_dprx_phy_rst_ack (dp);
+			}
 		}
 
 		// PHY rate
@@ -1606,7 +1603,7 @@ uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp, uint16_t adr, uint16_t len, uint
 	for (uint16_t i = 0; i < len; i = i + 16)
 	{
 		// Clear EDID ready flag
-		dp->edid.rdy = PRT_FALSE;
+		dp->edid.rdy = false;
 
 		// Set base address
 		dp->edid.adr = adr + i;
@@ -1622,23 +1619,23 @@ uint8_t prt_dptx_edid_rd (prt_dp_ds_struct *dp, uint16_t adr, uint16_t len, uint
 		prt_dp_mail_send (dp);
 
 		// Wait for response
-		sta = prt_dp_mail_resp (dp);
+		sta = prt_dp_mail_resp_get (dp);
 
 		if (sta)
 		{
 			// Wait for edid ready flag
-			while (dp->edid.rdy == PRT_FALSE);
+			while (dp->edid.rdy == false);
 
 			dp->edid.adr += 16;
 		}
 
 		else
 		{
-			return PRT_FALSE;
+			return false;
 		}
 	} 
 
-	return PRT_TRUE;
+	return true;
 }
 
 // Write edid to policy maker
@@ -1664,15 +1661,15 @@ uint8_t prt_dprx_edid_wr (prt_dp_ds_struct *dp, uint16_t len, uint8_t *dat)
 		prt_dp_mail_send (dp);
 
 		// Wait for response
-		sta = prt_dp_mail_resp (dp);
+		sta = prt_dp_mail_resp_get (dp);
 
-		if (sta != PRT_TRUE)
+		if (sta != true)
 		{
-			return PRT_FALSE;
+			return false;
 		}
 	}
 
-	return PRT_TRUE;
+	return true;
 }
 
 // DPCD block
@@ -1684,7 +1681,7 @@ uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr)
 
 	// Only 16 blocks are supported
 	if (idx > 16)
-		return PRT_FALSE;
+		return false;
 
 	dp->mail_out.len = 0;
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_DPCD_BLK;	// Token
@@ -1695,7 +1692,7 @@ uint8_t prt_dprx_dpcd_blk_set (prt_dp_ds_struct *dp, uint8_t idx, uint32_t adr)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
 	return sta;
 }
@@ -1728,18 +1725,18 @@ void prt_dp_dpcd_dat_set (prt_dp_ds_struct *dp, uint8_t idx, uint8_t dat)
 uint8_t prt_dp_dpcd_cmd_is_wr (prt_dp_ds_struct *dp)
 {
 	if (dp->dpcd.cmd ==  PRT_DP_DPCD_WR)
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // DPCD command is read
 uint8_t prt_dp_dpcd_cmd_is_rd (prt_dp_ds_struct *dp)
 {
 	if (dp->dpcd.cmd ==  PRT_DP_DPCD_RD)
-		return PRT_TRUE;
+		return true;
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // DPCD ACK
@@ -1780,39 +1777,39 @@ void prt_dprx_dpcd_nack (prt_dp_ds_struct *dp)
 void prt_dp_irq_handler (prt_dp_ds_struct *dp)
 {
 	// Variables
-	uint8_t len;
 	uint32_t sta;
+	uint8_t new_mail_msg;
+
+	// Clear interrupt flag
+	dp->dev->sta = PRT_DP_STA_IRQ;
 
 	// Read status register
 	sta = dp->dev->sta;
 
-	// Is there an interrupt?
-	if (sta & PRT_DP_STA_IRQ)
+	// Get the number of new mail messages
+	new_mail_msg = (sta >> PRT_DP_STA_MAIL_NEW_MSG_SHIFT) & 0xf;
+	
+	// Are there any mail messages?
+	if (new_mail_msg > 0)
 	{
-		// Is there any mail
-		if (!(sta & PRT_DP_STA_MAIL_IN_EP))
+		// Loop over all new mail messages
+		for (uint8_t i = 0; i < new_mail_msg; i++)
 		{
-			// Get mail length
-			len = prt_dp_mail_chk (dp);
-
 			// Get mail
-			prt_dp_mail_get (dp, len);
-
-			// Clear interrupt flag
-			dp->dev->sta = PRT_DP_STA_IRQ;
+			prt_dp_mail_get (dp);
 
 			// Decode mail
-			if (dp->mail_in.proc)
-			{
-				prt_dp_mail_dec (dp);
-			}
+			prt_dp_mail_dec (dp);
 		}
+	}
 
-		// AUX
-		#ifdef PRT_SIM
+	// AUX
+	#ifdef PRT_SIM
 		// Is there any aux
-		if (!(sta & PRT_DP_STA_AUX_EP))
+		if (0)
+		//if (!(sta & PRT_DP_STA_AUX_EP))
 		{
+			uint8_t len;
 			// Get AUX length
 			len = prt_dp_check_aux (dp);
 			
@@ -1828,21 +1825,20 @@ void prt_dp_irq_handler (prt_dp_ds_struct *dp)
 				prt_dp_decode_aux (dp);
 		    }
 		}
-		#endif
-	}
+	#endif
 }
 
 // Event
-uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt)
+bool prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt)
 {
 	if (dp->evt & evt)
 	{
 		// Clear flag
 		dp->evt &= ~evt;
-		return PRT_TRUE;
+		return true;
 	}
 	else
-		return PRT_FALSE;
+		return false;
 }
 
 // Debug put
@@ -1852,7 +1848,7 @@ void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat)
   	dp->debug.dat[dp->debug.head] = dat;
 
  	// Increment head pointer
-	if (dp->debug.head > 31)
+	if (dp->debug.head == 31)
 		dp->debug.head = 0;
 	else
 		dp->debug.head++;
@@ -1868,7 +1864,7 @@ uint8_t prt_dp_debug_get (prt_dp_ds_struct *dp)
   	dat = dp->debug.dat[dp->debug.tail];
 
  	// Increment tail pointer
-	if (dp->debug.tail > 31)
+	if (dp->debug.tail == 31)
 		dp->debug.tail = 0;
 	else
 		dp->debug.tail++;
@@ -1906,9 +1902,9 @@ uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
-	if (sta == PRT_TRUE)
+	if (sta == true)
 		sta = dp->mail_in.dat[1];
 	else
 		sta = PRT_DP_MST_ERR;
@@ -1927,9 +1923,9 @@ uint8_t prt_dptx_mst_stp (prt_dp_ds_struct *dp)
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp (dp);
+	sta = prt_dp_mail_resp_get (dp);
 
-	if (sta == PRT_TRUE)
+	if (sta == true)
 		sta = dp->mail_in.dat[1];
 	else
 		sta = PRT_DP_MST_ERR;

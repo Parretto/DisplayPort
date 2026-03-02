@@ -101,6 +101,7 @@ typedef struct {
 #define PRT_TENTIVA_SC_STA                      2
 #define PRT_TENTIVA_SC_PHY_CLK                  3
 #define PRT_TENTIVA_SC_VID_CLK                  4
+#define PRT_TENTIVA_SC_DCO                      5
 #define PRT_TENTIVA_SC_CTL_CB1_SEL              (1 << 0)
 #define PRT_TENTIVA_SC_CTL_CB2_SEL              (1 << 1)
 #define PRT_TENTIVA_SC_STA_PHY_CLK_LOCK         (1 << 0)
@@ -134,6 +135,7 @@ prt_sta_type prt_tentiva_sc_sta_rd (prt_i2c_ds_struct *i2c, uint8_t dat);
 prt_sta_type prt_tentiva_sc_reg_wr (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint32_t dat);
 prt_sta_type prt_tentiva_sc_reg_rd (prt_i2c_ds_struct *i2c, uint8_t slave, uint8_t adr, uint8_t *dat);
 prt_sta_type prt_tentiva_sc_cb_sel (prt_i2c_ds_struct *i2c, uint8_t cb, uint8_t set);
+prt_sta_type prt_tentiva_sc_dco (prt_tentiva_ds_struct *tentiva, uint32_t dat);
 
 void prt_tentiva_tst (prt_tentiva_ds_struct *tentiva);
 

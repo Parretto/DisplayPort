@@ -5,11 +5,19 @@
 
 
     Module: DP TX Secondary Data Packet
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
+
+
+    Decription
+    ==========
+    This module receives SDP data and inserts the Secondary Stream (SS) packets into the DisplayPort main stream during the horizontal and vertical blanking intervals.
+    Only SDP packets with a 4-byte header and a 32-byte payload are supported.
+
 
     History
     =======
     v1.0 - Initial release
+
 
     License
     =======
@@ -31,17 +39,17 @@
 module prt_dptx_sdp
 #(
     // System
-    parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
-    parameter               P_SIM = 0,          // Simulation
+    parameter               P_VENDOR = "none",   // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter               P_SIM = 0,           // Simulation
 
     // Link
-    parameter               P_LANES = 4,    	// Lanes
-    parameter               P_SPL = 2,        	// Symbols per lane
+    parameter               P_LANES = 4,    	 // Lanes
+    parameter               P_SPL = 2,        	 // Symbols per lane
 
     // Message
-    parameter               P_MSG_IDX     = 5,      // Message index width
-    parameter               P_MSG_DAT     = 16,     // Message data width
-    parameter               P_MSG_ID      = 0       // Message ID main stream attributes
+    parameter               P_MSG_IDX     = 5,   // Message index width
+    parameter               P_MSG_DAT     = 16,  // Message data width
+    parameter               P_MSG_ID      = 0    // Message ID main stream attributes
 )
 (
     // Control
@@ -97,7 +105,6 @@ typedef struct {
 
 typedef struct {
     logic                           rst;
-    logic   [1:0]                   lanes; 
     logic                           sop;
     logic                           eop;
     logic                           eop_del;
@@ -111,7 +118,6 @@ typedef struct {
 } sclk_sdp_struct;
 
 typedef struct {
-    logic                           clr;                    // Clear
     logic   [1:0]                   wr[4][4];               // Write
     logic   [P_DAT_FIFO_DAT-1:0]    din[4][4][2];           // Write data (LANE - SUBLANE - NIBBLE)
     logic   [P_DAT_FIFO_ADR:0]      wrds[4][4][2];

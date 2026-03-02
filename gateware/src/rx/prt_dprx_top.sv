@@ -5,7 +5,7 @@
 
 
     Module: DP RX Top
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -98,7 +98,7 @@ localparam P_SIM =
 0;
 
 // Debug
-localparam P_DEBUG = 1;             // Set this parameter to 1 to enable the debug pin (pio)
+localparam P_DEBUG = 0;             // Set this parameter to 1 to enable the debug pin (pio)
 
 // Memory init
 localparam P_ROM_INIT = (P_VENDOR == "AMD") ? "prt_dprx_pm_rom.mem" : (P_VENDOR == "ALTERA") ? "prt_dprx_pm_rom.hex" : "none";
@@ -168,7 +168,7 @@ wire lnk_clkdet_from_lnk;
 wire cdr_lock_from_lnk;
 wire scrm_lock_from_lnk;
 wire vid_en_from_lnk;
-wire msa_irq_from_lnk;
+wire vid_irq_from_lnk;
 
 genvar i, j;
 
@@ -255,7 +255,7 @@ genvar i, j;
     assign pio_to_pm[1]     = cdr_lock_from_lnk;
     assign pio_to_pm[2]     = scrm_lock_from_lnk;
     assign pio_to_pm[3]     = vid_en_from_lnk;
-    assign irq_to_pm[0]     = msa_irq_from_lnk;
+    assign irq_to_pm[0]     = vid_irq_from_lnk;
     assign irq_to_pm[1]     = 0;
 
 /*
@@ -302,7 +302,7 @@ genvar i, j;
         .STA_VID_EN_OUT     (vid_en_from_lnk),      // Video enable
 
         // Interrupts
-        .MSA_IRQ_OUT        (msa_irq_from_lnk),     
+        .VID_IRQ_OUT        (vid_irq_from_lnk),     // This signal pulses at the end of the vertical blanking period (VerticalBlanking_Flag). It is used by the policy maker to detect a stable video stream.
 
         // Message
         .MSG_SNK_IF         (msg_if_from_pm),       // Sink

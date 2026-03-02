@@ -5,12 +5,14 @@
 
 
     Module: DP RX Main Stream Attribute (msa)
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added support for single lane
+    v1.2 - Removed interrupt output
+
 
     License
     =======
@@ -56,10 +58,7 @@ module prt_dprx_msa
 
     // Link
     prt_dp_rx_lnk_if.snk    LNK_SNK_IF,     // Sink    
-    prt_dp_rx_lnk_if.src    LNK_SRC_IF,     // Source
-
-    // Interrupt
-    output wire             IRQ_OUT         
+    prt_dp_rx_lnk_if.src    LNK_SRC_IF      // Source
 );
 
 // Package
@@ -73,11 +72,12 @@ localparam P_LOG_LANES = $clog2(P_LANES * P_SPL);
 
 // Structure
 typedef struct {
-    logic   [P_MSG_IDX-1:0]         idx;
-    logic                           first;
-    logic                           last;
-    logic   [P_MSG_DAT-1:0]         dat;
-    logic                           ack;
+    logic   [P_MSG_IDX-1:0]     idx;
+    logic                       first;
+    logic                       last;
+    logic                       last_del;
+    logic   [P_MSG_DAT-1:0]     dat;
+    logic                       ack;
 } msg_struct;
 
 typedef struct {
@@ -108,8 +108,6 @@ typedef struct {
     logic   [1:0]               ph[P_LANES];
     logic   [P_SPL-1:0]         rd[P_LANES];                // Read
     logic   [7:0]               dat[P_LANES][P_SPL];
-    logic   [P_LANES-1:0]       irq_lane;
-    logic                       irq_all;
 } msa_struct;
 
 // Signals
@@ -171,6 +169,13 @@ genvar i, j;
         .ING_DAT_IN     (clk_msg.dat),       // Data
         .ING_ACK_OUT    (clk_msg.ack)
     );
+
+// Last delayed
+// This signal is used to clear the read pointer
+    always_ff @ (posedge CLK_IN)
+    begin
+        clk_msg.last_del <= clk_msg.last;
+    end
 
 generate
     for (i = 0; i < P_LANES; i++)
@@ -528,14 +533,21 @@ endgenerate
         begin
             for (int j = 0; j < P_SPL; j++)
             begin
-                // Clear
-                // At the end of a packet
-                if (clk_msa.eop[i])
-                    clk_ram.rp[i][j] <= 0;
+                // Locked
+                if (clk_lnk.lock)
+                begin
+                    // Clear
+                    // When the last message data has passed. 
+                    if (clk_msg.last_del)
+                        clk_ram.rp[i][j] <= 0;
 
-                // Increment
-                else if (clk_ram.rd[i][j])
-                    clk_ram.rp[i][j] <= clk_ram.rp[i][j] + 'd1;
+                    // Increment
+                    else if (clk_ram.rd[i][j])
+                        clk_ram.rp[i][j] <= clk_ram.rp[i][j] + 'd1;
+                end
+
+                else 
+                    clk_ram.rp[i][j] <= 0;
             end
         end
     end
@@ -756,59 +768,6 @@ generate
     end
 endgenerate
 
-// Interrupt lane
-// Each lanes has its own interrupt, which will be asserted at the end of a msa packet
-    always_ff @ (posedge CLK_IN)
-    begin
-        for (int i = 0; i < P_LANES; i++)
-        begin
-            // Locked
-            if (clk_lnk.lock)
-            begin
-                // Clear
-                if (clk_msa.irq_all)
-                    clk_msa.irq_lane[i] <= 0;
-
-                // Set
-                else if (clk_msa.eop[i])
-                    clk_msa.irq_lane[i] <= 1;
-            end
-
-            else
-                clk_msa.irq_lane[i] <= 0;
-        end
-    end
-
-// Interrupt
-    always_ff @ (posedge CLK_IN)
-    begin
-        // Locked
-        if (clk_lnk.lock)
-        begin
-            // Clear
-            // When message is received
-            if (clk_msg.first)
-                clk_msa.irq_all <= 0;
-
-            // Set
-            // When all lanes have their interrupt asserted
-
-            // 4 lanes
-            else if ( (clk_lnk.lanes == 'd3) && (&clk_msa.irq_lane)) 
-                clk_msa.irq_all <= 1;
-
-            // 2 lanes
-            else if ( (clk_lnk.lanes == 'd2) && (&clk_msa.irq_lane[1:0])) 
-                clk_msa.irq_all <= 1;
-
-            // 1 lane
-            else if ( (clk_lnk.lanes == 'd1) && (clk_msa.irq_lane[0])) 
-                clk_msa.irq_all <= 1;
-        end
-
-        else
-            clk_msa.irq_all <= 0;
-    end
 
 // Outputs
 generate
@@ -829,7 +788,6 @@ generate
 endgenerate
 
     assign LNK_SRC_IF.lock  = clk_lnk.lock;
-    assign IRQ_OUT          = clk_msa.irq_all;  // Interrupt
 
 endmodule
 

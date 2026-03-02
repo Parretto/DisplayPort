@@ -31,7 +31,6 @@
 #include <stdint.h>
 #include "prt_types.h"
 #include "prt_vtb.h"
-#include "prt_printf.h"
 
 // Set base address
 void prt_vtb_set_base (prt_vtb_ds_struct *vtb, uint32_t base)

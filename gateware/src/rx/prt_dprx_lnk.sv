@@ -5,7 +5,7 @@
 
 
     Module: DP RX Link
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -15,6 +15,8 @@
     v1.3 - Added 10-bits video support
     v1.4 - Added secondary data packet 
     v1.5 - Added sdp vsc snooping
+    v1.6 - Removed MSA interrupt and added video interrupt
+
 
     License
     =======
@@ -70,7 +72,7 @@ module prt_dprx_lnk
     output wire             STA_VID_EN_OUT,     // Video enable
 
     // Interrupts
-    output wire             MSA_IRQ_OUT,        // MSA
+    output wire             VID_IRQ_OUT,        // This signal pulses after the vertical blanking period. It is used by the policy maker to detect a stable video stream. 
 
     // Message
     prt_dp_msg_if.snk       MSG_SNK_IF,         // Sink
@@ -162,8 +164,6 @@ prt_dp_rx_lnk_if
 )
 lnk_from_msa();
 
-wire irq_from_msa;
-
 // SDP
 prt_dp_rx_lnk_if
 #(
@@ -174,6 +174,10 @@ lnk_from_sdp();
 
 // video
 wire vid_en_from_vid;
+wire lclk_irq_from_vid;
+wire sclk_irq_from_vid;
+wire sclk_irq_from_vid_re;
+wire sclk_irq_from_vid_fe;
 
 genvar i;
 
@@ -533,10 +537,7 @@ endgenerate
 
         // Link
         .LNK_SNK_IF         (lnk_from_scrm),     // Sink    
-        .LNK_SRC_IF         (lnk_from_msa),      // Source
-     
-        // Interrupt
-        .IRQ_OUT            (irq_from_msa)
+        .LNK_SRC_IF         (lnk_from_msa)       // Source 
     );
 
 // SDP
@@ -646,7 +647,8 @@ endgenerate
         .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
         .LNK_SNK_IF         (lnk_from_sdp),         // Interface
         .LNK_VBID_OUT       (LNK_VBID_OUT),         // VB-ID 
-        
+        .LNK_IRQ_OUT        (lclk_irq_from_vid),    // Interrupt. This signal toggles at every end of the vertical blanking period (VerticalBlanking_Flag). It is used by the policy maker to detect a stable video stream.
+
         // Video source
         .VID_RST_IN         (VID_RST_IN),           // Reset
         .VID_CLK_IN         (VID_CLK_IN),           // Clock
@@ -684,18 +686,31 @@ endgenerate
         .DST_DAT_OUT        (STA_VID_EN_OUT)        // Data
     );
 
-// MSA IRQ clock domain crossing
+// Video IRQ clock domain crossing
     prt_dp_lib_cdc_bit
-    MSA_IRQ_CDC_INST
+    VID_IRQ_CDC_INST
     (
-        .SRC_CLK_IN         (LNK_CLK_IN),       // Clock
-        .SRC_DAT_IN         (irq_from_msa),     // Data
-        .DST_CLK_IN         (SYS_CLK_IN),       // Clock
-        .DST_DAT_OUT        (MSA_IRQ_OUT)       // Data
+        .SRC_CLK_IN         (LNK_CLK_IN),        // Clock
+        .SRC_DAT_IN         (lclk_irq_from_vid), // Data
+        .DST_CLK_IN         (SYS_CLK_IN),        // Clock
+        .DST_DAT_OUT        (sclk_irq_from_vid)  // Data
     );
+
+// Interrupt generator
+    prt_dp_lib_edge
+    VID_IRQ_EDGE_INST
+    (
+        .CLK_IN    (SYS_CLK_IN),            // Clock
+        .CKE_IN    (1'b1),                  // Clock enable
+        .A_IN      (sclk_irq_from_vid),     // Input
+        .RE_OUT    (sclk_irq_from_vid_re),  // Rising edge
+        .FE_OUT    (sclk_irq_from_vid_fe)   // Falling edge
+    );
+
 
 // Outputs
     assign LNK_SYNC_OUT = |lnk_from_pars_lane[0].eol[0];
+    assign VID_IRQ_OUT = sclk_irq_from_vid_re || sclk_irq_from_vid_fe;
 
 endmodule
     

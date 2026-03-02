@@ -5,7 +5,7 @@
 
 
     Module: DP RX Secondary Data Packet
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -2364,6 +2364,7 @@ endgenerate
                 sclk_vsc.hdr <= 0;
 
             // Set
+            // When Video Stream Configuration SDP header is detected
             else if (sclk_sdp.sop && (sclk_sdp.dat == 'h13_05_07_00))
                 sclk_vsc.hdr <= 1;
         end

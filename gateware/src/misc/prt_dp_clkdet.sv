@@ -5,11 +5,13 @@
 
 
     Module: DP Clock Detector
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - Increased sclk counter width
+
 
     License
     =======
@@ -50,7 +52,7 @@ logic           mclk_beacon;
 wire            sclk_beacon;
 wire            sclk_beacon_re;
 wire            sclk_beacon_fe;
-logic [7:0]     sclk_cnt;
+logic [9:0]     sclk_cnt;
 logic           sclk_cnt_end;
 logic           sclk_act;
 

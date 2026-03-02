@@ -150,7 +150,7 @@ prt_u32 rx_cdr_cfg_drp_array_no_ssc[4][3] = {
   	// Configuration 8.1 Gbps
 	{
 		0x00100259,	/* DRP address=0x10, data=0x0259 */
-		0x00a40259,	/* DRP address=0x10, data=0x0259 */
+		0x00a40259,	/* DRP address=0xa4, data=0x0259 */
 		0x011b0164	/* DRP address=0x11b, data=0x0164 */
 	}
 };
@@ -534,6 +534,8 @@ prt_u8 prt_phy_amd_encode_txout_div (prt_u8 txout_div)
 // When switching line rates, besides changing the QPLL FBDIV and QPLL REFCLK DIV parameters,
 // also the transceivers wizard sets other QPLL configuration registers.
 // So for the QPLL,  instead of looking up the divider values, we just write the QPLL DRP registers that are updated by the wizard.
+// WARNING! Updating the QPLL registers also resets the QPLL reference clock select back to MGTREFCLK0. 
+
 prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc)
 {
 	// Variables

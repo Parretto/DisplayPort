@@ -5,7 +5,7 @@
 
 
     Module: DP PM Interrupt Controller
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -87,9 +87,9 @@ typedef struct {
 
 typedef struct {
 	logic	[P_CTL_WIDTH-1:0]	r;				// Register
-	logic						sel_set;			// Select set
-	logic						sel_clr;			// Select clear
-	logic						run;				// Run
+	logic						sel_set;		// Select set
+	logic						sel_clr;		// Select clear
+	logic						run;			// Run
 	logic	[P_IRQ-1:0]			ie;				// Interrupt enable
 	logic	[P_IRQ-1:0]			mode;			// Interrupt mode; 0-level / 1-edge
 
@@ -97,13 +97,13 @@ typedef struct {
 
 typedef struct {
 	logic	[P_STA_WIDTH-1:0]	r;				// Register
-	logic						sel;				// Select
+	logic						sel;			// Select
 } sta_struct;
 
 typedef struct {
-	logic	[P_IRQ-1:0]			req_re;			// Request falling edge
-	logic	[P_IRQ-1:0]			evt;				// Event
-	logic						all;				// All
+	logic	[P_IRQ-1:0]			req_re;			// Request rising edge
+	logic	[P_IRQ-1:0]			evt;			// Event
+	logic						all;			// All
 } irq_struct;
 
 // Signals

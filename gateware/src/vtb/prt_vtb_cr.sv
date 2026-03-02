@@ -646,7 +646,8 @@ dia_struct 		sclk_dia;
 		if (sclk_ctl.run)
 		begin
 			// Clear
-			if (sclk_dia.rdy_re)
+//			if (sclk_dia.rdy_re)
+			if (sclk_dia.rdy)
 				sclk_dcl.busy <= 0;
 
 			// Set

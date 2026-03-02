@@ -341,7 +341,7 @@ prt_sta_type prt_tentiva_set_phy_freq (prt_tentiva_ds_struct *tentiva, uint32_t 
 		tentiva->phy_freq = freq;
 
 		// Tentiva Rev.D board
-		if (tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID)
+		if ((tentiva->fmc_id == PRT_TENTIVA_FMC_REVD_ID) || (tentiva->fmc_id == PRT_TENTIVA_FMC_REVE_ID))
 		{
 			// Program system clock with PHY clock frequency
 			prt_tentiva_sc_reg_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_PHY_CLK, freq);
@@ -999,3 +999,16 @@ uint8_t prt_tentiva_sc_sta (prt_i2c_ds_struct *i2c)
 		return dat;
 }
 
+// Tentiva 
+// This function writes the DCO register. 
+// This is used during clock recovery. 
+prt_sta_type prt_tentiva_sc_dco (prt_tentiva_ds_struct *tentiva, uint32_t dat)
+{	
+	// Variables
+	prt_sta_type sta;
+
+	// Write control register
+	sta = prt_tentiva_sc_reg_wr (tentiva->i2c, PRT_TENTIVA_I2C_SC_ADR, PRT_TENTIVA_SC_DCO, dat);
+
+	return sta;
+}

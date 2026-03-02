@@ -5,15 +5,16 @@
 
 
     Module: DP Driver header
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
 	  v1.1 - Added colorspace 
 		v1.2 - Enhanced DPTX EDID handling
+		v1.3 - Improved mail response handling
 
-
+	
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -33,6 +34,7 @@
 // Includes
 #include "prt_types.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 // ID
 #define PRT_DPTX_ID 							0
@@ -55,25 +57,26 @@
 #define PRT_DP_STA_MAIL_IN_OF	    				(1<<4)
 #define PRT_DP_STA_AUX_EP    	    				(1<<5)
 #define PRT_DP_STA_AUX_OF    	    				(1<<6)
-#define PRT_DP_STA_MAIL_OUT_WRDS_SHIFT 		8
-#define PRT_DP_STA_MAIL_IN_WRDS_SHIFT 		16
-#define PRT_DP_STA_AUX_WRDS_SHIFT 				24
+#define PRT_DP_STA_MAIL_NEW_MSG_SHIFT 		8
+#define PRT_DP_STA_MAIL_OUT_WRDS_SHIFT 		12
+#define PRT_DP_STA_MAIL_IN_WRDS_SHIFT 		17
+#define PRT_DP_STA_AUX_WRDS_SHIFT 				22
 
 // Events
-#define PRT_DP_EVT_OK							(1<<0)
-#define PRT_DP_EVT_ERR							(1<<1)
-#define PRT_DP_EVT_HPD							(1<<2)
-#define PRT_DP_EVT_STA							(1<<3)
-#define PRT_DP_EVT_PWR_CTL						(1<<4)
-#define PRT_DP_EVT_PHY_RST						(1<<5)
-#define PRT_DP_EVT_PHY_RATE						(1<<6)
-#define PRT_DP_EVT_PHY_VAP						(1<<7)
-#define PRT_DP_EVT_TRN							(1<<8)
-#define PRT_DP_EVT_LNK							(1<<9)
-#define PRT_DP_EVT_VID							(1<<10)
-#define PRT_DP_EVT_MSA							(1<<11)
-#define PRT_DP_EVT_DPCD							(1<<12)
-#define PRT_DP_EVT_DEBUG						(1<<13)
+#define PRT_DP_EVT_OK											(1<<0)
+#define PRT_DP_EVT_ERR										(1<<1)
+#define PRT_DP_EVT_HPD										(1<<2)
+#define PRT_DP_EVT_STA										(1<<3)
+#define PRT_DP_EVT_PWR_CTL								(1<<4)
+#define PRT_DP_EVT_PHY_RST								(1<<5)
+#define PRT_DP_EVT_PHY_RATE								(1<<6)
+#define PRT_DP_EVT_PHY_VAP								(1<<7)
+#define PRT_DP_EVT_TRN										(1<<8)
+#define PRT_DP_EVT_LNK										(1<<9)
+#define PRT_DP_EVT_VID										(1<<10)
+#define PRT_DP_EVT_MSA										(1<<11)
+#define PRT_DP_EVT_DPCD										(1<<12)
+#define PRT_DP_EVT_DEBUG									(1<<13)
 
 // Line rate
 #define PRT_DP_PHY_LINERATE_1620		0x06
@@ -86,8 +89,8 @@
 #define PRT_AUX_REQ_STP        		0x101
 #define PRT_AUX_REPLY_STR      		0x102
 #define PRT_AUX_REPLY_STP      		0x103
-#define PRT_AUX_CMD_WR  	    	0x8
-#define PRT_AUX_CMD_RD  	    	0x9
+#define PRT_AUX_CMD_WR  	    		0x8
+#define PRT_AUX_CMD_RD  	    		0x9
 #define PRT_AUX_REPLY_ACK 	   		0x0
 #define PRT_AUX_REPLY_NACK     		0x1
 #define PRT_AUX_REPLY_DEFER    		0x2
@@ -146,16 +149,16 @@ typedef struct {
 	uint8_t mst;
 	uint8_t pio;
 	uint8_t hpd;
-	uint8_t lnk_up;
+	bool lnk_up;
 	uint8_t lnk_act_lanes;
 	uint8_t lnk_act_rate;
-	uint8_t vid_up;
+	bool vid_up;
 } prt_dp_sta_struct;
 
 // Training
 typedef struct {
-	uint8_t pass;	// Pass
-	uint8_t fail;	// Fail
+	bool pass;	// Pass
+	bool fail;	// Fail
 	uint8_t tps;	// Training pattern
 } prt_dp_trn_struct;
 
@@ -166,38 +169,43 @@ typedef struct {
 
 // Mail structure
 typedef struct {
-	volatile prt_bool ok;		// Ok flag
-	volatile prt_bool err;		// Error flag
-	prt_bool proc;				// Process
-	uint8_t dat[32]; 			// Data
-	uint8_t len;  				// Length
+	volatile uint8_t 	head;
+	volatile uint8_t 	tail;
+	volatile bool 		resp[32];
+} prt_dp_mail_rrb_struct;
+
+// Mail structure
+typedef struct {
+	prt_dp_mail_rrb_struct rrb;	// Response Ring buffer
+	uint8_t 			dat[32]; 			// Data
+	uint8_t 			len;  				// Length
 } prt_dp_mail_ds_struct;
 
 // AUX structure
 // Only used in simulation
 #ifdef PRT_SIM
 typedef struct {
-	uint8_t proc;		// Process
-	uint16_t dat[32]; 	// Data
-	uint8_t len;  		// Length
+	uint8_t 	proc;				// Process
+	uint16_t 	dat[32]; 	// Data
+	uint8_t 	len;  			// Length
 } prt_dp_aux_ds_struct;
 #endif 
 
 // EDID structure
 typedef struct {
-	uint16_t 			adr;		// Address
-	uint8_t 			len; 		// Length
-	uint8_t 			*dat; 		// Pointer to data buffer
-	prt_bool 			rdy; 		// Ready flag
+	uint16_t 		adr;		// Address
+	uint8_t 		len; 		// Length
+	uint8_t 		*dat; 	// Pointer to data buffer
+	bool 				rdy; 		// Ready flag
 } prt_dp_edid_struct;
 
 // DPCD structure
 typedef struct {
 	prt_dp_dpcd_type 	cmd;		// Command
-	uint32_t 			adr;		// Address
-	uint8_t 			len; 		// Length
-	uint8_t 			dat[16]; 	// Data
-	prt_bool 			rdy;		// Ready flag
+	uint32_t 					adr;		// Address
+	uint8_t 					len; 		// Length
+	uint8_t 					dat[16]; 	// Data
+	bool 							rdy;		// Ready flag
 } prt_dp_dpcd_struct;
 
 // Timing parameters
@@ -228,12 +236,12 @@ typedef struct {
 	uint8_t pre;			// Pre-emphasis
 	uint8_t ssc;			// Spread spectrum clocking
 	uint8_t reason;			// Link down reason
-	prt_bool mst_cap;		// MST capability
+	bool mst_cap;		// MST capability
 } prt_dp_lnk_struct;
 
 // Video
 typedef struct {
-	prt_bool 			evt;	// Event
+	bool 			evt;	// Event
 	uint8_t 			up;		// Video up flag
 	uint8_t 			reason;	// Video down reason
 	prt_dp_tp_struct 	tp;		// Timing parameters
@@ -241,9 +249,9 @@ typedef struct {
 
 // Debug
 typedef struct {
-	uint8_t 		head;			// Head pointer
-	uint8_t 		tail;			// Tail pointer
-	uint8_t 		dat[32];	// Data
+	volatile uint8_t 		head;			// Head pointer
+	volatile uint8_t 		tail;			// Tail pointer
+	volatile uint8_t 		dat[32];	// Data
 } prt_dp_debug_struct;
 
 // Call back
@@ -264,23 +272,23 @@ typedef struct {
 
 // Data structure
 typedef struct {
-	uint8_t 								id;
+	uint8_t 													id;
 	volatile prt_dp_dev_struct 				*dev;			// Device
-	prt_dp_mail_ds_struct 					mail_in;		// Mail in
-	prt_dp_mail_ds_struct 					mail_out;		// Mail out
+	prt_dp_mail_ds_struct 						mail_in;		// Mail in
+	prt_dp_mail_ds_struct 						mail_out;		// Mail out
 	volatile prt_dp_debug_struct			debug;			// Debug
-	volatile uint32_t 						evt;			// Event
-	prt_dp_cb_struct						cb;				// Callback
-	prt_dp_sta_struct						sta;			// Status
-	prt_dp_trn_struct						trn;			// Training
-	prt_dp_hpd_type 						hpd;			// HPD
-	prt_dp_pwr_ctl_struct					pwr_ctl;		// Power control
-	prt_dp_lnk_struct						lnk;			// Link
-	prt_dp_vid_struct						vid[2];			// Video
+	volatile uint32_t 								evt;			// Event
+	prt_dp_cb_struct									cb;				// Callback
+	prt_dp_sta_struct									sta;			// Status
+	prt_dp_trn_struct									trn;			// Training
+	prt_dp_hpd_type 									hpd;			// HPD
+	prt_dp_pwr_ctl_struct							pwr_ctl;		// Power control
+	prt_dp_lnk_struct									lnk;			// Link
+	prt_dp_vid_struct									vid[2];			// Video
 	volatile prt_dp_edid_struct				edid;			// EDID
 	volatile prt_dp_dpcd_struct				dpcd;			// DPCD
 #ifdef PRT_SIM
-	prt_dp_aux_ds_struct					aux;			// AUX
+	prt_dp_aux_ds_struct							aux;			// AUX
 #endif
 } prt_dp_ds_struct;
 
@@ -293,16 +301,14 @@ void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handl
 void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom);
 void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram);
 void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id);
-uint8_t prt_dp_ping (prt_dp_ds_struct *dp);
-uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic);
+bool prt_dp_ping (prt_dp_ds_struct *dp);
+bool prt_dp_lic (prt_dp_ds_struct *dp, char *lic);
 void prt_dp_set_lnk_max_lanes (prt_dp_ds_struct *dp, uint8_t lanes);
 void prt_dp_set_lnk_max_rate (prt_dp_ds_struct *dp, uint8_t rate);
-uint8_t prt_dp_cfg (prt_dp_ds_struct *dp);
+bool prt_dp_cfg (prt_dp_ds_struct *dp);
 void prt_dp_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dp_run (prt_dp_ds_struct *dp);
 void prt_dp_lnk_req_ok (prt_dp_ds_struct *dp);
-uint8_t prt_dp_vid_str (prt_dp_ds_struct *dp, uint8_t stream);
-uint8_t prt_dp_vid_stp (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_dpcd_cmd_is_wr (prt_dp_ds_struct *dp);
 uint8_t prt_dp_dpcd_cmd_is_rd (prt_dp_ds_struct *dp);
 uint32_t prt_dp_dpcd_adr_get (prt_dp_ds_struct *dp);
@@ -316,6 +322,8 @@ uint8_t prt_dp_get_lnk_pre (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_ssc (prt_dp_ds_struct *dp);
 
 // DPTX
+uint8_t prt_dptx_vid_str (prt_dp_ds_struct *dp, uint8_t stream);
+uint8_t prt_dptx_vid_stp (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t stream);
 uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
 uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
@@ -338,22 +346,23 @@ void prt_dp_irq_handler (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_aux_test (prt_dp_ds_struct *dp, uint8_t run);
 uint8_t prt_dptx_phy_test (prt_dp_ds_struct *dp, uint8_t tps, uint8_t volt, uint8_t pre);
 void prt_dp_mail_send (prt_dp_ds_struct *dp);
-uint8_t prt_dp_mail_chk (prt_dp_ds_struct *dp);
-void prt_dp_get_mail (prt_dp_ds_struct *dp, uint8_t len);
+void prt_dp_mail_resp_put (prt_dp_ds_struct *dp, bool resp);
+bool prt_dp_mail_resp_get (prt_dp_ds_struct *dp);
+void prt_dp_get_mail (prt_dp_ds_struct *dp);
 void prt_dp_mail_dec (prt_dp_ds_struct *dp);
 uint8_t prt_dp_mail_resp (prt_dp_ds_struct *dp);
 uint8_t prt_dp_hpd_get (prt_dp_ds_struct *dp);
-uint8_t prt_dp_is_hpd (prt_dp_ds_struct *dp);
-uint8_t prt_dp_is_lnk_up (prt_dp_ds_struct *dp);
+bool prt_dp_is_hpd (prt_dp_ds_struct *dp);
+bool prt_dp_is_lnk_up (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_act_lanes (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_act_rate (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_lnk_reason (prt_dp_ds_struct *dp);
 void prt_dp_set_mst_cap (prt_dp_ds_struct *dp, uint8_t cap);
-uint8_t prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
+bool prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
-uint8_t prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
+bool prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
-uint8_t prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);
+bool prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);
 uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd);
 prt_dp_sta_struct prt_dp_get_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_id (prt_dp_ds_struct *dp);

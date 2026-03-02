@@ -40,33 +40,33 @@
 // Ingress
 #define PRT_VTB_IG_TX_LNK_CLK_FREQ		0
 #define PRT_VTB_IG_RX_LNK_CLK_FREQ		1
-#define PRT_VTB_IG_VID_REF_FREQ		    2
-#define PRT_VTB_IG_VID_CLK_FREQ		    3
-#define PRT_VTB_IG_CR_ERR			    4
-#define PRT_VTB_IG_CR_SUM			    5
+#define PRT_VTB_IG_VID_REF_FREQ		2
+#define PRT_VTB_IG_VID_CLK_FREQ		3
+#define PRT_VTB_IG_CR_ERR			4
+#define PRT_VTB_IG_CR_SUM			5
 #define PRT_VTB_IG_CR_CO				6
-#define PRT_VTB_IG_FIFO				    7
+#define PRT_VTB_IG_FIFO				7
 
-#define PRT_VTB_IG_CR_ERR_CUR_SHIFT	    0
-#define PRT_VTB_IG_CR_ERR_MAX_SHIFT	    8
-#define PRT_VTB_IG_CR_ERR_MIN_SHIFT	    16
+#define PRT_VTB_IG_CR_ERR_CUR_SHIFT	0
+#define PRT_VTB_IG_CR_ERR_MAX_SHIFT	8
+#define PRT_VTB_IG_CR_ERR_MIN_SHIFT	16
 #define PRT_VTB_IG_FIFO_MAX_WRDS_SHIFT	0
 #define PRT_VTB_IG_FIFO_MIN_WRDS_SHIFT	10
 #define PRT_VTB_IG_FIFO_LOCK			(1 << 20)
 
 // Outgress
-#define PRT_VTB_OG_CTL				    0
-#define PRT_VTB_OG_CR				    1
+#define PRT_VTB_OG_CTL				0
+#define PRT_VTB_OG_CR				1
 
 #define PRT_VTB_OG_CTL_LNK_EN			(1 << 0)
 #define PRT_VTB_OG_CTL_VID_EN			(1 << 1) 
 #define PRT_VTB_OG_CTL_CG_RUN			(1 << 2)
 #define PRT_VTB_OG_CTL_TG_RUN			(1 << 3)
-#define PRT_VTB_OG_CTL_TG_MODE		    (1 << 4)
-#define PRT_VTB_OG_CTL_TPG_RUN		    (1 << 5)
+#define PRT_VTB_OG_CTL_TG_MODE		(1 << 4)
+#define PRT_VTB_OG_CTL_TPG_RUN		(1 << 5)
 #define PRT_VTB_OG_CTL_TPG_FMT_SHIFT	(6)
-#define PRT_VTB_OG_CTL_FIFO_RUN		    (1 << 9)
-#define PRT_VTB_OG_CTL_OVL_RUN		    (1 << 10)
+#define PRT_VTB_OG_CTL_FIFO_RUN		(1 << 9)
+#define PRT_VTB_OG_CTL_OVL_RUN		(1 << 10)
 #define PRT_VTB_OG_CTL_CR_RUN			(1 << 11)
 
 #define PRT_VTB_OG_CR_P_GAIN_SHIFT		0
@@ -77,14 +77,14 @@
 #define PRT_VTB_VPS_REFCLK_LO			1
 #define PRT_VTB_VPS_VIDCLK_HI			2
 #define PRT_VTB_VPS_VIDCLK_LO			3
-#define PRT_VTB_VPS_HTOTAL			    4
-#define PRT_VTB_VPS_HWIDTH			    5
-#define PRT_VTB_VPS_HSTART			    6
-#define PRT_VTB_VPS_HSW				    7
-#define PRT_VTB_VPS_VTOTAL			    8
-#define PRT_VTB_VPS_VHEIGHT			    9   
-#define PRT_VTB_VPS_VSTART			    10
-#define PRT_VTB_VPS_VSW				    11
+#define PRT_VTB_VPS_HTOTAL			4
+#define PRT_VTB_VPS_HWIDTH			5
+#define PRT_VTB_VPS_HSTART			6
+#define PRT_VTB_VPS_HSW				7
+#define PRT_VTB_VPS_VTOTAL			8
+#define PRT_VTB_VPS_VHEIGHT			9   
+#define PRT_VTB_VPS_VSTART			10
+#define PRT_VTB_VPS_VSW				11
 
 // Video timing
 #define VTB_PRESET_1280X720P50          1
@@ -101,24 +101,24 @@
 #define VTB_PRESET_7680X1260P60         12
 
 // 1280 x 720p @ 50Hz
-#define VTB_1280X720P50_HTOTAL 		    1980
-#define VTB_1280X720P50_HWIDTH 		    1280
-#define VTB_1280X720P50_HSTART 		    260
+#define VTB_1280X720P50_HTOTAL 		1980
+#define VTB_1280X720P50_HWIDTH 		1280
+#define VTB_1280X720P50_HSTART 		260
 #define VTB_1280X720P50_HSW 			40
-#define VTB_1280X720P50_VTOTAL 		    750
+#define VTB_1280X720P50_VTOTAL 		750
 #define VTB_1280X720P50_VHEIGHT 		720
-#define VTB_1280X720P50_VSTART 		    25
+#define VTB_1280X720P50_VSTART 		25
 #define VTB_1280X720P50_VSW 			5
 #define VTB_1280X720P50_PCLK 			74250
 
 // 1280 x 720p @ 60Hz
-#define VTB_1280X720P60_HTOTAL 		    1652
-#define VTB_1280X720P60_HWIDTH 		    1280
-#define VTB_1280X720P60_HSTART 		    260
+#define VTB_1280X720P60_HTOTAL 		1652
+#define VTB_1280X720P60_HWIDTH 		1280
+#define VTB_1280X720P60_HSTART 		260
 #define VTB_1280X720P60_HSW 			40
-#define VTB_1280X720P60_VTOTAL 		    750
+#define VTB_1280X720P60_VTOTAL 		750
 #define VTB_1280X720P60_VHEIGHT 		720
-#define VTB_1280X720P60_VSTART 		    25
+#define VTB_1280X720P60_VSTART 		25
 #define VTB_1280X720P60_VSW 			5
 #define VTB_1280X720P60_PCLK            74250 			
 
@@ -153,7 +153,7 @@
 #define VTB_2560X1440P50_VHEIGHT 		1440
 #define VTB_2560X1440P50_VSTART 		50
 #define VTB_2560X1440P50_VSW 			10
-#define VTB_2560X1440P50_PCLK 			297000
+#define VTB_2560X1440P50_PCLK 		297000
 
 // 2560 x 1440p @ 60Hz
 #define VTB_2560X1440P60_HTOTAL 		3304
@@ -164,7 +164,7 @@
 #define VTB_2560X1440P60_VHEIGHT 		1440
 #define VTB_2560X1440P60_VSTART 		50
 #define VTB_2560X1440P60_VSW 			10
-#define VTB_2560X1440P60_PCLK 			297000
+#define VTB_2560X1440P60_PCLK 		297000
 
 // 3840 x 2160p @ 50Hz
 #define VTB_3840X2160P50_HTOTAL 		5280
@@ -175,7 +175,7 @@
 #define VTB_3840X2160P50_VHEIGHT 		2160
 #define VTB_3840X2160P50_VSTART 		82
 #define VTB_3840X2160P50_VSW 			10
-#define VTB_3840X2160P50_PCLK 			594000
+#define VTB_3840X2160P50_PCLK 		594000
 
 // 3840 x 2160p @ 60Hz
 #define VTB_3840X2160P60_HTOTAL 		4400
@@ -197,7 +197,7 @@
 #define VTB_7680X4320P30_VHEIGHT 		4320
 #define VTB_7680X4320P30_VSTART 		14
 #define VTB_7680X4320P30_VSW 			8
-#define VTB_7680X4320P30_PCLK 			1019896
+#define VTB_7680X4320P30_PCLK 		1019896
 
 // 720 x 1920 @ 60 Hz
 #define VTB_720X1920P60_HTOTAL         792
@@ -219,7 +219,7 @@
 #define VTB_7680X1260P60_VHEIGHT 		1260
 #define VTB_7680X1260P60_VSTART 		33
 #define VTB_7680X1260P60_VSW 			10
-#define VTB_7680X1260P60_PCLK 			609638
+#define VTB_7680X1260P60_PCLK 		609638
 
 // TPG format
 #define VTB_TPG_FMT_FULL                0
@@ -256,9 +256,9 @@ typedef struct {
 // Data structure
 typedef struct {
 	volatile prt_vtb_dev_struct 	*dev;	// Device
-	uint32_t 					    refclk;	// Reference clock
-	uint32_t 					    vidclk;	// Video clock
-	prt_vtb_tp_struct 			    tp;		// Timing parameters
+	uint32_t 					refclk;	// Reference clock
+	uint32_t 					vidclk;	// Video clock
+	prt_vtb_tp_struct 			tp;		// Timing parameters
 } prt_vtb_ds_struct;
 
 // Prototypes
