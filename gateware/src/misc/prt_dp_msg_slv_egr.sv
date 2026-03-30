@@ -5,7 +5,7 @@
 
 
     Module: DP Message Slave Egress
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -27,7 +27,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dp_msg_slv_egr
 #(
     parameter P_ID = 0,             // Identifier
@@ -53,7 +55,9 @@ module prt_dp_msg_slv_egr
     output wire                         EGR_VLD_OUT        // Valid
 );
 
+//-----
 // Structure
+//-----
 typedef struct {
     logic					      som;
     logic					      eom;
@@ -70,7 +74,9 @@ typedef struct {
 	logic					      vld;
 } egr_struct;
 
+//-----
 // Signals
+//-----
 msg_struct			clk_msg;			// Message
 egr_struct			clk_egr;			// Egress
 

@@ -5,7 +5,7 @@
 
 
     Module: DP Application 
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -60,8 +60,8 @@
 #include "tentiva_phy_clk.h"
 #include "tentiva_vid_clk.h"
 
-// AMD ZCU102 board and Alinx AXAU15 board
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
+// AMD ZCU102 board and Enclustra Mercury board
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
      #include "prt_phy_amd_us_gth.h"
 
 // Lattice Avant board
@@ -166,7 +166,7 @@ int main (void)
      prt_printf ("   |    /~~\\ |  \\ |  \\ |___  |   |  \\__/ \n");
      prt_printf ("\n");
      prt_printf ("DisplayPort reference design v1.0\n");
-     prt_printf ("(c) 2021 - 2025 by Parretto B.V.\n");
+     prt_printf ("(c) 2021 - 2026 by Parretto B.V.\n");
      prt_printf ("www.parretto.com\n");
      prt_printf ("Date: '%s'\n", __DATE__);
      prt_printf ("Time: '%s'\n", __TIME__);
@@ -190,8 +190,8 @@ int main (void)
      // Reset DPRX
      dp_reset (PRT_DPRX_ID);
 
-// AMD ZCU102 board and Alinx AXAU15 board
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
+// AMD ZCU102 board and Enclustra Mercury board
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
      // Initialize PHY
      prt_phy_amd_init (&phy, &tmr, PRT_PHY_BASE);
 
@@ -212,13 +212,15 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
+#ifdef SCALER
+     // Assign scaler base address
+     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
+#endif
+
 // Show board
 // AMD ZCU102 
 #if (BOARD == BOARD_AMD_ZCU102)
      prt_printf ("Board: AMD ZCU102\n");
-
-#elif (BOARD == BOARD_ALINX_AXAU15)
-     prt_printf ("Board: Alinx AXAU15\n");
 
 #elif (BOARD == BOARD_ENCLUSTRA_MERCURY)
      prt_printf ("Board: Enclustra Mercury XU6\n");
@@ -501,6 +503,8 @@ int main (void)
      // Initialize IRQ
      prt_irq_init ();
 
+// If the advanced option is not defined, then the DP is pre-configured.
+#ifndef ADVANCED
 
      /*
           DPTX
@@ -519,7 +523,7 @@ int main (void)
      // Config
      prt_printf ("DPTX: Config...");
 
-     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_ENCLUSTRA_MERCURY))// || (BOARD == BOARD_LSC_LAV))
+     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))// || (BOARD == BOARD_LSC_LAV))
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
@@ -564,7 +568,7 @@ int main (void)
      // Config
      prt_printf ("DPRX: Config...");
 
-     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) )
+     #if (BOARD == BOARD_AMD_ZCU102)
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
@@ -578,7 +582,6 @@ int main (void)
      // Intel Arria 10GX
      #elif (BOARD == BOARD_INT_A10GX)
           dat = PRT_DP_PHY_LINERATE_8100;
-
      #endif
 
      // Set maximum link rate
@@ -610,6 +613,7 @@ int main (void)
           prt_printf ("ok\n");
      else
           prt_printf ("error\n");
+#endif
 
      // Menu
      show_menu ();
@@ -651,6 +655,58 @@ int main (void)
                          show_edid ();
                          break;
 
+                    // MST enable / disable
+                    case 't' :
+
+                         // Disable
+                         if (dp_app.tx.mst)
+                         {
+                              prt_printf ("\nDPTX: MST stop\n");
+
+                              mst_sta = prt_dptx_mst_stp (&dptx);
+
+                              // Clear flag
+                              dp_app.tx.mst = false;
+
+                              // Start colorbar
+                              dp_app.tx.colorbar = true;
+                         }
+
+                         // Enable
+                         else
+                         {
+                              prt_printf ("\nDPTX: MST start\n");
+                              
+                              // First stop the video
+                              prt_dptx_vid_stp (&dptx, 0);
+
+                              mst_sta = prt_dptx_mst_str (&dptx);
+
+                              switch (mst_sta)
+                              {
+                                   case PRT_DP_MST_OK            : prt_printf ("DPTX: MST ok\n"); break;
+                                   case PRT_DP_MST_NO_LOGIC      : prt_printf ("DPTX: MST logic not enabled\n"); break;
+                                   case PRT_DP_MST_SNK_NO_CAP    : prt_printf ("DPTX: MST not supported by sink\n"); break;
+                                   default                       : prt_printf ("DPTX: MST error\n"); break;
+                              }
+
+                              // Set flag
+                              if (mst_sta == PRT_DP_MST_OK)
+                              {
+                                   // Set MST flag
+                                   dp_app.tx.mst = true;
+                                   
+                                   // Start colorbar
+                                   dp_app.tx.colorbar = true;
+                              }
+
+                              else
+                              {
+                                   // Clear MST flag
+                                   dp_app.tx.mst = false;
+                              }
+                         }
+                         break;
 
                     // DPCD read
                     case 'u' :
@@ -742,6 +798,8 @@ int main (void)
                }
           }
 
+          // VTB Task
+          //vtb_task ();
      }
 }
 
@@ -819,7 +877,7 @@ int main (void)
           if (tps == 1)
           {
                // AMD
-               #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15))
+               #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
                     // Reset PHY datapath
                     prt_phy_amd_rx_pcs_rst (&phy, lanes);
 
@@ -1234,9 +1292,6 @@ int main (void)
          prt_printf ("x - Pass-Through\n");
          prt_printf ("c - Set RX edid\n");
 
-     #ifdef ADVANCED
-         prt_printf ("b - PRBS\n");
-     #endif
          prt_printf ("\n");
      }
 
@@ -1247,7 +1302,7 @@ int main (void)
 // PHY TX line rate
 void phy_set_tx_linerate (uint8_t linerate)
 {
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
 
      // Variables
      uint8_t phy_linerate;
@@ -1387,7 +1442,7 @@ void phy_set_tx_vap (uint8_t volt, uint8_t pre)
 void phy_set_rx_linerate (uint8_t linerate, uint8_t ssc)
 {
 // AMD ZCU102
-#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ALINX_AXAU15) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
+#if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
 
      // Variables
      uint8_t phy_linerate;
@@ -1623,164 +1678,225 @@ prt_sta_type vtb_colorbar (prt_bool force)
      }
 
      // Disable direct I2C access mode (in case it was running)
-     //prt_i2c_dia (&i2c, false, false);
+     prt_i2c_dia (&i2c, false, prt_tentiva_has_sc(&tentiva));
 
-     // Disable overlay
-     prt_vtb_ovl_en (&vtb[0], false);
-
-     if (force == false)
+     // MST
+     if (dp_app.tx.mst)
      {
-          // Video resolution
-          prt_printf ("Select video resolution:\n");
-          prt_printf (" 1 - 1280 x 720p50\n");
-          prt_printf (" 2 - 1280 x 720p60\n");
-          prt_printf (" 3 - 1920 x 1080p50\n");
-          prt_printf (" 4 - 1920 x 1080p60\n");
-          prt_printf (" 5 - 2560 x 1440p50\n");
-          prt_printf (" 6 - 2560 x 1440p60\n");
-          prt_printf (" 7 - 3840 x 2160p50\n");
-          prt_printf (" 8 - 3840 x 2160p60\n");
+          // In MST two 1080p60 streams are displayed
+          vtb_preset = VTB_PRESET_1920X1080P60;
           
+          // Look up video clock
+          vtb_tp = prt_vtb_get_tp (&vtb[0]);
+
+          // Modify pixel clock based on pixels per clock
           if (dp_app.ppc == 4)
+               tentiva_clk = vtb_tp.pclk >> 2;
+          else
+               tentiva_clk = vtb_tp.pclk >> 1;
+
+          // Set Tentiva video clock
+          prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
+          prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
+
+          for (uint8_t i = 0; i < 2; i++)
           {
-               prt_printf (" 9 - 5120 x 2880p60\n");
-               prt_printf (" a - 7680 x 4320p30\n");
+               // Start test pattern
+               prt_printf ("VTB: Start test pattern\n");
+
+               // Stream 0
+               if (i == 0)
+                    prt_vtb_tpg (&vtb[i], NULL, vtb_preset, VTB_TPG_FMT_RED);
+
+               // Stream 1
+               else
+                    prt_vtb_tpg (&vtb[i], NULL, vtb_preset, VTB_TPG_FMT_GREEN);
+
+               // Enable overlay
+               prt_vtb_ovl_en (&vtb[i], true);
+
+               // Get video timing parameters
+               vtb_tp = prt_vtb_get_tp (&vtb[i]);
+               
+               // Copy VTB timing parameters to DP   
+               dp_tp.htotal = vtb_tp.htotal;
+               dp_tp.hwidth = vtb_tp.hwidth;
+               dp_tp.hstart = vtb_tp.hstart;
+               dp_tp.hsw = vtb_tp.hsw;
+               dp_tp.vtotal = vtb_tp.vtotal;
+               dp_tp.vheight = vtb_tp.vheight;
+               dp_tp.vstart = vtb_tp.vstart;
+               dp_tp.vsw = vtb_tp.vsw;
+
+               // Set DPTX MSA
+               prt_printf ("DPTX: Set MSA stream %d\n", i);
+               prt_dptx_msa_set (&dptx, &dp_tp, i);
+
+               prt_printf ("DPTX: Start video stream %d... ", i);
+               if (prt_dptx_vid_str (&dptx, i))
+                    prt_printf ("ok\n");
+               else
+               {
+                    prt_printf ("error\n");
+                    return PRT_STA_FAIL;
+               }
           }
+          return PRT_STA_OK;
+     }
 
-          prt_printf (" c - 720 x 1920p60\n");
+     // SST
+     else
+     {
+          // Disable overlay
+          prt_vtb_ovl_en (&vtb[0], false);
 
-          cmd = prt_uart_get_char ();
-
-          switch (cmd)
+          if (force == false)
           {
-               // 1280 x 720p @ 50Hz
-               case '1' :
-                    vtb_preset  = VTB_PRESET_1280X720P50;
-                    break;
-
-               // 1280 x 720p @ 60Hz
-               case '2' :
-                    vtb_preset  = VTB_PRESET_1280X720P60;
-                    break;
-
-               // 1920 x 1080p @ 50Hz
-               case '3' :
-                    vtb_preset  = VTB_PRESET_1920X1080P50;
-                    break;
-
-               // 2560 x 1440p @ 50Hz
-               case '5' :
-                    vtb_preset  = VTB_PRESET_2560X1440P50;
-                    break;
-
-               // 2560 x 1440p @ 60Hz
-               case '6' :
-                    vtb_preset  = VTB_PRESET_2560X1440P60;
-                    break;
-
-               // 3840 x 2160p @ 50Hz
-               case '7' :
-                    vtb_preset  = VTB_PRESET_3840X2160P50;
-                    break;
-
-               // 3840 x 2160p @ 60Hz
-               case '8' :
-                    vtb_preset  = VTB_PRESET_3840X2160P60;
-                    break;
-
-               // 7680 x 4320p @ 30Hz
-               case 'a' :
-                    vtb_preset = VTB_PRESET_7680X4320P30;
-                    break;
-
-               // 720 x 1920p @ 60Hz
-               case 'c' :
-                    vtb_preset = VTB_PRESET_720X1920P60;
-                    break;
-
-               // 1920 x 1080p @ 60Hz
-               default : 
-                    vtb_preset = VTB_PRESET_1920X1080P60;
-                    break;
-          }
-
-          if ((dp_app.bpc == 10) && (vtb_preset != VTB_PRESET_7680X4320P30))
-          {
-               prt_printf ("Select color depth:\n");
-               prt_printf (" 1 - 8 bpc\n");
-               prt_printf (" 2 - 10 bpc\n");
+               // Video resolution
+               prt_printf ("Select video resolution:\n");
+               prt_printf (" 1 - 1280 x 720p50\n");
+               prt_printf (" 2 - 1280 x 720p60\n");
+               prt_printf (" 3 - 1920 x 1080p50\n");
+               prt_printf (" 4 - 1920 x 1080p60\n");
+               prt_printf (" 5 - 2560 x 1440p50\n");
+               prt_printf (" 6 - 2560 x 1440p60\n");
+               prt_printf (" 7 - 3840 x 2160p50\n");
+               prt_printf (" 8 - 3840 x 2160p60\n");
+               
+               if (dp_app.ppc == 4)
+               {
+                    prt_printf (" 9 - 5120 x 2880p60\n");
+                    prt_printf (" a - 7680 x 4320p30\n");
+               }
 
                cmd = prt_uart_get_char ();
 
                switch (cmd)
                {
-                    // 10 bpc
-                    case '2' :
-                         bpc = 10;
+                    // 1280 x 720p @ 50Hz
+                    case '1' :
+                         vtb_preset  = VTB_PRESET_1280X720P50;
                          break;
 
-                    // 8 bpc
-                    default :
-                         bpc = 8;
+                    // 1280 x 720p @ 60Hz
+                    case '2' :
+                         vtb_preset  = VTB_PRESET_1280X720P60;
+                         break;
+
+                    // 1920 x 1080p @ 50Hz
+                    case '3' :
+                         vtb_preset  = VTB_PRESET_1920X1080P50;
+                         break;
+
+                    // 2560 x 1440p @ 50Hz
+                    case '5' :
+                         vtb_preset  = VTB_PRESET_2560X1440P50;
+                         break;
+
+                    // 2560 x 1440p @ 60Hz
+                    case '6' :
+                         vtb_preset  = VTB_PRESET_2560X1440P60;
+                         break;
+
+                    // 3840 x 2160p @ 50Hz
+                    case '7' :
+                         vtb_preset  = VTB_PRESET_3840X2160P50;
+                         break;
+
+                    // 3840 x 2160p @ 60Hz
+                    case '8' :
+                         vtb_preset  = VTB_PRESET_3840X2160P60;
+                         break;
+
+                    // 7680 x 4320p @ 30Hz
+                    case 'a' :
+                         vtb_preset = VTB_PRESET_7680X4320P30;
+                         break;
+
+                    // 1920 x 1080p @ 60Hz
+                    default : 
+                         vtb_preset = VTB_PRESET_1920X1080P60;
                          break;
                }
+
+               if ((dp_app.bpc == 10) && (vtb_preset != VTB_PRESET_7680X4320P30))
+               {
+                    prt_printf ("Select color depth:\n");
+                    prt_printf (" 1 - 8 bpc\n");
+                    prt_printf (" 2 - 10 bpc\n");
+
+                    cmd = prt_uart_get_char ();
+
+                    switch (cmd)
+                    {
+                         // 10 bpc
+                         case '2' :
+                              bpc = 10;
+                              break;
+
+                         // 8 bpc
+                         default :
+                              bpc = 8;
+                              break;
+                    }
+               }
+
+               else
+                    bpc = 8;
           }
 
+          // Force colorbar at 1920 x 1080p60
           else
+          {
+               vtb_preset = VTB_PRESET_1920X1080P60;
                bpc = 8;
+          }          
+
+          // Start test pattern
+          prt_printf ("VTB: Start test pattern\n");
+          prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_FULL);
+
+          // Get video timing parameters
+          vtb_tp = prt_vtb_get_tp (&vtb[0]);
+          
+          // Modify pixel clock based on pixels per clock
+          if (dp_app.ppc == 4)
+               tentiva_clk = vtb_tp.pclk >> 2;
+          else
+               tentiva_clk = vtb_tp.pclk >> 1;
+
+          // Set Tentiva video clock
+          prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
+          prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
+
+          // Copy VTB timing parameters to DP   
+          dp_tp.htotal = vtb_tp.htotal;
+          dp_tp.hwidth = vtb_tp.hwidth;
+          dp_tp.hstart = vtb_tp.hstart;
+          dp_tp.hsw = vtb_tp.hsw;
+          dp_tp.vtotal = vtb_tp.vtotal;
+          dp_tp.vheight = vtb_tp.vheight;
+          dp_tp.vstart = vtb_tp.vstart;
+          dp_tp.vsw = vtb_tp.vsw;
+
+          // Set color depth
+          dp_tp.bpc = bpc;           // Bits per component
+          prt_printf ("DPTX: Color depth: %d\n", dp_tp.bpc);
+
+          prt_printf ("DPTX: Set MSA\n");
+          prt_dptx_msa_set (&dptx, &dp_tp, 0);
+
+          prt_printf ("DPTX: Start video...");
+          if (prt_dptx_vid_str (&dptx, 0))
+               prt_printf ("ok\n");
+          else
+          {
+               prt_printf ("error\n");
+               return PRT_STA_FAIL;
+          }
+
+          return PRT_STA_OK;
      }
-
-     // Force colorbar at 1920 x 1080p60
-     else
-     {
-          vtb_preset = VTB_PRESET_1920X1080P60;
-          bpc = 8;
-     }          
-
-     // Start test pattern
-     prt_printf ("VTB: Start test pattern\n");
-     prt_vtb_tpg (&vtb[0], NULL, vtb_preset, VTB_TPG_FMT_FULL);
-
-     // Get video timing parameters
-     vtb_tp = prt_vtb_get_tp (&vtb[0]);
-     
-     // Modify pixel clock based on pixels per clock
-     if (dp_app.ppc == 4)
-          tentiva_clk = vtb_tp.pclk >> 2;
-     else
-          tentiva_clk = vtb_tp.pclk >> 1;
-
-     // Set Tentiva video clock
-     prt_printf ("Set video clock frequency: %d kHz\n", tentiva_clk);
-     prt_tentiva_set_vid_freq (&tentiva, tentiva_clk);
-
-     // Copy VTB timing parameters to DP   
-     dp_tp.htotal = vtb_tp.htotal;
-     dp_tp.hwidth = vtb_tp.hwidth;
-     dp_tp.hstart = vtb_tp.hstart;
-     dp_tp.hsw = vtb_tp.hsw;
-     dp_tp.vtotal = vtb_tp.vtotal;
-     dp_tp.vheight = vtb_tp.vheight;
-     dp_tp.vstart = vtb_tp.vstart;
-     dp_tp.vsw = vtb_tp.vsw;
-
-     // Set color depth
-     dp_tp.bpc = bpc;           // Bits per component
-     prt_printf ("DPTX: Color depth: %d\n", dp_tp.bpc);
-
-     prt_printf ("DPTX: Set MSA\n");
-     prt_dptx_msa_set (&dptx, &dp_tp, 0);
-
-     prt_printf ("DPTX: Start video...");
-     if (prt_dptx_vid_str (&dptx, 0))
-          prt_printf ("ok\n");
-     else
-     {
-          prt_printf ("error\n");
-          return PRT_STA_FAIL;
-     }
-
-     return PRT_STA_OK;
 }
 
 // Pass-through
@@ -1827,7 +1943,7 @@ prt_sta_type vtb_pass (void)
      prt_vtb_ovl_en (&vtb[0], false);
 
      // Disable direct I2C access mode
-     //prt_i2c_dia (&i2c, false, false);
+     prt_i2c_dia (&i2c, false, prt_tentiva_has_sc(&tentiva));
 
      // Get DPRX timing parameters
      dp_tp = prt_dprx_tp_get (&dprx);
@@ -1863,7 +1979,7 @@ prt_sta_type vtb_pass (void)
 
      // Enable direct I2C access mode
      //prt_printf ("I2C: enable direct access mode\n");
-     //prt_i2c_dia (&i2c, true, prt_tentiva_has_sc(&tentiva));
+     prt_i2c_dia (&i2c, true, prt_tentiva_has_sc(&tentiva));
 
      // Select video clock device
      prt_tentiva_sel_dev (&tentiva, PRT_TENTIVA_VID_DEV);

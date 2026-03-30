@@ -30,10 +30,14 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_msa
 #(
     // System
     parameter               P_VENDOR      = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter               P_FAMILY      = "none",   // Family (Only used for Lattice)
 
     // Link
     parameter               P_LANES       = 4,      // Lanes
@@ -61,16 +65,25 @@ module prt_dprx_msa
     prt_dp_rx_lnk_if.src    LNK_SRC_IF      // Source
 );
 
+
+//-----
 // Package
+//-----
 import prt_dp_pkg::*;
 
-// Localparam
+
+//-----
+// Parameters
+//-----
 localparam P_RAM_WRDS = (P_SPL == 4) ? 16 : 32;
 localparam P_RAM_ADR = $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT = 8;
 localparam P_LOG_LANES = $clog2(P_LANES * P_SPL);
 
+
+//-----
 // Structure
+//-----
 typedef struct {
     logic   [P_MSG_IDX-1:0]     idx;
     logic                       first;
@@ -118,6 +131,11 @@ msa_struct          clk_msa;    // MSA
 
 genvar i, j;
 
+
+/*
+    Logic
+*/
+
 // Config
     always_ff @ (posedge CLK_IN)
     begin
@@ -143,7 +161,9 @@ genvar i, j;
         end
     end
 
+//-----
 // Message Slave Ingress
+//-----
     prt_dp_msg_slv_ing
     #(
         .P_ID           (P_MSG_ID),       // Identifier
@@ -182,9 +202,10 @@ generate
     begin : gen_ram
         for (j = 0; j < P_SPL; j++)
         begin
-            prt_dp_lib_sdp_ram_sc
+            prt_lib_sdp_ram_sc
             #(
                 .P_VENDOR       (P_VENDOR),         // Vendor
+                .P_FAMILY       (P_FAMILY),         // Family
                 .P_RAM_STYLE    ("distributed"),    // "distributed", "block" or "ultra"
                 .P_ADR_WIDTH    (P_RAM_ADR),
                 .P_DAT_WIDTH    (P_RAM_DAT)
@@ -558,7 +579,7 @@ endgenerate
 generate
     for (i = 0; i < P_LANES; i++)
     begin
-        prt_dp_lib_edge
+        prt_lib_edge
         MSA_EDGE_INST
         (
             .CLK_IN     (CLK_IN),           // Clock
@@ -769,7 +790,9 @@ generate
 endgenerate
 
 
+//-----
 // Outputs
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin

@@ -4,7 +4,7 @@
     |    /~~\ |  \ |  \ |___  |   |  \__/ 
 
 
-    Module: DP RX Training Lane
+    Module: DP RX Training Checker
     (c) 2021 - 2026 by Parretto B.V.
 
     History
@@ -12,6 +12,8 @@
     v1.0 - Initial release
     v1.1 - Added training TPS4
     v1.2 - Improved training
+    v1.3 - Updated phase aligner behaviour, output aligned data and modified TPS2 and TPS3 detector behaviour
+
 
     License
     =======
@@ -29,8 +31,10 @@
 
 `default_nettype none
 
+//-----
 // Module
-module prt_dprx_trn_lane
+//-----
+module prt_dprx_trn_chk
 #(
     parameter                   P_SPL = 2           // Symbols per lane
 )
@@ -55,7 +59,11 @@ module prt_dprx_trn_lane
     prt_dp_rx_lnk_if.src        LNK_SRC_IF          // Source
 );
 
+
+//-----
 // Parameters
+//-----
+localparam P_K28_0 = 'b1_000_11100;
 localparam P_K28_5 = 'b1_101_11100;
 localparam P_D10_2 = 'b0_010_01010;
 localparam P_D21_5 = 'b0_101_10101;
@@ -65,7 +73,10 @@ localparam P_LOCKED_THRES = 'd255;              // Locked threshold
 localparam P_TPS2_SYM_WIDTH = (P_SPL == 4) ? 4 : 2;
 localparam P_TPS3_SYM_WIDTH = (P_SPL == 4) ? 7 : 3;
 
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic                           clr;
     logic   [2:0]                   tps;
@@ -74,7 +85,7 @@ typedef struct {
 typedef struct {
     logic                           lock;          // Lock (input)
     logic   [8:0]                   din[P_SPL];
-    logic   [8:0]                   din_del[P_SPL-1];
+    logic   [8:0]                   din_del[P_SPL];
     logic   [8:0]                   dat[P_SPL];
     logic   [1:0]                   aln_ph;
 } lnk_struct;
@@ -111,6 +122,10 @@ typedef struct {
     logic   [3:0]                   err;        // Error
 } sta_struct;
 
+
+//-----
+// Signals
+//-----
 cfg_struct      clk_cfg;
 sta_struct      clk_sta;
 lnk_struct      clk_lnk;
@@ -125,8 +140,7 @@ genvar i;
     always_ff @ (posedge CLK_IN)
     begin
         clk_cfg.clr <= CFG_SET_IN;      // A set will clear the state
-        if (CFG_SET_IN)
-            clk_cfg.tps <= CFG_TPS_IN;
+        clk_cfg.tps <= CFG_TPS_IN;
     end
 
 // Link input data
@@ -141,8 +155,8 @@ genvar i;
         
         // Data delayed
         // The data must be delayed for the alignment
-        for (int i = 1; i < P_SPL; i++)
-            clk_lnk.din_del[i-1] <= clk_lnk.din[i];
+        for (int i = 0; i < P_SPL; i++)
+            clk_lnk.din_del[i] <= clk_lnk.din[i];
     end
 
 // Scrambler input data
@@ -156,55 +170,76 @@ endgenerate
 
 // Input data phase detector
 // The link data is word aligned by the PHY.
-// However the first training pattern symbol (K28.5-) may not appear on the first sublane. 
-// This process checks the input phase
+// However the first training pattern symbol might appear in any lane. 
+// This process determines the input phase
 generate
     // Four symbols per lane
     if (P_SPL == 4)
     begin : gen_aln_ph_4spl    
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Clear
-            // A normal phase is assumed when the training is started
-            if (clk_cfg.clr && (clk_cfg.tps != 0))
+            // Reset
+            if (RST_IN)
                 clk_lnk.aln_ph <= 0;
-
-            // Training pattern 2
-            else if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
+            
+            else                
             begin
-                // Phase 1
-                // Training start in sublane 1
-                if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_D11_6) && (clk_lnk.din[3] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd1;
+                // Training pattern 2
+                if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
+                begin
+                    // Phase 1
+                    // Training start in sublane 1
+                    if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_D11_6) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd1;
 
-                // Phase 2
-                // Training start in sublane 2
-                else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_D10_2) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_D11_6))
-                    clk_lnk.aln_ph <= 'd2;
+                    // Phase 2
+                    // Training start in sublane 2
+                    else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_D10_2) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_D11_6))
+                        clk_lnk.aln_ph <= 'd2;
 
-                // Phase 3
-                // Training start in sublane 3
-                else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_D10_2) && (clk_lnk.din[2] == P_D10_2) && (clk_lnk.din[3] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd3;
-            end
+                    // Phase 3
+                    // Training start in sublane 3
+                    else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_D10_2) && (clk_lnk.din[2] == P_D10_2) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd3;
+                end
 
-            // Training pattern 3
-            else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
-            begin
-                // Phase 1
-                // Training start in sublane 1
-                if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd1;
+                // Training pattern 3
+                else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
+                begin
+                    // Phase 1
+                    // Training start in sublane 1
+                    if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd1;
 
-                // Phase 2
-                // Training start in sublane 2
-                else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_D30_3) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd2;
+                    // Phase 2
+                    // Training start in sublane 2
+                    else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_D30_3) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd2;
 
-                // Phase 3
-                // Training start in sublane 3
-                else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_D30_3) && (clk_lnk.din[2] == P_D30_3) && (clk_lnk.din[3] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd3;
+                    // Phase 3
+                    // Training start in sublane 3
+                    else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_D30_3) && (clk_lnk.din[2] == P_D30_3) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd3;
+                end
+
+                // Training pattern 4
+                else if (clk_cfg.tps == 'd4)
+                begin
+                    // Phase 1
+                    // Training start in sublane 1
+                    if ((clk_lnk.din_del[1] == P_K28_0) && (clk_lnk.din_del[2] == P_K28_5) && (clk_lnk.din_del[3] == P_K28_5) && (clk_lnk.din[0] == P_K28_0))
+                        clk_lnk.aln_ph <= 'd1;
+
+                    // Phase 2
+                    // Training start in sublane 2
+                    else if ((clk_lnk.din_del[2] == P_K28_0) && (clk_lnk.din_del[3] == P_K28_5) && (clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_0))
+                        clk_lnk.aln_ph <= 'd2;
+
+                    // Phase 3
+                    // Training start in sublane 3
+                    else if ((clk_lnk.din_del[3] == P_K28_0) && (clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_0))
+                        clk_lnk.aln_ph <= 'd3;
+                end
             end
         end
     end
@@ -212,29 +247,40 @@ generate
     // Two symbols per lane
     else
     begin : gen_aln_ph_2spl
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Clear
-            // A normal phase is assumed when the training is started
-            if (clk_cfg.clr && (clk_cfg.tps != 0))
+            // Reset
+            if (RST_IN)
                 clk_lnk.aln_ph <= 0;
+            
+            else
+            begin                
+                // Training pattern 2
+                if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
+                begin
+                    // Phase 1
+                    // Training starts in sublane 1
+                    if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd1;
+                end
 
-            // Training pattern 2
-            else if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
-            begin
-                // Phase 1
-                // Training starts in sublane 1
-                if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd1;
-            end
+                // Training pattern 3
+                else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
+                begin
+                    // Phase 1
+                    // Training starts in sublane 1
+                    if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd1;
+                end
 
-            // Training pattern 3
-            else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
-            begin
-                // Phase 1
-                // Training starts in sublane 1
-                if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5))
-                    clk_lnk.aln_ph <= 'd1;
+                // Training pattern 4
+                else if (clk_cfg.tps == 'd4)
+                begin
+                    // Phase 1
+                    // Training starts in sublane 1
+                    if ((clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd1;
+                end
             end
         end
     end
@@ -252,17 +298,17 @@ generate
                 // Phase 1
                 'd1 :
                 begin
-                    clk_lnk.dat[0] = clk_lnk.din_del[0]; 
-                    clk_lnk.dat[1] = clk_lnk.din_del[1]; 
-                    clk_lnk.dat[2] = clk_lnk.din_del[2]; 
+                    clk_lnk.dat[0] = clk_lnk.din_del[1]; 
+                    clk_lnk.dat[1] = clk_lnk.din_del[2]; 
+                    clk_lnk.dat[2] = clk_lnk.din_del[3]; 
                     clk_lnk.dat[3] = clk_lnk.din[0]; 
                 end
 
                 // Phase 2
                 'd2 :
                 begin
-                    clk_lnk.dat[0] = clk_lnk.din_del[1]; 
-                    clk_lnk.dat[1] = clk_lnk.din_del[2]; 
+                    clk_lnk.dat[0] = clk_lnk.din_del[2]; 
+                    clk_lnk.dat[1] = clk_lnk.din_del[3]; 
                     clk_lnk.dat[2] = clk_lnk.din[0]; 
                     clk_lnk.dat[3] = clk_lnk.din[1]; 
                 end
@@ -270,7 +316,7 @@ generate
                 // Phase 3
                 'd3 :
                 begin
-                    clk_lnk.dat[0] = clk_lnk.din_del[2]; 
+                    clk_lnk.dat[0] = clk_lnk.din_del[3]; 
                     clk_lnk.dat[1] = clk_lnk.din[0]; 
                     clk_lnk.dat[2] = clk_lnk.din[1]; 
                     clk_lnk.dat[3] = clk_lnk.din[2]; 
@@ -296,7 +342,7 @@ generate
             // Phase 1
             if (clk_lnk.aln_ph == 'd1)
             begin
-                clk_lnk.dat[0] = clk_lnk.din_del[0]; 
+                clk_lnk.dat[0] = clk_lnk.din_del[1]; 
                 clk_lnk.dat[1] = clk_lnk.din[0]; 
             end
 
@@ -351,10 +397,13 @@ generate
 endgenerate
 
 // TPS1 detector
-    always_ff @ (posedge CLK_IN)
+    always_ff @ (posedge RST_IN, posedge CLK_IN)
     begin
-        // Lock
-        if (clk_lnk.lock)
+        // Reset
+        if (RST_IN)
+            clk_trn.tps1_cnt <= 0;
+
+        else
         begin
             // Clear
             if (clk_cfg.clr)
@@ -397,10 +446,6 @@ endgenerate
                 end
             end
         end
-
-        // Not locked
-        else
-            clk_trn.tps1_cnt <= 0;
     end
 
 // TPS2 detector
@@ -450,11 +495,14 @@ generate
         end
 
     // TPS2 detector
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Lock
-            if (clk_lnk.lock)
-            begin
+            // Reset
+            if (RST_IN)
+                    clk_trn.tps2_cnt <= 0;
+            
+            else
+            begin                
                 // Clear
                 if (clk_cfg.clr)
                     clk_trn.tps2_cnt <= 0;
@@ -473,7 +521,11 @@ generate
                             'd0 :
                             begin
                                 if (clk_trn.tps2_sym[0])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd1;
+                                end
+
                                 else
                                     clk_trn.tps2_cnt <= 'd0;
                             end
@@ -481,7 +533,11 @@ generate
                             'd1 :
                             begin
                                 if (clk_trn.tps2_sym[1])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd2;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -492,7 +548,11 @@ generate
                             'd2 :
                             begin
                                 if (clk_trn.tps2_sym[2])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd3;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -503,7 +563,11 @@ generate
                             'd3 :
                             begin
                                 if (clk_trn.tps2_sym[3])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd4;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -525,14 +589,6 @@ generate
                         endcase
                     end
                 end
-            end
-
-            // Not locked
-            else
-            begin
-                clk_trn.tps2_det <= 0;
-                clk_trn.tps2_err <= 0;
-                clk_trn.tps2_cnt <= 'd0;
             end
         end
     end
@@ -568,10 +624,13 @@ generate
         end
 
     // TPS2 detector
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Lock
-            if (clk_lnk.lock)
+            // Reset
+            if (RST_IN)
+                clk_trn.tps2_cnt <= 0;
+
+            else
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -591,7 +650,11 @@ generate
                             'd0 :
                             begin
                                 if (clk_trn.tps2_sym[0] && clk_trn.tps2_sym_del[1])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd1;
+                                end
+
                                 else
                                     clk_trn.tps2_cnt <= 'd0;
                             end
@@ -599,7 +662,11 @@ generate
                             'd1 :
                             begin
                                 if (clk_trn.tps2_sym[0])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd2;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -610,7 +677,11 @@ generate
                             'd2 :
                             begin
                                 if (clk_trn.tps2_sym[1])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd3;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -621,7 +692,11 @@ generate
                             'd3 :
                             begin
                                 if (clk_trn.tps2_sym[1])
+                                begin
+                                    clk_trn.tps2_det <= 1;
                                     clk_trn.tps2_cnt <= 'd4;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps2_err <= 1;
@@ -643,14 +718,6 @@ generate
                         endcase
                     end
                 end
-            end
-
-            // Not locked
-            else
-            begin
-                clk_trn.tps2_det <= 0;
-                clk_trn.tps2_err <= 0;
-                clk_trn.tps2_cnt <= 'd0;
             end
         end
     end    
@@ -733,10 +800,13 @@ generate
         end
 
     // TPS3 detector
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Locked
-            if (clk_lnk.lock)
+            // Reset
+            if (RST_IN)
+                clk_trn.tps3_cnt <= 0;
+
+            else
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -756,7 +826,11 @@ generate
                             'd0 :
                             begin
                                 if (clk_trn.tps3_sym[0])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd1;
+                                end
+
                                 else
                                     clk_trn.tps3_cnt <= 'd0;
                             end
@@ -764,7 +838,11 @@ generate
                             'd1 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd2;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -775,7 +853,11 @@ generate
                             'd2 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd3;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -786,7 +868,11 @@ generate
                             'd3 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd4;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -797,7 +883,11 @@ generate
                             'd4 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd5;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -808,7 +898,11 @@ generate
                             'd5 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd6;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -819,7 +913,11 @@ generate
                             'd6 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd7;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -830,7 +928,11 @@ generate
                             'd7 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd8;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -841,7 +943,11 @@ generate
                             'd8 :
                             begin
                                 if (clk_trn.tps3_sym[4])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd9;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -852,7 +958,11 @@ generate
                             'd9 :
                             begin
                                 if (clk_trn.tps3_sym[5])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd10;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -863,7 +973,11 @@ generate
                             'd10 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd11;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -874,7 +988,11 @@ generate
                             'd11 :
                             begin
                                 if (clk_trn.tps3_sym[6])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd12;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -885,7 +1003,11 @@ generate
                             'd12 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd13;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -896,7 +1018,11 @@ generate
                             'd13 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;                                
                                     clk_trn.tps3_cnt <= 'd14;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -907,7 +1033,11 @@ generate
                             'd14 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd15;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -918,7 +1048,11 @@ generate
                             'd15 :
                             begin
                                 if (clk_trn.tps3_sym[3])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd16;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -939,14 +1073,6 @@ generate
                         endcase
                     end
                 end
-            end
-
-            // Not locked
-            else
-            begin
-                clk_trn.tps3_det <= 0;
-                clk_trn.tps3_err <= 0;
-                clk_trn.tps3_cnt <= 'd0;
             end
         end
     end
@@ -991,10 +1117,13 @@ generate
         end
 
     // TPS3 detector
-        always_ff @ (posedge CLK_IN)
+        always_ff @ (posedge RST_IN, posedge CLK_IN)
         begin
-            // Locked
-            if (clk_lnk.lock)
+            // Reset
+            if (RST_IN)
+                clk_trn.tps3_cnt <= 0;
+
+            else
             begin
                 // Clear
                 if (clk_cfg.clr)
@@ -1014,7 +1143,11 @@ generate
                             'd0 :
                             begin
                                 if (clk_trn.tps3_sym[0] && clk_trn.tps3_sym_del[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd1;
+                                end
+
                                 else
                                     clk_trn.tps3_cnt <= 'd0;
                             end
@@ -1022,7 +1155,11 @@ generate
                             'd1 :
                             begin
                                 if (clk_trn.tps3_sym[0])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd2;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1033,7 +1170,11 @@ generate
                             'd2 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd3;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1044,7 +1185,11 @@ generate
                             'd3 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd4;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1055,7 +1200,11 @@ generate
                             'd4 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd5;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1066,7 +1215,11 @@ generate
                             'd5 :
                             begin
                                 if (clk_trn.tps3_sym[1])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd6;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1077,7 +1230,11 @@ generate
                             'd6 :
                             begin
                                 if (clk_trn.tps3_sym[0])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd7;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1088,7 +1245,11 @@ generate
                             'd7 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd8;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1099,7 +1260,11 @@ generate
                             'd8 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd9;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1110,7 +1275,11 @@ generate
                             'd9 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd10;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1121,7 +1290,11 @@ generate
                             'd10 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd11;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1132,7 +1305,11 @@ generate
                             'd11 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd12;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1143,7 +1320,11 @@ generate
                             'd12 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd13;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1154,7 +1335,11 @@ generate
                             'd13 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd14;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1165,7 +1350,11 @@ generate
                             'd14 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd15;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1176,7 +1365,11 @@ generate
                             'd15 :
                             begin
                                 if (clk_trn.tps3_sym[2])
+                                begin
+                                    clk_trn.tps3_det <= 1;
                                     clk_trn.tps3_cnt <= 'd16;
+                                end
+
                                 else
                                 begin
                                     clk_trn.tps3_err <= 1;
@@ -1198,14 +1391,6 @@ generate
                     end
                 end
             end
-
-            // Not locked
-            else
-            begin
-                clk_trn.tps3_det <= 0;
-                clk_trn.tps3_err <= 0;
-                clk_trn.tps3_cnt <= 'd0;
-            end
         end
     end
 endgenerate
@@ -1213,31 +1398,20 @@ endgenerate
 // TPS4 detector
     always_ff @ (posedge CLK_IN)
     begin
-        // Locked
-        if (clk_lnk.lock)
-        begin
-            // Default
-            clk_trn.tps4_det <= 0;
-            clk_trn.tps4_err <= 0;
+        // Default
+        clk_trn.tps4_det <= 0;
+        clk_trn.tps4_err <= 0;
 
-            // TPS4 selected
-            if (clk_cfg.tps == 'd4)
+        // TPS4 selected
+        if (clk_cfg.tps == 'd4)
+        begin
+            for (int i = 0; i < P_SPL; i++)
             begin
-                for (int i = 0; i < P_SPL; i++)
-                begin
-                    if ((clk_scrm.dat[i] == P_K28_5) || (clk_scrm.dat[i] == 'h0))
-                        clk_trn.tps4_det[i] <= 1;
-                    else
-                        clk_trn.tps4_err[i] <= 1;
-                end
+                if ((clk_scrm.dat[i] == P_K28_5) || (clk_scrm.dat[i] == 'h0))
+                    clk_trn.tps4_det[i] <= 1;
+                else
+                    clk_trn.tps4_err[i] <= 1;
             end
-        end
-
-        // Not locked
-        else
-        begin
-            clk_trn.tps4_det <= 0;
-            clk_trn.tps4_err <= 0;
         end
     end
 
@@ -1355,14 +1529,18 @@ assign clk_trn.tps_err = clk_trn.tps1_err || clk_trn.tps2_err || clk_trn.tps3_er
         end
     end
 
+
+//-----
 // Outputs
+//-----
     generate
         for (i = 0; i < P_SPL; i++)
         begin : gen_lnk_src
-            // Pass-through data
-            assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_lnk.din[i];
+            // Aligned data
+            assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_lnk.dat[i];
         end
     endgenerate
+
     assign LNK_SRC_IF.lock    = 0;  // Not used
     assign LNK_SRC_IF.sol[0]  = 0;  // Not used
     assign LNK_SRC_IF.eol[0]  = 0;  // Not used

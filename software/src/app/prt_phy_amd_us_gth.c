@@ -659,7 +659,7 @@ if (1)
 		for (prt_u8 ch = 0; ch < 4; ch++)
 			prt_phy_amd_drp_wr (phy, ch, drp_adr, drp_dat);
 	}
-}
+
 
 	// RXOUT_DIV
 	for (prt_u8 i = 0; i < 4; i++)
@@ -670,7 +670,7 @@ if (1)
 		drp_dat |= rxout_div;
 		prt_phy_amd_drp_wr (phy, i, drp_adr, drp_dat);
 	}
-
+}
 	// Reset PHY RX PLL and datapath
 	sta = prt_phy_amd_rx_pll_rst (phy);
 

@@ -12,7 +12,9 @@
     v1.0 - Initial release
     v1.1 - Added training TPS4
     v1.2 - Improved training
-    
+    v1.3 - Added interlane aligner
+
+
     License
     =======
     This License will apply to the use of the IP-core (as defined in the License). 
@@ -27,18 +29,25 @@
     a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
 */
 
-//`default_nettype none
+`default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_trn
 #(
-    // PHY
-    parameter P_LANES       = 2,           // Lanes
-    parameter P_SPL         = 2,           // Symbols per lane
+    // System
+    parameter P_VENDOR = "none",        // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter P_FAMILY = "none",        // Family (Only used for Lattice)
+
+    // Link
+    parameter P_LANES       = 2,        // Lanes
+    parameter P_SPL         = 2,        // Symbols per lane
 
     // Message
-    parameter P_MSG_IDX     = 5,          // Message index width
-    parameter P_MSG_DAT     = 16,         // Message data width
-    parameter P_MSG_ID_TRN  = 0           // Message ID Training
+    parameter P_MSG_IDX     = 5,        // Message index width
+    parameter P_MSG_DAT     = 16,       // Message data width
+    parameter P_MSG_ID_TRN  = 0         // Message ID Training
 )
 (
     // Reset and clock
@@ -58,15 +67,21 @@ module prt_dprx_trn
     prt_dp_rx_lnk_if.src    LNK_SRC_IF          // Source
 );
 
+//-----
 // Parameters
+//-----
 
+//-----
 // Interface
+//-----
 prt_dp_msg_if
 #(
     .P_DAT_WIDTH (P_MSG_DAT)
 ) msg_from_egr();
 
+//-----
 // Structures
+//-----
 typedef struct {
     logic	[P_MSG_IDX-1:0]	      idx;
     logic                         first;
@@ -84,13 +99,15 @@ typedef struct {
 } msg_ing_struct;
 
 // Signals
-msg_egr_struct      clk_msg_egr;
-msg_ing_struct      clk_msg_ing;
-wire [P_LANES-1:0]  cfg_set_to_lane;
-wire [2:0]          cfg_tps_to_lane[0:P_LANES-1];
-wire [15:0]         sta_cycle_from_lane[0:P_LANES-1];
-wire [15:0]         sta_match_from_lane[0:P_LANES-1];
-logic [2:0]         clk_act_lanes;             // Active lanes
+msg_egr_struct          clk_msg_egr;
+msg_ing_struct          clk_msg_ing;
+wire [P_LANES-1:0]      cfg_set_to_chk;
+logic [2:0]             clk_cfg_tps;
+wire [15:0]             sta_cycle_from_chk[P_LANES];
+wire [15:0]             sta_match_from_chk[P_LANES];
+logic [2:0]             clk_act_lanes;             // Active lanes
+wire [P_LANES-1:0]      trg_from_ila;
+logic                   clk_ila_lock;
 
 // Scrambler
 prt_dp_rx_lnk_if
@@ -98,7 +115,7 @@ prt_dp_rx_lnk_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-scrm_if_to_lane[0:P_LANES-1]();
+scrm_if_to_chk[P_LANES]();
 
 // Link interface
 prt_dp_rx_lnk_if
@@ -106,20 +123,66 @@ prt_dp_rx_lnk_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_if_to_lane[0:P_LANES-1]();
+lnk_if_to_chk[P_LANES]();
 
 prt_dp_rx_lnk_if
 #(
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_if_from_lane[0:P_LANES-1]();
+lnk_if_from_chk[P_LANES]();
+
+prt_dp_rx_lnk_if
+#(
+  .P_LANES  (1),
+  .P_SPL    (P_SPL)
+)
+lnk_if_from_ila[P_LANES]();
 
 genvar i, j;
 
+
+// debug
+(* syn_keep = 1 *) wire dbg_ila0_lock;
+(* syn_keep = 1 *) wire dbg_ila1_lock;
+(* syn_keep = 1 *) wire dbg_ila_lock;
+(* syn_keep = 1 *) wire[2:0] dbg_tps;
+(* syn_keep = 1 *) wire[2:0] dbg_lanes;
+(* syn_keep = 1 *) wire dbg_ila0_trg;
+(* syn_keep = 1 *) wire dbg_ila1_trg;
+(* syn_keep = 1 *) wire [8:0] dbg_datl00;
+(* syn_keep = 1 *) wire [8:0] dbg_datl01;
+(* syn_keep = 1 *) wire [8:0] dbg_datl02;
+(* syn_keep = 1 *) wire [8:0] dbg_datl03;
+(* syn_keep = 1 *) wire [8:0] dbg_datl10;
+(* syn_keep = 1 *) wire [8:0] dbg_datl11;
+(* syn_keep = 1 *) wire [8:0] dbg_datl12;
+(* syn_keep = 1 *) wire [8:0] dbg_datl13;
+
+assign dbg_ila0_lock = lnk_if_from_ila[0].lock;
+assign dbg_ila1_lock = lnk_if_from_ila[1].lock;
+assign dbg_ila_lock = clk_ila_lock;
+
+assign dbg_tps = clk_cfg_tps;
+assign dbg_lanes = clk_act_lanes;
+assign dbg_ila0_trg = trg_from_ila[0];
+assign dbg_ila1_trg = trg_from_ila[1];
+assign dbg_datl00 = {lnk_if_from_chk[0].k[0][0], lnk_if_from_chk[0].dat[0][0]};
+assign dbg_datl01 = {lnk_if_from_chk[0].k[0][1], lnk_if_from_chk[0].dat[0][1]};
+assign dbg_datl02 = {lnk_if_from_chk[0].k[0][2], lnk_if_from_chk[0].dat[0][2]};
+assign dbg_datl03 = {lnk_if_from_chk[0].k[0][3], lnk_if_from_chk[0].dat[0][3]};
+
+assign dbg_datl10 = {lnk_if_from_chk[1].k[0][0], lnk_if_from_chk[1].dat[0][0]};
+assign dbg_datl11 = {lnk_if_from_chk[1].k[0][1], lnk_if_from_chk[1].dat[0][1]};
+assign dbg_datl12 = {lnk_if_from_chk[1].k[0][2], lnk_if_from_chk[1].dat[0][2]};
+assign dbg_datl13 = {lnk_if_from_chk[1].k[0][3], lnk_if_from_chk[1].dat[0][3]};
+
+
 // Logic
 
+//-----
 // Message Slave Egress
+//-----
     prt_dp_msg_slv_egr
     #(
         .P_ID           (P_MSG_ID_TRN),   // Identifier
@@ -144,7 +207,10 @@ genvar i, j;
         .EGR_VLD_OUT    (clk_msg_egr.vld)     // Valid
     );
 
+
+//-----
 // Message Slave Ingress
+//-----
 	prt_dp_msg_slv_ing
 	#(
         .P_ID           (P_MSG_ID_TRN),   	// Identifier
@@ -179,98 +245,161 @@ genvar i, j;
             // Cycles lane 0
             'd0 :
             begin
-                clk_msg_ing.dat = sta_cycle_from_lane[0];
+                clk_msg_ing.dat = sta_cycle_from_chk[0];
             end
 
             // Match lane 0
             'd1 :
             begin
-                clk_msg_ing.dat = sta_match_from_lane[0];
+                clk_msg_ing.dat = sta_match_from_chk[0];
             end
 
             // Match lane 1
             'd2 :
             begin
                 if ((P_LANES == 2) || (P_LANES == 4))
-                    clk_msg_ing.dat = sta_match_from_lane[1];
+                    clk_msg_ing.dat = sta_match_from_chk[1];
             end
 
             // Match lane 2
             'd3 :
             begin
                 if (P_LANES == 4)
-                    clk_msg_ing.dat = sta_match_from_lane[2];
+                    clk_msg_ing.dat = sta_match_from_chk[2];
             end
 
             // Match lane 3
             'd4 :
             begin
                 if (P_LANES == 4)
-                    clk_msg_ing.dat = sta_match_from_lane[3];
+                    clk_msg_ing.dat = sta_match_from_chk[3];
+            end
+
+            // Interlane align lock
+            'd5 :
+            begin
+                clk_msg_ing.dat[0] = clk_ila_lock;
             end
 
             default : ;
         endcase
     end
 
+
+//-----
+// Training pattern select
+//-----
+    always_ff @ (posedge RST_IN, posedge CLK_IN)
+    begin
+        // Reset
+        if (RST_IN)
+            clk_cfg_tps <= 0;
+
+        else
+        begin
+            // In theory each lane doens't have to use the same training pattern. 
+            // However, in practice only one training pattern is used for all lanes. 
+            if ((clk_msg_egr.idx == 'd1) && clk_msg_egr.vld)
+                clk_cfg_tps <= clk_msg_egr.dat[0+:$size(clk_cfg_tps)];
+        end
+    end
+
+
+//-----
 // Lanes
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_lanes
-        prt_dprx_trn_lane
+        
+        //-----
+        // Checker
+        //-----
+        prt_dprx_trn_chk
         #(
             // PHY
-            .P_SPL          (P_SPL)            // Symbols per lane
+            .P_SPL              (P_SPL)            // Symbols per lane
         )
-        LANE_INST
+        CHK_INST
         (
             // Reset and clock
             .RST_IN             (RST_IN),
             .CLK_IN             (CLK_IN),
 
             // Config
-            .CFG_SET_IN         (cfg_set_to_lane[i]),
-            .CFG_TPS_IN         (cfg_tps_to_lane[i]),
+            .CFG_SET_IN         (cfg_set_to_chk[i]),
+            .CFG_TPS_IN         (clk_cfg_tps),
 
             // Status
-            .STA_CYCLE_OUT      (sta_cycle_from_lane[i]),   // Cycles
-            .STA_MATCH_OUT      (sta_match_from_lane[i]),   // Match
+            .STA_CYCLE_OUT      (sta_cycle_from_chk[i]),   // Cycles
+            .STA_MATCH_OUT      (sta_match_from_chk[i]),   // Match
 
             // Scrambler
-            .SCRM_SNK_IF        (scrm_if_to_lane[i]),       // Sink
+            .SCRM_SNK_IF        (scrm_if_to_chk[i]),       // Sink
 
             // Link
-            .LNK_SNK_IF         (lnk_if_to_lane[i]),        // Sink
-            .LNK_SRC_IF         (lnk_if_from_lane[i])       // Source
+            .LNK_SNK_IF         (lnk_if_to_chk[i]),        // Sink
+            .LNK_SRC_IF         (lnk_if_from_chk[i])       // Source
         );
 
         // Map scrambler interface to individual lanes
-        assign scrm_if_to_lane[i].k[0]   = SCRM_SNK_IF.k[i];
-        assign scrm_if_to_lane[i].dat[0] = SCRM_SNK_IF.dat[i];
+        assign scrm_if_to_chk[i].k[0]   = SCRM_SNK_IF.k[i];
+        assign scrm_if_to_chk[i].dat[0] = SCRM_SNK_IF.dat[i];
 
         // Map link interface to individual lanes
-        assign lnk_if_to_lane[i].lock   = LNK_SNK_IF.lock;
-        assign lnk_if_to_lane[i].k[0]   = LNK_SNK_IF.k[i];
-        assign lnk_if_to_lane[i].dat[0] = LNK_SNK_IF.dat[i];
-        assign cfg_tps_to_lane[i]       = clk_msg_egr.dat[(i*4)+:$size(cfg_tps_to_lane[i])];
+        assign lnk_if_to_chk[i].lock   = LNK_SNK_IF.lock;
+        assign lnk_if_to_chk[i].k[0]   = LNK_SNK_IF.k[i];
+        assign lnk_if_to_chk[i].dat[0] = LNK_SNK_IF.dat[i];
+
+
+        //-----
+        // Interlane Aligner
+        //-----
+        prt_dprx_trn_ila
+        #(
+            // System
+            .P_VENDOR           (P_VENDOR),         // Vendor - "AMD", "ALTERA" or "LSC"
+            .P_FAMILY           (P_FAMILY),         // Family (Only used for Lattice)
+
+            // Link
+            .P_SPL              (P_SPL)             // Symbols per lane
+        )
+        ILA_INST
+        (
+            // Reset and clock
+            .RST_IN             (RST_IN),
+            .CLK_IN             (CLK_IN),
+
+            // Config
+            .CFG_TPS_IN         (clk_cfg_tps),
+
+            // Trigger
+            .TRG_IN             (trg_from_ila[0]),     // Trigger (Lane 0 is the master)
+            .TRG_OUT            (trg_from_ila[i]),
+            
+            // Link
+            .LNK_SNK_IF         (lnk_if_from_chk[i]),     // Sink
+            .LNK_SRC_IF         (lnk_if_from_ila[i])    // Source
+        );
+
     end
 endgenerate
 
 // Config set
-    assign cfg_set_to_lane[0] = (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld;
+    assign cfg_set_to_chk[0] = (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld;
 
 generate
     if ((P_LANES == 2) || (P_LANES == 4))
     begin : gen_cfg_set_lane1
-        assign cfg_set_to_lane[1] = ((clk_act_lanes == 'd2) || (clk_act_lanes == 'd4)) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
+        assign cfg_set_to_chk[1] = ((clk_act_lanes == 'd2) || (clk_act_lanes == 'd4)) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
     end
 endgenerate
 
 generate
     if (P_LANES == 4)
     begin : gen_cfg_set_lane23
-        assign cfg_set_to_lane[2] = (clk_act_lanes == 'd4) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
-        assign cfg_set_to_lane[3] = (clk_act_lanes == 'd4) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
+        assign cfg_set_to_chk[2] = (clk_act_lanes == 'd4) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
+        assign cfg_set_to_chk[3] = (clk_act_lanes == 'd4) ? (clk_msg_egr.idx == 'd1) && clk_msg_egr.vld : 0;
     end
 endgenerate
 
@@ -288,8 +417,24 @@ endgenerate
         end
     end
 
+// Interlane align Lock
+    always_ff @ (posedge CLK_IN)
+    begin
+        // Single lane
+        if (clk_act_lanes == 'd1)
+            clk_ila_lock <= lnk_if_from_ila[0].lock;
+
+        // Two lanes
+        else if (clk_act_lanes == 'd2)
+            clk_ila_lock <= lnk_if_from_ila[0].lock && lnk_if_from_ila[1].lock;
+
+        // Four lanes
+        else 
+            clk_ila_lock <= lnk_if_from_ila[0].lock && lnk_if_from_ila[1].lock && lnk_if_from_ila[2].lock && lnk_if_from_ila[3].lock;
+    end
+
 // Outputs
-    assign LNK_SRC_IF.lock = 0; // Not used
+    assign LNK_SRC_IF.lock = clk_ila_lock;
 
     generate
         for (i = 0; i < P_LANES; i++)
@@ -299,8 +444,8 @@ endgenerate
                 assign LNK_SRC_IF.vid[i][j] = 0; // Not used
                 assign LNK_SRC_IF.sdp[i][j] = 0; // Not used
                 assign LNK_SRC_IF.msa[i][j] = 0; // Not used
-                assign LNK_SRC_IF.k[i][j] = lnk_if_from_lane[i].k[0][j];
-                assign LNK_SRC_IF.dat[i][j] = lnk_if_from_lane[i].dat[0][j];
+                assign LNK_SRC_IF.k[i][j] = lnk_if_from_ila[i].k[0][j];
+                assign LNK_SRC_IF.dat[i][j] = lnk_if_from_ila[i].dat[0][j];
             end       
         end
     endgenerate

@@ -5,7 +5,7 @@
 
 
     Module: DP reference design running on Xilinx ZCU102
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======

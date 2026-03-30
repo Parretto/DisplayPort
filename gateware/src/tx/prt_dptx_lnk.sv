@@ -32,7 +32,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dptx_lnk
 #(
     // System
@@ -92,14 +94,20 @@ module prt_dptx_lnk
     prt_dp_tx_sdp_if.snk    SDP_SNK_IF              // Sink
 );
 
+
+//-----
 // Parameters
+//-----
 localparam P_VID_MODS = (P_MST) ? 2 : 1;
 localparam P_MSA_MODS = (P_MST) ? 2 : 1;
 localparam P_SYS_MSG_IF = (P_MST) ? 3 : 2;
 localparam P_LNK_MSG_IF = (P_MST) ? 6 : 5;
 localparam P_VID_MSG_IF = 2;
 
+
+//-----
 // Signals
+//-----
 
 // Control
 wire [1:0]  lanes_from_ctl;
@@ -231,7 +239,9 @@ genvar i;
     assign {sys_msg_if[0].dat, sys_msg_if[1].dat} = {2{MSG_SNK_IF.dat}};
     assign {sys_msg_if[0].vld, sys_msg_if[1].vld} = {2{MSG_SNK_IF.vld}};
 
+//-----
 // Link message Clock domain converter
+//-----
     prt_dp_msg_cdc
     #(
         .P_VENDOR           (P_VENDOR),
@@ -252,7 +262,10 @@ genvar i;
         .B_MSG_SRC_IF       (lnk_msg_if[0])
     );
 
+
+//-----
 // Video stream 0 message Clock domain converter
+//-----
     prt_dp_msg_cdc
     #(
         .P_VENDOR           (P_VENDOR),
@@ -273,7 +286,10 @@ genvar i;
         .B_MSG_SRC_IF       (vid0_msg_if[0])
     );
 
+
+//-----
 // Video stream 1 message Clock domain converter
+//-----
 generate
     if (P_MST)
     begin : gen_vid1_msg_cdc
@@ -313,8 +329,13 @@ generate
     end
 endgenerate
 
+//-----
 // Link clock detector
+//-----
     prt_dp_clkdet
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     LNK_CLKDET_INST
     (
         // System reset and clock
@@ -331,6 +352,9 @@ endgenerate
 
 // Video clock detector stream 0
     prt_dp_clkdet
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     VID_CLKDET0_INST
     (
         // System reset and clock
@@ -350,6 +374,9 @@ generate
     if (P_MST)
     begin : gen_vid_clkdet1
         prt_dp_clkdet
+        #(
+            .P_VENDOR           (P_VENDOR)
+        )
         VID_CLKDET1_INST
         (
             // System reset and clock
@@ -371,7 +398,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Control
+//-----
     prt_dptx_ctl
     #(
         // System
@@ -405,7 +435,9 @@ endgenerate
         .CTL_VC1_TS_OUT     (vc_ts_from_ctl[1])     // VC1 time slots
     );
 
+//-----
 // Video stream 0
+//-----
     prt_dptx_vid
     #(
         // System
@@ -454,7 +486,9 @@ endgenerate
     );
 
 
+//-----
 // MSA stream 0
+//-----
     prt_dptx_msa
     #(
         // System
@@ -501,7 +535,10 @@ endgenerate
         .LNK_SRC_IF         (lnk_from_msa[0])       // Source
     );
 
+
+//-----
 // SDP stream 0
+//-----
 generate
     if (P_SDP == 1)
     begin : gen_sdp
@@ -555,7 +592,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Video stream 1
+//-----
 generate
     if (P_MST)
     begin : gen_vid1
@@ -608,7 +648,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // MSA stream 1
+//-----
 generate
     if (P_MST)
     begin : gen_msa1
@@ -660,7 +703,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // MST
+//-----
 generate
     if (P_MST)
     begin : gen_mst
@@ -702,7 +748,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Scrambler
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_scrm
@@ -740,7 +789,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Training
+//-----
     prt_dptx_trn
     #(
         // System
@@ -774,7 +826,10 @@ endgenerate
         .LNK_SRC_IF         (lnk_from_trn)          // Source
     );
 
+
+//-----
 // Skew
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_skew
@@ -807,7 +862,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Output
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_lnk_src

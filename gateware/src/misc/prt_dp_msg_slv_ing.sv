@@ -5,7 +5,7 @@
 
 
     Module: DP Message Slave Ingress
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -27,7 +27,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dp_msg_slv_ing
 #(
     parameter P_ID = 0,             // Identifier
@@ -53,7 +55,9 @@ module prt_dp_msg_slv_ing
     output wire                         ING_ACK_OUT        // Acknowledge
 );
 
+//-----
 // Structure
+//-----
 typedef struct {
     logic					      som;
     logic					      eom;
@@ -70,7 +74,9 @@ typedef struct {
 	logic					      ack;
 } ing_struct;
 
+//-----
 // Signals
+//-----
 msg_struct			clk_msg;			// Message
 ing_struct			clk_ing;			// Ingress
 

@@ -35,7 +35,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dptx_sdp
 #(
     // System
@@ -72,10 +74,16 @@ module prt_dptx_sdp
     prt_dp_tx_lnk_if.src    LNK_SRC_IF          // Source
 );
 
+
+//-----
 // Package
+//-----
 import prt_dp_pkg::*;
 
+
+//-----
 // Parameters
+//-----
 localparam P_DAT_FIFO_OPT   = 0;
 localparam P_DAT_FIFO_WRDS  = 32;
 localparam P_DAT_FIFO_ADR   = $clog2(P_DAT_FIFO_WRDS);
@@ -85,12 +93,18 @@ localparam P_LEN_FIFO_WRDS  = 8;
 localparam P_LEN_FIFO_ADR   = $clog2(P_LEN_FIFO_WRDS);
 localparam P_LEN_FIFO_DAT   = 4;
 
-// States
+
+//-----
+// State Machine
+//-----
 typedef enum {
     sm_idle, sm_vb, sm_hb
 } sm_state;
 
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic   [1:0]                   lanes;
 } ctl_struct;
@@ -201,7 +215,10 @@ typedef struct {
     logic                           vld;
 } src_struct;
 
+
+//-----
 // Signals
+//-----
 ctl_struct              sclk_ctl;
 sclk_sdp_struct         sclk_sdp;
 dat_fifo_wr_struct      sclk_dat_fifo;
@@ -220,7 +237,9 @@ genvar i, j, n;
     SDP Domain
 */
 
+//-----
 // Reset
+//-----
     prt_dp_lib_rst
     SCLK_SDP_RST_INST
     (
@@ -230,7 +249,10 @@ genvar i, j, n;
         .DST_RST_OUT    (sclk_sdp.rst)
     );
 
+
+//-----
 // Lanes CDC
+//-----
     prt_dp_lib_cdc_vec
     #(
 	    .P_WIDTH        ($size(lclk_ctl.lanes))
@@ -242,6 +264,7 @@ genvar i, j, n;
         .DST_CLK_IN     (SDP_CLK_IN),		// Clock
         .DST_DAT_OUT    (sclk_ctl.lanes)	// Data
     );
+
 
 // Inputs
     always_ff @ (posedge SDP_CLK_IN)
@@ -1238,7 +1261,10 @@ genvar i, j, n;
         end
     end
 
+
+//-----
 // Data FIFO
+//-----
 generate
     // Lanes
     for (i = 0; i < 4; i++)
@@ -1302,7 +1328,9 @@ endgenerate
 // Length FIFO write data
     assign sclk_len_fifo.din = sclk_sdp.len + 'd1;
 
+//-----
 // Length FIFO
+//-----
     prt_dp_lib_fifo_dc
     #(
         .P_VENDOR       (P_VENDOR),                 // Vendor
@@ -1361,7 +1389,9 @@ endgenerate
         end
     end
 
+//-----
 // Message Slave
+//-----
     prt_dp_msg_slv_egr
     #(
         .P_ID           (P_MSG_ID),       // Identifier
@@ -1415,8 +1445,9 @@ endgenerate
         lclk_snk.vbf <= LNK_VBF_IN;
     end
 
-
+//-----
 // Vertical blanking edge
+//-----
     prt_dp_lib_edge
     LCLK_VBF_EDGE_INST
     (
@@ -1427,7 +1458,9 @@ endgenerate
         .FE_OUT         (lclk_snk.vbf_fe)   // Falling edge
     );
 
+//-----
 // Vertical sync edge
+//-----
     prt_dp_lib_edge
     LCLK_VS_EDGE_INST
     (
@@ -1509,7 +1542,9 @@ endgenerate
         end
     end
 
+//-----
 // Horizontal blanking edge
+//-----
     prt_dp_lib_edge
     LCLK_HB_EDGE_INST
     (
@@ -1583,7 +1618,9 @@ endgenerate
         end
     end
 
+//-----
 // Vertical blanking edge
+//-----
     prt_dp_lib_edge
     LCLK_VB_EDGE_INST
     (
@@ -1913,8 +1950,11 @@ endgenerate
         end
     end
 
+
+//-----
 // SDP symbol SS
 // At the falling edge of the first read counter end delayed, just before the data starts, insert the SS symbol.
+//-----
     prt_dp_lib_edge
     LCLK_SS_INS_INST
     (
@@ -1925,8 +1965,11 @@ endgenerate
         .FE_OUT         (lclk_sdp.ss_ins)               // Falling edge
     );
 
+
+//-----
 // SDP symbol SE
 // At the rising edge of the last read counter end delayed, after the data ends, insert the SE symbol.
+//-----
     prt_dp_lib_edge
     LCLK_SE_INS_INST
     (
@@ -1936,6 +1979,7 @@ endgenerate
         .RE_OUT         (lclk_sdp.se_ins),              // Rising edge
         .FE_OUT         ()                              // Falling edge
     );
+
 
 // FIFO read
 generate
@@ -2058,6 +2102,7 @@ generate
     end
 
     // 2 symbols
+    else
     begin : gen_fifo_rd_2spl
         always_comb
         begin
@@ -2375,6 +2420,7 @@ generate
     end
 
     // 2 symbols
+    else
     begin : gen_sdp_dat_2spl
         always_comb
         begin
@@ -2627,7 +2673,10 @@ endgenerate
             lclk_src.vld = lclk_snk.vld;
     end
 
+
+//-----
 // Outputs
+//-----
     assign SDP_SNK_IF.rdy = sclk_sdp.rdy;
 
 generate

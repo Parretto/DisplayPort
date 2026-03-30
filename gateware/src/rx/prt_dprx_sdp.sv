@@ -14,6 +14,7 @@
     v1.2 - Added support for shorter audio samples
     v1.3 - Updated support for any length packets
     v1.4 - Added VSC packet snooping
+    v1.5 - Removed interlane dependency
     
 
     License
@@ -32,21 +33,24 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dprx_sdp
 #(
     // System
-    parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
-    parameter               P_SIM = 0,          // Simulation
+    parameter               P_VENDOR    = "none",   // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter               P_FAMILY    = "none",   // Family (Only used for Lattice)
+    parameter               P_SIM       = 0,        // Simulation
 
     // Link
-    parameter               P_LANES = 4,    	// Lanes
-    parameter               P_SPL = 2,        	// Symbols per lane
+    parameter               P_LANES     = 4,    	// Lanes
+    parameter               P_SPL       = 2,        // Symbols per lane
 
     // Message
-    parameter               P_MSG_IDX     = 5,      // Message index width
-    parameter               P_MSG_DAT     = 16,     // Message data width
-    parameter               P_MSG_ID      = 0       // Message ID
+    parameter               P_MSG_IDX   = 5,        // Message index width
+    parameter               P_MSG_DAT   = 16,       // Message data width
+    parameter               P_MSG_ID    = 0         // Message ID
 )
 (
     // Control
@@ -67,7 +71,9 @@ module prt_dprx_sdp
     prt_dp_rx_sdp_if.src    SDP_SRC_IF          // Source
 );
 
+//-----
 // Parameters
+//-----
 localparam P_DAT_FIFO_OPT = (P_SIM) ? 0 : 1;
 localparam P_DAT_FIFO_WRDS = 32;
 localparam P_DAT_FIFO_ADR = $clog2(P_DAT_FIFO_WRDS);
@@ -76,7 +82,9 @@ localparam P_LEN_FIFO_WRDS = 8;
 localparam P_LEN_FIFO_ADR = $clog2(P_LEN_FIFO_WRDS);
 localparam P_LEN_FIFO_DAT = 6;
 
+//-----
 // Structure
+//-----
 typedef struct {
     logic   [P_MSG_IDX-1:0]         idx;
     logic                           first;
@@ -95,15 +103,15 @@ typedef struct {
     logic   [4:0]                   run_set_cnt;
     logic                           run_set_cnt_end;
     logic                           run_set;
-    logic   [P_SPL-1:0]             sol[P_LANES];           // Start of line
-    logic   [P_SPL-1:0]             eol[P_LANES];           // End of line
-    logic   [P_SPL-1:0]             vid[P_LANES];           // Video packet
-    logic   [P_SPL-1:0]             sdp[P_LANES];           // Secondary data packet
-    logic   [P_SPL-1:0]             msa[P_LANES];           // Main stream attributes (msa)
-    logic   [P_SPL-1:0]             vbid[P_LANES];          // VB-ID
+    logic   [P_SPL-1:0]             sol;                    // Start of line
+    logic   [P_SPL-1:0]             eol;                    // End of line
+    logic   [P_SPL-1:0]             vid;                    // Video packet
+    logic   [P_SPL-1:0]             sdp;                    // Secondary data packet
+    logic   [P_SPL-1:0]             msa;                    // Main stream attributes (msa)
+    logic   [P_SPL-1:0]             vbid;                   // VB-ID
     logic   [P_SPL-1:0]             k[P_LANES];             // k character
     logic   [7:0]                   dat[P_LANES][P_SPL];    // Data
-    logic   [P_LANES-1:0]           sop;
+    logic                           sop;
     logic   [4:0]                   vsc_dat;
 } lnk_struct;
 
@@ -111,10 +119,10 @@ typedef struct {
     logic   [8:0]                   din[P_LANES][P_SPL];        // Data in
     logic   [8:0]                   din_del[P_LANES][P_SPL];    // Data
     logic   [8:0]                   dout[P_LANES][P_SPL];       // Data
-    logic   [1:0]                   sel[P_LANES];
+    logic   [1:0]                   sel;
     logic   [P_SPL-1:0]             wr[P_LANES];
-    logic   [P_LANES-1:0]           wr_fe;
-    logic   [5:0]                   len_cnt[P_LANES];           // Length counter - the maximum length of a packet is 44 bytes
+    logic                           wr_fe;
+    logic   [5:0]                   len_cnt;                    // Length counter - the maximum length of a packet is 44 bytes
 } aln_struct;
 
 typedef struct {
@@ -126,8 +134,8 @@ typedef struct {
 
 typedef struct {
     logic                           clr;                  // Clear
-    logic   [3:0]                   wr;                  // Write
-    logic   [P_LEN_FIFO_DAT-1:0]    din[4];              // Write data
+    logic                           wr;                   // Write
+    logic   [P_LEN_FIFO_DAT-1:0]    din;                  // Write data
 } len_fifo_wr_struct;
 
 typedef struct {
@@ -140,10 +148,10 @@ typedef struct {
 } dat_fifo_rd_struct;
 
 typedef struct {
-    logic                           clr;                    // Clear
-    logic                           rd;                 // Read
-    logic   [P_LEN_FIFO_DAT-1:0]    dout[4];             // Read data
-    logic   [3:0]                   de;  
+    logic                           clr;                   // Clear
+    logic                           rd;                    // Read
+    logic   [P_LEN_FIFO_DAT-1:0]    dout;                  // Read data
+    logic                           de;  
 } len_fifo_rd_struct;
 
 typedef struct {
@@ -195,8 +203,9 @@ genvar i, j, n;
         lclk_lnk.lanes <= CTL_LANES_IN;
     end
 
-// Message
+//-----
 // Message Slave Ingress
+//-----
     prt_dp_msg_slv_ing
     #(
         .P_ID           (P_MSG_ID),       // Identifier
@@ -231,15 +240,17 @@ genvar i, j, n;
     always_comb
     begin
         lclk_lnk.lock = LNK_SNK_IF.lock;             // Lock
+
+        // All lanes are aligned, so only use the first lane
+        lclk_lnk.sol  = LNK_SNK_IF.sol[0];     // Start of line
+        lclk_lnk.eol  = LNK_SNK_IF.eol[0];     // End of line
+        lclk_lnk.vid  = LNK_SNK_IF.vid[0];     // Video
+        lclk_lnk.sdp  = LNK_SNK_IF.sdp[0];     // Secondary data packet
+        lclk_lnk.msa  = LNK_SNK_IF.msa[0];     // MSA
+        lclk_lnk.vbid = LNK_SNK_IF.vbid[0];    // VB-ID
         
         for (int i = 0; i < P_LANES; i++)
         begin
-            lclk_lnk.sol[i]  = LNK_SNK_IF.sol[i];     // Start of line
-            lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];     // End of line
-            lclk_lnk.vid[i]  = LNK_SNK_IF.vid[i];     // Video
-            lclk_lnk.sdp[i]  = LNK_SNK_IF.sdp[i];     // Secondary data packet
-            lclk_lnk.msa[i]  = LNK_SNK_IF.msa[i];     // MSA
-            lclk_lnk.vbid[i] = LNK_SNK_IF.vbid[i];    // VB-ID
             lclk_lnk.k[i]    = LNK_SNK_IF.k[i];       // k character
             lclk_lnk.dat[i]  = LNK_SNK_IF.dat[i];     // Data
         end
@@ -287,7 +298,7 @@ genvar i, j, n;
         if (lclk_lnk.lock)
         begin
             // Load at start of video line
-            if (|lclk_lnk.sol[0])
+            if (|lclk_lnk.sol)
                 lclk_lnk.run_clr_cnt <= '1;
 
             // Decrement
@@ -308,8 +319,10 @@ genvar i, j, n;
             lclk_lnk.run_clr_cnt_end = 0;
     end
 
+//-----
 // Run clear counter end rising edge
-    prt_dp_lib_edge
+//-----
+    prt_lib_edge
     LCLK_RUN_CLR_EDGE_INST
     (
         .CLK_IN     (LNK_CLK_IN),                   // Clock
@@ -351,7 +364,7 @@ genvar i, j, n;
     end
 
 // Run clear counter end rising edge
-    prt_dp_lib_edge
+    prt_lib_edge
     LCLK_RUN_SET_EDGE_INST
     (
         .CLK_IN     (LNK_CLK_IN),                   // Clock
@@ -361,22 +374,19 @@ genvar i, j, n;
         .FE_OUT     ()                              // Falling edge
     );
 
+//-----
 // SDP edge detector
 // The rising edge is used to detect the incoming phase
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin
-        prt_dp_lib_edge
-        LCLK_SDP_EDGE_INST
-        (
-            .CLK_IN     (LNK_CLK_IN),        // Clock
-            .CKE_IN     (1'b1),              // Clock enable
-            .A_IN       (|lclk_lnk.sdp[i]),  // Input
-            .RE_OUT     (lclk_lnk.sop[i]),   // Rising edge
-            .FE_OUT     ()                   // Falling edge
-        );
-    end
-endgenerate
+//-----
+    prt_lib_edge
+    LCLK_SDP_EDGE_INST
+    (
+        .CLK_IN     (LNK_CLK_IN),       // Clock
+        .CKE_IN     (1'b1),             // Clock enable
+        .A_IN       (|lclk_lnk.sdp),    // Input
+        .RE_OUT     (lclk_lnk.sop),     // Rising edge
+        .FE_OUT     ()                  // Falling edge
+    );
 
 // Aligner
 generate 
@@ -384,7 +394,7 @@ generate
     begin
         for (j = 0; j < P_SPL; j++)
         begin
-            assign lclk_aln.din[i][j] = {lclk_lnk.sdp[i][j], lclk_lnk.dat[i][j]}; 
+            assign lclk_aln.din[i][j] = {lclk_lnk.sdp[j], lclk_lnk.dat[i][j]}; 
 
             always_ff @ (posedge LNK_CLK_IN)
             begin
@@ -399,52 +409,46 @@ generate
     // Two symbols per lane
     if (P_SPL == 2)
     begin : gen_aln_sel_2spl
-        for (i = 0; i < P_LANES; i++)
+        always_ff @ (posedge LNK_CLK_IN)
         begin
-            always_ff @ (posedge LNK_CLK_IN)
+            // Run
+            if (lclk_lnk.run)
             begin
-                // Run
-                if (lclk_lnk.run)
+                if (lclk_lnk.sop)
                 begin
-                    if (lclk_lnk.sop[i])
-                    begin
-                        case (lclk_lnk.sdp[i])
-                            'b10    : lclk_aln.sel[i] <= 'd1;
-                            default : lclk_aln.sel[i] <= 'd0;
-                        endcase
-                    end
+                    case (lclk_lnk.sdp)
+                        'b10    : lclk_aln.sel <= 'd1;
+                        default : lclk_aln.sel <= 'd0;
+                    endcase
                 end
-
-                else
-                    lclk_aln.sel[i] <= 0;
             end
+
+            else
+                lclk_aln.sel <= 0;
         end
     end
 
     // Four symbols per lane
     else
     begin : gen_aln_sel_4spl
-        for (i = 0; i < P_LANES; i++)
+        always_ff @ (posedge LNK_CLK_IN)
         begin
-            always_ff @ (posedge LNK_CLK_IN)
+            // Run
+            if (lclk_lnk.run)
             begin
-                // Run
-                if (lclk_lnk.run)
+                if (lclk_lnk.sop)
                 begin
-                    if (lclk_lnk.sop[i])
-                    begin
-                        case (lclk_lnk.sdp[i])
-                            'b1110  : lclk_aln.sel[i] <= 'd1;
-                            'b1100  : lclk_aln.sel[i] <= 'd2;
-                            'b1000  : lclk_aln.sel[i] <= 'd3;
-                            default : lclk_aln.sel[i] <= 'd0;
-                        endcase
-                    end
+                    case (lclk_lnk.sdp)
+                        'b1110  : lclk_aln.sel <= 'd1;
+                        'b1100  : lclk_aln.sel <= 'd2;
+                        'b1000  : lclk_aln.sel <= 'd3;
+                        default : lclk_aln.sel <= 'd0;
+                    endcase
                 end
-
-                else
-                    lclk_aln.sel[i] <= 0;
             end
+
+            else
+                lclk_aln.sel <= 0;
         end
     end
 endgenerate
@@ -458,8 +462,7 @@ generate
         begin
             always_comb
             begin
-                case (lclk_aln.sel[i])
-
+                case (lclk_aln.sel)
                     // Phase 1
                     'd1 : 
                     begin
@@ -485,7 +488,7 @@ generate
         begin
             always_comb
             begin
-                case (lclk_aln.sel[i])
+                case (lclk_aln.sel)
 
                     // Phase 1
                     'd1 : 
@@ -537,7 +540,7 @@ begin
         begin
             // The msb of the aligner data is the SDP
             // During the SOP, the aligner select is updated.
-            if (!lclk_lnk.sop[i] && lclk_aln.dout[i][j][8])
+            if (!lclk_lnk.sop && lclk_aln.dout[i][j][8])
                 lclk_aln.wr[i][j] = 1;
             else
                 lclk_aln.wr[i][j] = 0;
@@ -547,97 +550,84 @@ end
 
 // Alignment write edge
 // The falling edge is used to clear the fifo select.
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin
-        prt_dp_lib_edge
-        LCLK_ALN_WR_EDGE_INST
-        (
-            .CLK_IN     (LNK_CLK_IN),            // Clock
-            .CKE_IN     (1'b1),                  // Clock enable
-            .A_IN       (|lclk_aln.wr[i]),        // Input
-            .RE_OUT     (),                      // Rising edge
-            .FE_OUT     (lclk_aln.wr_fe[i])      // Falling edge
-        );
-    end
-endgenerate
+    prt_lib_edge
+    LCLK_ALN_WR_EDGE_INST
+    (
+        .CLK_IN     (LNK_CLK_IN),         // Clock
+        .CKE_IN     (1'b1),               // Clock enable
+        .A_IN       (|lclk_aln.wr[0]),    // Input
+        .RE_OUT     (),                   // Rising edge
+        .FE_OUT     (lclk_aln.wr_fe)      // Falling edge
+    );
 
 // Length counter
 // The length counter is used to count the length of a packet. 
 // At the end of the packet, the length is written into the length FIFO.
-// As the lanes are unaligned, each lane has it's own length FIFO and counter.
+// The lanes are aligned, so only lane 0 has a length FIFO and counter.
 generate
     // 4 symbols
     if (P_SPL == 4)
-    begin : gen_len_cnt_4spl
-        for (i = 0; i < P_LANES; i++)
-        begin : gen_aln_len_cnt
-            
-            always_ff @ (posedge LNK_CLK_IN)
+    begin : gen_len_cnt_4spl        
+        always_ff @ (posedge LNK_CLK_IN)
+        begin
+            // Run
+            if (lclk_lnk.run)
             begin
-                // Run
-                if (lclk_lnk.run)
+                // Clear
+                if (lclk_aln.wr_fe)
+                    lclk_aln.len_cnt <= 0;
+
+                // Increment
+                // Here the data is aligned, so there are only four combinations.
+                else if (|lclk_aln.wr[0])
                 begin
-                    // Clear
-                    if (lclk_aln.wr_fe[i])
-                        lclk_aln.len_cnt[i] <= 0;
+                    if (lclk_aln.wr[0] == 'b1111)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd4;
 
-                    // Increment
-                    // Here the data is aligned, so there are only four combinations.
-                    else if (|lclk_aln.wr[i])
-                    begin
-                        if (lclk_aln.wr[i] == 'b1111)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd4;
+                    else if (lclk_aln.wr[0] == 'b0001)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd1;
 
-                        else if (lclk_aln.wr[i] == 'b0001)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd1;
+                    else if (lclk_aln.wr[0] == 'b0011)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd2;
 
-                        else if (lclk_aln.wr[i] == 'b0011)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd2;
-
-                        else if (lclk_aln.wr[i] == 'b0111)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd3;
-                    end
+                    else if (lclk_aln.wr[0] == 'b0111)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd3;
                 end
-
-                // Idle
-                else
-                    lclk_aln.len_cnt[i] <= 0;
             end
+
+            // Idle
+            else
+                lclk_aln.len_cnt <= 0;
         end
     end 
 
     // 2 symbols
     else
-    begin : gen_len_cnt_2spl
-        for (i = 0; i < P_LANES; i++)
-        begin : gen_aln_len_cnt
-            
-            always_ff @ (posedge LNK_CLK_IN)
+    begin : gen_len_cnt_2spl    
+        always_ff @ (posedge LNK_CLK_IN)
+        begin
+            // Run
+            if (lclk_lnk.run)
             begin
-                // Run
-                if (lclk_lnk.run)
+                // Clear
+                if (lclk_aln.wr_fe)
+                    lclk_aln.len_cnt <= 0;
+
+                // Increment
+                // Here the data is aligned, so there are only two combinations.
+                else if (|lclk_aln.wr[0])
                 begin
-                    // Clear
-                    if (lclk_aln.wr_fe[i])
-                        lclk_aln.len_cnt[i] <= 0;
+                    if (lclk_aln.wr[0] == 'b11)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd2;
 
-                    // Increment
-                    // Here the data is aligned, so there are only two combinations.
-                    else if (|lclk_aln.wr[i])
-                    begin
-                        if (lclk_aln.wr[i] == 'b11)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd2;
-
-                        else if (lclk_aln.wr[i] == 'b01)
-                            lclk_aln.len_cnt[i] <= lclk_aln.len_cnt[i] + 'd1;
-                    end
+                    else if (lclk_aln.wr[0] == 'b01)
+                        lclk_aln.len_cnt <= lclk_aln.len_cnt + 'd1;
                 end
-
-                // Idle
-                else
-                    lclk_aln.len_cnt[i] <= 0;
             end
+
+            // Idle
+            else
+                lclk_aln.len_cnt <= 0;
         end
     end 
 endgenerate
@@ -660,7 +650,7 @@ endgenerate
             if (lclk_lnk.lanes == 'd1)
             begin
                 // Clear 
-                if (lclk_aln.wr_fe[0])
+                if (lclk_aln.wr_fe)
                         lclk_dat_fifo.sel[0] <= 'd0;
 
                 // Increment
@@ -683,7 +673,7 @@ endgenerate
                 for (int i = 0; i < 2; i++)
                 begin
                     // Clear 
-                    if (lclk_aln.wr_fe[i])
+                    if (lclk_aln.wr_fe)
                         lclk_dat_fifo.sel[i] <= 'd0;
 
                     // Increment
@@ -714,7 +704,7 @@ endgenerate
                     else
                     begin
                         // Clear 
-                        if (lclk_aln.wr_fe[i])
+                        if (lclk_aln.wr_fe)
                             lclk_dat_fifo.sel[i] <= 'd0;
 
                         // Increment
@@ -987,7 +977,7 @@ generate
                             for (int n = 0; n < 2; n++)
                             begin
                                 lclk_dat_fifo.wr[2][j][n] = lclk_aln.wr[0][j];
-                                lclk_dat_fifo.din[2][j][n] = lclk_aln.dout[0][j][(n*4)+:8];
+                                lclk_dat_fifo.din[2][j][n] = lclk_aln.dout[0][j][(n*4)+:4];
                             end
                         end
                     end
@@ -1068,8 +1058,10 @@ generate
     end
 endgenerate
 
+//-----
 // Data FIFO
 // The DATA FIFO stores the actual data.
+//-----
 generate
     // Lanes
     for (i = 0; i < 4; i++)
@@ -1083,9 +1075,10 @@ generate
             for (n = 0; n < 2; n++)
             begin : gen_dat_fifo_n
                 
-                prt_dp_lib_fifo_dc
+                prt_lib_fifo_dc
                 #(
                     .P_VENDOR       (P_VENDOR),             // Vendor
+                    .P_FAMILY       (P_FAMILY),             // Family
                     .P_MODE         ("burst"),		        // "single" or "burst"
                     .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
                     .P_OPT 			(P_DAT_FIFO_OPT),		// In optimized mode the status port are not available. This saves some logic.
@@ -1137,64 +1130,62 @@ endgenerate
     end
 
 // Write and data
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_len_fifo_wr
-        assign lclk_len_fifo.wr[i] = lclk_aln.wr_fe[i];
-        assign lclk_len_fifo.din[i] = lclk_aln.len_cnt[i];
-    end
-endgenerate
+    assign lclk_len_fifo.wr = lclk_aln.wr_fe;
+    assign lclk_len_fifo.din = lclk_aln.len_cnt;
 
+
+//-----
 // Length FIFO
 // The length FIFO stores the length of a packet. 
-// Because the lanes are unaligned, each lane has it's own FIFO. 
-generate
-    for (i = 0; i < 4; i++)
-    begin : gen_len_fifo
-        prt_dp_lib_fifo_dc
-        #(
-            .P_VENDOR       (P_VENDOR),             // Vendor
-            .P_MODE         ("single"),		        // "single" or "burst"
-            .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
-            .P_OPT 			(0),			        // In optimized mode the status port are not available. This saves some logic.
-            .P_ADR_WIDTH	(P_LEN_FIFO_ADR),
-            .P_DAT_WIDTH	(P_LEN_FIFO_DAT)
-        )
-        LEN_FIFO_INST
-        (
-            .A_RST_IN      (LNK_RST_IN),                    // Reset
-            .B_RST_IN      (sclk_sdp.rst),
-            .A_CLK_IN      (LNK_CLK_IN),                    // Clock
-            .B_CLK_IN      (SDP_CLK_IN),
-            .A_CKE_IN      (1'b1),                          // Clock enable
-            .B_CKE_IN      (1'b1),
+//-----
+    prt_dp_lib_fifo_dc
+    #(
+        .P_VENDOR       (P_VENDOR),             // Vendor
+        .P_MODE         ("single"),		        // "single" or "burst"
+        .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
+        .P_OPT 			(0),			        // In optimized mode the status port are not available. This saves some logic.
+        .P_ADR_WIDTH	(P_LEN_FIFO_ADR),
+        .P_DAT_WIDTH	(P_LEN_FIFO_DAT)
+    )
+    LEN_FIFO_INST
+    (
+        .A_RST_IN      (LNK_RST_IN),                    // Reset
+        .B_RST_IN      (sclk_sdp.rst),
+        .A_CLK_IN      (LNK_CLK_IN),                    // Clock
+        .B_CLK_IN      (SDP_CLK_IN),
+        .A_CKE_IN      (1'b1),                          // Clock enable
+        .B_CKE_IN      (1'b1),
 
-            // Input (A)
-            .A_CLR_IN      (lclk_len_fifo.clr),             // Clear
-            .A_WR_IN       (lclk_len_fifo.wr[i]),           // Write
-            .A_DAT_IN      (lclk_len_fifo.din[i]),          // Write data
+        // Input (A)
+        .A_CLR_IN      (lclk_len_fifo.clr),             // Clear
+        .A_WR_IN       (lclk_len_fifo.wr),              // Write
+        .A_DAT_IN      (lclk_len_fifo.din),             // Write data
 
-            // Output (B)
-            .B_CLR_IN      (sclk_len_fifo.clr),             // Clear
-            .B_RD_IN       (sclk_len_fifo.rd),              // Read
-            .B_DAT_OUT     (sclk_len_fifo.dout[i]),         // Read data
-            .B_DE_OUT      (sclk_len_fifo.de[i]),           // Data enable
+        // Output (B)
+        .B_CLR_IN      (sclk_len_fifo.clr),             // Clear
+        .B_RD_IN       (sclk_len_fifo.rd),              // Read
+        .B_DAT_OUT     (sclk_len_fifo.dout),            // Read data
+        .B_DE_OUT      (sclk_len_fifo.de),              // Data enable
 
-            // Status (A)
-            .A_WRDS_OUT    (),                              // Used words
-            .A_FL_OUT      (),                              // Full
-            .A_EP_OUT      (),                              // Empty
+        // Status (A)
+        .A_WRDS_OUT    (),                              // Used words
+        .A_FL_OUT      (),                              // Full
+        .A_EP_OUT      (),                              // Empty
 
-            // Status (B)
-            .B_WRDS_OUT    (),                              // Used words
-            .B_FL_OUT      (),                              // Full
-            .B_EP_OUT      ()                               // Empty
-        );
-    end
-endgenerate
+        // Status (B)
+        .B_WRDS_OUT    (),                              // Used words
+        .B_FL_OUT      (),                              // Full
+        .B_EP_OUT      ()                               // Empty
+    );
 
+
+//-----
 // Reset
-    prt_dp_lib_rst
+//-----
+    prt_lib_rst
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     SCLK_SDP_RST_INST
     (
         .SRC_RST_IN     (LNK_RST_IN),
@@ -1203,8 +1194,14 @@ endgenerate
         .DST_RST_OUT    (sclk_sdp.rst)
     );
 
-    // Run CDC
-    prt_dp_lib_cdc_bit
+
+//-----
+// Run CDC
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     SCLK_RUN_CSC_INST
     (       
         .SRC_CLK_IN     (LNK_CLK_IN),		// Clock
@@ -1213,15 +1210,21 @@ endgenerate
         .DST_DAT_OUT	(sclk_sdp.run)	    // Data
     );
 
-    // Lanes CDC
-    prt_dp_lib_cdc_vec
+
+//-----
+// Lanes CDC
+//-----
+    prt_lib_cdc_vec
     #(
+        .P_VENDOR       (P_VENDOR),
 	    .P_WIDTH        ($size(lclk_lnk.lanes))
     )
     SCLK_LANES_CDC_INST
     (
+        .SRC_RST_IN     (LNK_RST_IN),       // Reset
         .SRC_CLK_IN     (LNK_CLK_IN),		// Clock
         .SRC_DAT_IN     (lclk_lnk.lanes),	// Data
+        .DST_RST_IN     (sclk_sdp.rst),     // Reset
         .DST_CLK_IN     (SDP_CLK_IN),		// Clock
         .DST_DAT_OUT    (sclk_sdp.lanes)	// Data
     );
@@ -1258,9 +1261,9 @@ endgenerate
         // One lane
         if (sclk_sdp.lanes == 'd1)
         begin
-            if (sclk_len_fifo.de[0])
+            if (sclk_len_fifo.de)
             begin    
-                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][2+:4]; // Divide by four
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[2+:4]; // Divide by four
                 sclk_sdp.rd_len_vld = 1;
             end
         end
@@ -1268,9 +1271,9 @@ endgenerate
         // Two Lanes
         else if (sclk_sdp.lanes == 'd2)
         begin
-            if (&sclk_len_fifo.de[1:0])
+            if (sclk_len_fifo.de)
             begin    
-                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][1+:4]; // Divide by two
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[1+:4]; // Divide by two
                 sclk_sdp.rd_len_vld = 1;
             end
         end
@@ -1278,9 +1281,9 @@ endgenerate
         // Four lanes
         else 
         begin
-            if (&sclk_len_fifo.de)
+            if (sclk_len_fifo.de)
             begin    
-                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0][0+:4];
+                sclk_sdp.rd_cnt_in = sclk_len_fifo.dout[0+:4];
                 sclk_sdp.rd_len_vld = 1;
             end
         end
@@ -1325,9 +1328,12 @@ endgenerate
             sclk_sdp.rd_cnt_end = 0;
     end
 
+
+//-----
 // Read counter end edge
 // This is used for the packet SOP and EOP
-    prt_dp_lib_edge
+//-----
+    prt_lib_edge
     SCLK_CNT_END_EDGE_INST
     (
         .CLK_IN     (SDP_CLK_IN),                   // Clock
@@ -2393,16 +2399,22 @@ endgenerate
 
     assign sclk_vsc.dat = {sclk_vsc.bpc, sclk_vsc.csf};
 
+
+//-----
 // VSC clock domain converter
-	prt_dp_lib_cdc_vec
+//-----
+	prt_lib_cdc_vec
 	#(
-		.P_WIDTH		($size(sclk_vsc.dat))
+		.P_VENDOR       (P_VENDOR),
+        .P_WIDTH		($size(sclk_vsc.dat))
 	)
 	VSC_DAT_CDC_INST
 	(
+        .SRC_RST_IN     (sclk_sdp.rst),     // Reset
 		.SRC_CLK_IN		(SDP_CLK_IN),	    // Clock
 		.SRC_DAT_IN		(sclk_vsc.dat),	    // Data
-		.DST_CLK_IN		(LNK_CLK_IN),	    // Clock
+		.DST_RST_IN     (LNK_RST_IN),       // Reset
+        .DST_CLK_IN		(LNK_CLK_IN),	    // Clock
 		.DST_DAT_OUT	(lclk_lnk.vsc_dat)	// Data
 	);
 
@@ -2410,12 +2422,12 @@ endgenerate
 generate
     for (i = 0; i < P_LANES; i++)
     begin
-        assign LNK_SRC_IF.sol[i]   = lclk_lnk.sol[i]; 
-        assign LNK_SRC_IF.eol[i]   = lclk_lnk.eol[i]; 
-        assign LNK_SRC_IF.vid[i]   = lclk_lnk.vid[i]; 
+        assign LNK_SRC_IF.sol[i]   = lclk_lnk.sol;      
+        assign LNK_SRC_IF.eol[i]   = lclk_lnk.eol; 
+        assign LNK_SRC_IF.vid[i]   = lclk_lnk.vid; 
         assign LNK_SRC_IF.sdp[i]   = 0;                  // The SDP is not passed
         assign LNK_SRC_IF.msa[i]   = 0;                  // The MSA is not passed 
-        assign LNK_SRC_IF.vbid[i]  = lclk_lnk.vbid[i]; 
+        assign LNK_SRC_IF.vbid[i]  = lclk_lnk.vbid; 
         assign LNK_SRC_IF.k[i]     = lclk_lnk.k[i];
         assign LNK_SRC_IF.dat[i]   = lclk_lnk.dat[i];
     end

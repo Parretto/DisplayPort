@@ -11,6 +11,8 @@
     =======
     v1.0 - Initial release
     v1.1 - Added video last signal
+    v1.2 - Removed head and tail counters
+
 
     License
     =======
@@ -28,9 +30,13 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_vid_fifo
 #(
     parameter                               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter                               P_FAMILY = "none",  // Family (Only used for Lattice)
     parameter                               P_SIM = 0,          // Simulation
     parameter                               P_FIFO_WRDS = 64,   // FIFO words
     parameter                               P_LANES = 4,        // Lanes
@@ -44,7 +50,6 @@ module prt_dprx_vid_fifo
     input wire                              LNK_CLR_IN,                                     // Clear
     input wire [7:0]                        LNK_DAT_IN[P_LANES][P_SEGMENTS],                // Data
     input wire [P_SEGMENTS-1:0]             LNK_WR_IN[P_LANES],                             // Write
-    input wire                              LNK_LAST_IN,                                    // Last
 
     // Video port
     input wire                              VID_RST_IN,                                     // Reset
@@ -52,30 +57,26 @@ module prt_dprx_vid_fifo
     input wire                              VID_CLR_IN,                                     // Clear
     input wire [P_STRIPES-1:0]              VID_RD_IN[P_LANES][P_SEGMENTS],                 // Read
     output wire [1:0]                       VID_DAT_OUT[P_LANES][P_SEGMENTS][P_STRIPES],    // Data
-    output wire [P_STRIPES-1:0]             VID_DE_OUT[P_LANES][P_SEGMENTS],                // Data enable
-    output wire [5:0]                       VID_LVL_OUT,                                    // Level
-    output wire                             VID_LAST_OUT                                    // Last
+    output wire [P_STRIPES-1:0]             VID_DE_OUT[P_LANES][P_SEGMENTS]                 // Data enable
 );
 
+//-----
 // Parameters
+//-----
 // FIFO optimization. In simulation the optimization is not used.
 // This enables the FIFO status (empty, full and words), which is handy for debugging
 localparam P_FIFO_OPT = (P_SIM) ? 0 : 1;         
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 2;
 
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic                           clr;
     logic	[P_STRIPES-1:0]	        wr[P_LANES][P_SEGMENTS];  
     logic   [P_FIFO_DAT-1:0]        din[P_LANES][P_SEGMENTS][P_STRIPES];
-    logic   [5:0]                   head_lane[P_LANES];
-    logic   [5:0]                   head_tmp[P_LANES/2];
-    logic   [5:0]                   head;
-    logic   [5:0]                   head_last;
-    logic                           last;
-    logic                           last_re;
-    logic   [7:0]                   last_pipe;
 } lnk_fifo_struct;
 
 typedef struct {
@@ -85,20 +86,12 @@ typedef struct {
     logic	[P_STRIPES-1:0]	        de[P_LANES][P_SEGMENTS];
     logic   [P_STRIPES-1:0]         fl[P_LANES][P_SEGMENTS];
     logic   [P_STRIPES-1:0]         ep[P_LANES][P_SEGMENTS];
-    logic   [5:0]                   head_cdc;
-    logic   [5:0]                   head_last_cdc;
-    logic                           last_cdc;
-    logic                           last_cdc_re;
-    logic                           lnk_last;
-    logic   [5:0]                   head;
-    logic   [5:0]                   tail;
-    logic   [5:0]                   lvl;
-    logic                           vid_last;
-    logic   [7:0]                   vid_last_pipe;
-    logic                           vid_last_re;
 } vid_fifo_struct;
 
+
+//-----
 // Signals
+//-----
 lnk_fifo_struct     lclk_fifo;
 vid_fifo_struct     vclk_fifo;
 
@@ -127,119 +120,10 @@ generate
     end
 endgenerate
 
-// Head lane
-// This process counts the number of blocks (12 bytes) in the fifo.
-// This is used for read logic.
-// Only the last stripe of each fifo is used.
-// As there might be skew between the lanes, there is one head counter for each lane.
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin
-        always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
-        begin
-            // Reset
-            if (LNK_RST_IN)
-                lclk_fifo.head_lane[i] <= 0;
 
-            else
-            begin
-                // Clear
-                // When the fifo is cleared
-                // Also to prevent race conditions the head counters are cleared on the (delayed) end of line
-                if (lclk_fifo.clr || lclk_fifo.last_pipe[$high(lclk_fifo.last_pipe)])
-                    lclk_fifo.head_lane[i] <= 0;
-
-                // Increment
-                else if (lclk_fifo.wr[i][P_SEGMENTS-1][P_STRIPES-1])
-                    lclk_fifo.head_lane[i] <= lclk_fifo.head_lane[i] + 'd1;
-            end
-        end
-    end
-endgenerate
-
-// Head 
-// Due to the skew some lanes might lead or lag.
-// To prevent under-running of the FIFO we have to find the lowest head.
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        // To improve performance this process is split into two levels
-        // Lanes 0 and 1
-        if (lclk_fifo.head[0] < lclk_fifo.head[1])
-            lclk_fifo.head_tmp[0] <= lclk_fifo.head_lane[0];
-        else
-            lclk_fifo.head_tmp[0] <= lclk_fifo.head_lane[1];
-
-        // Lanes 2 and 3
-        if (lclk_fifo.head[2] < lclk_fifo.head[3])
-            lclk_fifo.head_tmp[1] <= lclk_fifo.head_lane[2];
-        else
-            lclk_fifo.head_tmp[1] <= lclk_fifo.head_lane[3];
-
-        // Final result
-        if (lclk_fifo.head_tmp[0] < lclk_fifo.head_tmp[1])
-            lclk_fifo.head <= lclk_fifo.head_tmp[0];
-        else
-            lclk_fifo.head <= lclk_fifo.head_tmp[1];
-    end
-
-// Last 
-// This flag is asserted at the end of a line. 
-// This flag is used by the video domain to control the head value.
-// And to generate the video last signal.
-    always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
-    begin
-        // Reset
-        if (LNK_RST_IN)
-            lclk_fifo.last <= 0;
-
-        else
-        begin
-            // Clear
-            if (lclk_fifo.clr)
-                lclk_fifo.last <= 0;
-
-            // Set
-            else if (LNK_LAST_IN)
-                lclk_fifo.last <= 1;
-        end
-    end
-
-// Last edge detector
-// This is used to capture the head last value.
-    prt_dp_lib_edge
-    LNK_LAST_EDGE_INST
-    (
-        .CLK_IN    (LNK_CLK_IN),            // Clock
-        .CKE_IN    (1'b1),                  // Clock enable
-        .A_IN      (lclk_fifo.last),         // Input
-        .RE_OUT    (lclk_fifo.last_re),      // Rising edge
-        .FE_OUT    ()                       // Falling edge
-    );
-
-// Last pipeline
-// The last needs to be delayed to compensate the head calculation delay.
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        lclk_fifo.last_pipe <= {lclk_fifo.last_pipe[0+:$high(lclk_fifo.last_pipe)], lclk_fifo.last_re};
-    end
-
-// Head last
-// To prevent a race condition the last head value is captured as well and transfered to the video clock domain.
-    always_ff @ (posedge LNK_RST_IN, posedge LNK_CLK_IN)
-    begin
-        // Reset
-        if (LNK_RST_IN)
-            lclk_fifo.head_last <= 0;
-
-        else
-        begin
-            // Load
-            if (lclk_fifo.last_pipe[2])
-                lclk_fifo.head_last <= lclk_fifo.head;
-        end
-    end
-
+//-----
 // FIFO
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_fifo_lanes       
@@ -248,9 +132,10 @@ generate
             for (k = 0; k < P_STRIPES; k++)
             begin : gen_fifo_stripes
                 // FIFO
-                prt_dp_lib_fifo_dc
+                prt_lib_fifo_dc
                 #(
                     .P_VENDOR       (P_VENDOR),             // Vendor
+                    .P_FAMILY       (P_FAMILY),             // Family
                     .P_MODE         ("burst"),		        // "single" or "burst"
                     .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
                     .P_OPT 			(P_FIFO_OPT),			// In optimized mode the status port are not available. This saves some logic.
@@ -292,46 +177,9 @@ generate
     end
 endgenerate
 
-// Head clock domain crossing
-    prt_dp_lib_cdc_gray
-    #(
-        .P_VENDOR       (P_VENDOR),
-        .P_WIDTH        ($size(lclk_fifo.head))
-    )
-    VCLK_HEAD_CDC_INST
-    (
-        .SRC_CLK_IN     (LNK_CLK_IN),           // Clock
-        .SRC_DAT_IN     (lclk_fifo.head),       // Data
-        .DST_CLK_IN     (VID_CLK_IN),           // Clock
-        .DST_DAT_OUT    (vclk_fifo.head_cdc)    // Data
-    );
-
-// Head last clock domain crossing
-    prt_dp_lib_cdc_gray
-    #(
-        .P_VENDOR       (P_VENDOR),
-        .P_WIDTH        ($size(lclk_fifo.head_last))
-    )
-    VCLK_HEAD_LAST_CDC_INST
-    (
-        .SRC_CLK_IN     (LNK_CLK_IN),               // Clock
-        .SRC_DAT_IN     (lclk_fifo.head_last),      // Data
-        .DST_CLK_IN     (VID_CLK_IN),               // Clock
-        .DST_DAT_OUT    (vclk_fifo.head_last_cdc)   // Data
-    );
-
-// Last clock domain crossing
-    prt_dp_lib_cdc_bit
-    VCLK_LAST_CDC_INST
-    (
-        .SRC_CLK_IN     (LNK_CLK_IN),           // Clock
-        .SRC_DAT_IN     (lclk_fifo.last),        // Data
-        .DST_CLK_IN     (VID_CLK_IN),           // Clock
-        .DST_DAT_OUT    (vclk_fifo.last_cdc)     // Data
-    );
 
 /*
-    Video port
+    Video domain
 */
 
 // Video Inputs
@@ -350,130 +198,10 @@ generate
     end
 endgenerate
 
-// Last edge detector
-    prt_dp_lib_edge
-    VCLK_LAST_CDC_EDGE_INST
-    (
-        .CLK_IN    (VID_CLK_IN),                // Clock
-        .CKE_IN    (1'b1),                      // Clock enable
-        .A_IN      (vclk_fifo.last_cdc),        // Input
-        .RE_OUT    (vclk_fifo.last_cdc_re),     // Rising edge
-        .FE_OUT    ()                           // Falling edge
-    );
 
-// Link last flag
-// This flag is set when the link domain has reached the end of line.
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_fifo.lnk_last <= 0;
-
-        else
-        begin
-            // Clear
-            if (vclk_fifo.clr)
-                vclk_fifo.lnk_last <= 0;
-
-            // Set 
-            else if (vclk_fifo.last_cdc_re)
-                vclk_fifo.lnk_last <= 1;
-        end
-    end
-
-// Head
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_fifo.head <= 0;
-
-        else
-        begin
-            // Clear
-            if (vclk_fifo.clr)
-                vclk_fifo.head <= 0;
-
-            // Last
-            else if (vclk_fifo.lnk_last)
-                vclk_fifo.head <= vclk_fifo.head_last_cdc;
-
-            // Pass
-            else
-                vclk_fifo.head <= vclk_fifo.head_cdc;
-        end
-    end
-
-// Tail
-// This process keeps track of the read bytes from the fifo.
-// As the reading is synchronous only the first fifo is counted.
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_fifo.tail <= 0;
-
-        else
-        begin
-            // Clear
-            if (vclk_fifo.clr)
-                vclk_fifo.tail <= 0;
-
-            // Increment
-            else if (vclk_fifo.rd[0][0][0])
-                vclk_fifo.tail <= vclk_fifo.tail + 'd1;
-        end
-    end
-
-// Level
-    always_comb
-    begin
-        if (vclk_fifo.head > vclk_fifo.tail)
-            vclk_fifo.lvl = vclk_fifo.head - vclk_fifo.tail;
-        else
-            vclk_fifo.lvl = (2**$size(vclk_fifo.tail) - vclk_fifo.tail) + vclk_fifo.head;
-    end        
-
-// Video last
-// This flag is asserted when the FIFO has reached the last data
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_fifo.vid_last <= 0;
-
-        else
-        begin
-            // Clear
-            if (vclk_fifo.clr)
-                vclk_fifo.vid_last <= 0;
-
-            // Set
-            else if (vclk_fifo.lnk_last && (vclk_fifo.head == vclk_fifo.tail))
-                vclk_fifo.vid_last <= 1;
-        end
-    end
-
-// Video last delayed
-// The FIFO might still be producing data.
-// Therefore delay the video last.
-    always_ff @ (posedge VID_CLK_IN)
-    begin
-        vclk_fifo.vid_last_pipe <= {vclk_fifo.vid_last_pipe[0+:$high(vclk_fifo.vid_last_pipe)], vclk_fifo.vid_last};
-    end
-
-// Last edge detector
-    prt_dp_lib_edge
-    VCLK_LAST_EDGE_INST
-    (
-        .CLK_IN    (VID_CLK_IN),                // Clock
-        .CKE_IN    (1'b1),                      // Clock enable
-        .A_IN      (vclk_fifo.vid_last_pipe[$high(vclk_fifo.vid_last_pipe)]),   // Input
-        .RE_OUT    (vclk_fifo.vid_last_re),     // Rising edge
-        .FE_OUT    ()                           // Falling edge
-    );
-
+//-----
 // Outputs
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_fifo_dout_lanes
@@ -488,9 +216,6 @@ generate
         end
     end
 endgenerate
-
-    assign VID_LVL_OUT = vclk_fifo.lvl;
-    assign VID_LAST_OUT = vclk_fifo.vid_last_re;
 
 endmodule
 

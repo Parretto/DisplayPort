@@ -29,8 +29,13 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dp_clkdet
+#(
+    parameter P_VENDOR      = "none"  // Vendor - "AMD", "ALTERA" or "LSC"
+)
 (
     // System reset and clock
     input wire      SYS_RST_IN,
@@ -44,7 +49,9 @@ module prt_dp_clkdet
     output wire     STA_ACT_OUT     // Active
 );
 
+//-----
 // Signals
+//-----
 logic [3:0]     mclk_cnt;
 logic           mclk_cnt_end;
 logic           mclk_beacon;
@@ -105,7 +112,10 @@ logic           sclk_act;
 
 // Clock domain Adapter
 // This crosses the beacon signal from the link domain to the system domain
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR        (P_VENDOR)
+    )
     BEACON_CDC_INST
     (
     	.SRC_CLK_IN      (MON_CLK_IN),	// Clock
@@ -119,7 +129,7 @@ logic           sclk_act;
 */
 
 // Beacon edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     BEACON_EDGE_INST
     (
     	.CLK_IN    (SYS_CLK_IN),	   // Clock

@@ -16,6 +16,7 @@
     v1.4 - Added secondary data packet 
     v1.5 - Added sdp vsc snooping
     v1.6 - Removed MSA interrupt and added video interrupt
+    v1.7 - Added channel aligner logic
 
 
     License
@@ -34,10 +35,14 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_lnk
 #(
     // System
     parameter               P_VENDOR      = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter               P_FAMILY      = "none",  // Family (Only used for Lattice)
     parameter               P_SIM         = 0,       // Simulation
     parameter               P_MST         = 0,       // MST support
     parameter               P_SDP         = 0,       // SDP support
@@ -132,14 +137,14 @@ prt_dp_rx_lnk_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_to_pars_lane[0:P_LANES-1]();
+lnk_to_pars();
 
 prt_dp_rx_lnk_if
 #(
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_from_pars_lane[0:P_LANES-1]();
+lnk_from_pars();
 
 // Scrambler
 prt_dp_rx_lnk_if
@@ -147,7 +152,14 @@ prt_dp_rx_lnk_if
   .P_LANES  (1),
   .P_SPL    (P_SPL)
 )
-lnk_from_scrm_lane[0:P_LANES-1]();
+lnk_to_scrm_lane[P_LANES]();
+
+prt_dp_rx_lnk_if
+#(
+  .P_LANES  (1),
+  .P_SPL    (P_SPL)
+)
+lnk_from_scrm_lane[P_LANES]();
 
 prt_dp_rx_lnk_if
 #(
@@ -183,10 +195,13 @@ genvar i;
 
 // Logic
 
+//-----
 // Link message Clock domain converter
+//-----
     prt_dp_msg_cdc
     #(
-        .P_VENDOR           (P_VENDOR),                                                                                                                                                                 
+        .P_VENDOR           (P_VENDOR),  
+        .P_FAMILY           (P_FAMILY),                                                                                                                                                               
         .P_DAT_WIDTH        (P_MSG_DAT)
     )
     LNK_MSG_CDC_INST
@@ -214,10 +229,14 @@ genvar i;
     assign {lnk_msg_if[6].dat, lnk_msg_if[5].dat} = {2{lnk_msg_if[4].dat}};
     assign {lnk_msg_if[6].vld, lnk_msg_if[5].vld} = {2{lnk_msg_if[4].vld}};
 
+
+//-----
 // System message Clock domain converter
+//-----
     prt_dp_msg_cdc
     #(
-        .P_VENDOR           (P_VENDOR),                                                                                                                                                                 
+        .P_VENDOR           (P_VENDOR),
+        .P_FAMILY           (P_FAMILY),                                                                                                                                                                 
         .P_DAT_WIDTH        (P_MSG_DAT)
     )
     SYS_MSG_CDC_INST
@@ -235,11 +254,15 @@ genvar i;
         .B_MSG_SRC_IF       (MSG_SRC_IF)
     );
 
+
+//-----
 // Video message Clock domain converter
 // The video module needs the horizontal width to generate the EOL. 
+//-----
     prt_dp_msg_cdc
     #(
-        .P_VENDOR           (P_VENDOR),                                                                                                                                                                 
+        .P_VENDOR           (P_VENDOR),
+        .P_FAMILY           (P_FAMILY),                                                                                                                                                                 
         .P_DAT_WIDTH        (P_MSG_DAT)
     )
     VID_MSG_CDC_INST
@@ -257,8 +280,14 @@ genvar i;
         .B_MSG_SRC_IF       (vid_msg_if[0])
     );
 
+
+//-----
 // Link clock detector
+//-----
     prt_dp_clkdet
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     LNK_CLKDET_INST
     (
         // System reset and clock
@@ -273,7 +302,10 @@ genvar i;
         .STA_ACT_OUT        (STA_LNK_CLKDET_OUT)
     );
 
+
+//-----
 // Control
+//-----
     prt_dprx_ctl
     #(
         // Message
@@ -299,9 +331,16 @@ genvar i;
         .CTL_BPC_OUT        (bpc_from_ctl)          // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
     );
 
+
+//-----
 // Training
+//-----
     prt_dprx_trn
     #(
+        // System
+        .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY),         // Family 
+        
         // Link
         .P_LANES            (P_LANES),          // Lanes
         .P_SPL              (P_SPL),            // Symbols per lane
@@ -330,91 +369,62 @@ genvar i;
         .LNK_SRC_IF         (lnk_from_trn)      // Source
     );
 
+
+//-----
 // Parser
-
+// All lanes are aligned, so only the data on lane 0 need to be processed. 
+//-----
     // Lock
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        // Currently in MST force lock low
-        if (mst_en_from_ctl)
-        begin
-                lnk_to_pars_lane[0].lock <= 0;
-                lnk_to_pars_lane[1].lock <= 0;
-                lnk_to_pars_lane[2].lock <= 0;
-                lnk_to_pars_lane[3].lock <= 0;
-        end
+    assign lnk_to_pars.lock = lnk_en_from_ctl;
 
-        // SST
-        else
-        begin
-            // 4 lanes
-            if (lanes_from_ctl == 'd3)
-            begin
-                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[2].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[3].lock <= lnk_en_from_ctl;
-            end
+    // Map interface
+    assign lnk_to_pars.k[0]     = lnk_from_trn.k[0];
+    assign lnk_to_pars.dat[0]   = lnk_from_trn.dat[0];
+    assign lnk_to_pars.sol[0]   = 0;
+    assign lnk_to_pars.eol[0]   = 0;
+    assign lnk_to_pars.vid[0]   = 0;
+    assign lnk_to_pars.msa[0]   = 0;
+    assign lnk_to_pars.sdp[0]   = 0;
+    assign lnk_to_pars.vbid[0]  = 0;
 
-            // 2 lanes
-            else if (lanes_from_ctl == 'd2)
-            begin
-                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[1].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[2].lock <= 0;
-                lnk_to_pars_lane[3].lock <= 0;
-            end
+    prt_dprx_pars
+    #(
+        // Link
+        .P_SPL              (P_SPL)             // Symbols per lane
+    )
+    PARS_INST
+    (
+        // Reset and clock
+        .RST_IN             (LNK_RST_IN),       // Reset
+        .CLK_IN             (LNK_CLK_IN),       // Clock
 
-            // 1 lanes
-            else 
-            begin
-                lnk_to_pars_lane[0].lock <= lnk_en_from_ctl;
-                lnk_to_pars_lane[1].lock <= 0;
-                lnk_to_pars_lane[2].lock <= 0;
-                lnk_to_pars_lane[3].lock <= 0;
-            end
-        end
-    end
+        // Control
+        .CTL_EFM_IN         (1'b1),             // Enhanced framing mode
 
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_pars
+        // Link
+        .LNK_SNK_IF         (lnk_to_pars),      // Sink
+        .LNK_SRC_IF         (lnk_from_pars)     // Source
+    );
 
-        // Map interface
-        assign lnk_to_pars_lane[i].k[0]     = lnk_from_trn.k[i];
-        assign lnk_to_pars_lane[i].dat[0]   = lnk_from_trn.dat[i];
-        assign lnk_to_pars_lane[i].sol[0]   = 0;
-        assign lnk_to_pars_lane[i].eol[0]   = 0;
-        assign lnk_to_pars_lane[i].vid[0]   = 0;
-        assign lnk_to_pars_lane[i].msa[0]   = 0;
-        assign lnk_to_pars_lane[i].sdp[0]   = 0;
-        assign lnk_to_pars_lane[i].vbid[0]  = 0;
 
-        prt_dprx_pars
-        #(
-            // Link
-            .P_SPL              (P_SPL)                     // Symbols per lane
-        )
-        PARS_INST
-        (
-            // Reset and clock
-            .RST_IN             (LNK_RST_IN),
-            .CLK_IN             (LNK_CLK_IN),               // Clock
-
-            // Control
-            .CTL_EFM_IN         (1'b1),                     // Enhanced framing mode
-
-            // Link
-            .LNK_SNK_IF         (lnk_to_pars_lane[i]),      // Sink
-            .LNK_SRC_IF         (lnk_from_pars_lane[i])     // Source
-        );
-    end
-endgenerate
-
+//-----
 // Scrambler
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin : gen_scrm
+
+        // Map interface
+        assign lnk_to_scrm_lane[i].lock     = lnk_from_pars.lock;
+        assign lnk_to_scrm_lane[i].k[0]     = lnk_from_trn.k[i];
+        assign lnk_to_scrm_lane[i].dat[0]   = lnk_from_trn.dat[i];
+        assign lnk_to_scrm_lane[i].sol[0]   = 0;
+        assign lnk_to_scrm_lane[i].eol[0]   = 0;
+        assign lnk_to_scrm_lane[i].vid[0]   = 0;
+        assign lnk_to_scrm_lane[i].msa[0]   = 0;
+        assign lnk_to_scrm_lane[i].sdp[0]   = 0;
+        assign lnk_to_scrm_lane[i].vbid[0]  = 0;
+
         prt_dprx_scrm
         #(  
             .P_SIM              (P_SIM),                    // Simulation
@@ -432,7 +442,7 @@ generate
             .CTL_MST_IN         (mst_en_from_ctl),          // MST
 
             // Link
-            .LNK_SNK_IF         (lnk_from_pars_lane[i]),    // Sink
+            .LNK_SNK_IF         (lnk_to_scrm_lane[i]),      // Sink
             .LNK_SRC_IF         (lnk_from_scrm_lane[i])     // Source
         );
 
@@ -441,12 +451,12 @@ generate
         assign lnk_from_scrm.dat[i] = lnk_from_scrm_lane[i].dat[0];
 
         // Insert parser signals
-        assign lnk_from_scrm.sol[i]  = lnk_from_pars_lane[i].sol[0];
-        assign lnk_from_scrm.eol[i]  = lnk_from_pars_lane[i].eol[0];
-        assign lnk_from_scrm.vid[i]  = lnk_from_pars_lane[i].vid[0];
-        assign lnk_from_scrm.msa[i]  = lnk_from_pars_lane[i].msa[0];
-        assign lnk_from_scrm.sdp[i]  = lnk_from_pars_lane[i].sdp[0];
-        assign lnk_from_scrm.vbid[i] = lnk_from_pars_lane[i].vbid[0];
+        assign lnk_from_scrm.sol[i]  = lnk_from_pars.sol[0];
+        assign lnk_from_scrm.eol[i]  = lnk_from_pars.eol[0];
+        assign lnk_from_scrm.vid[i]  = lnk_from_pars.vid[0];
+        assign lnk_from_scrm.msa[i]  = lnk_from_pars.msa[0];
+        assign lnk_from_scrm.sdp[i]  = lnk_from_pars.sdp[0];
+        assign lnk_from_scrm.vbid[i] = lnk_from_pars.vbid[0];
     end
 
     // Lock
@@ -470,49 +480,16 @@ generate
 
 endgenerate
 
-// MST
-generate
-    if (P_MST)
-    begin : gen_mst
 
-        // Interface
-        prt_dp_rx_lnk_if
-        #(
-            .P_LANES  (1),
-            .P_SPL    (P_SPL)
-        )
-        lnk_to_mst_lane[0:P_LANES-1]();
-
-        prt_dprx_mst
-        #(
-            // Link
-            .P_SPL              (P_SPL)               // Symbols per lane
-        )
-        MST_INST
-        (
-            // Reset and clock
-            .RST_IN             (LNK_RST_IN),         // Reset
-            .CLK_IN             (LNK_CLK_IN),         // Clock
-
-            // Control
-            .CTL_MST_IN         (mst_en_from_ctl),      // MST
-
-            // Link 
-            .LNK_SNK_IF         (lnk_to_mst_lane[0])   // Sink
-        );
-
-        assign lnk_to_mst_lane[0].k[0]   = lnk_from_scrm_lane[0].k[0];
-        assign lnk_to_mst_lane[0].dat[0] = lnk_from_scrm_lane[0].dat[0];
-
-    end
-endgenerate
-
+//-----
 // MSA
+//-----
     prt_dprx_msa
     #(
         // System
         .P_VENDOR           (P_VENDOR),         // Vendor
-        
+        .P_FAMILY           (P_FAMILY),         // Family 
+
         // Link
         .P_LANES            (P_LANES),          // Lanes
         .P_SPL              (P_SPL),            // Symbols per lane
@@ -540,7 +517,10 @@ endgenerate
         .LNK_SRC_IF         (lnk_from_msa)       // Source 
     );
 
+
+//-----
 // SDP
+//-----
 generate
     if (P_SDP)
     begin : gen_sdp
@@ -549,7 +529,8 @@ generate
             // System
             .P_SIM                  (P_SIM),            // Simulation
             .P_VENDOR               (P_VENDOR),         // Vendor
-            
+            .P_FAMILY               (P_FAMILY),         // Family
+
             // Link
             .P_LANES                (P_LANES),          // Lanes
             .P_SPL                  (P_SPL),            // Symbols per lane
@@ -611,7 +592,10 @@ generate
     end
 endgenerate
 
+
+//-----
 // Video
+//-----
     prt_dprx_vid
     #(
         // System
@@ -656,8 +640,14 @@ endgenerate
         .VID_SRC_IF         (VID_SRC_IF)            // Interface
     );
 
+
+//-----
 // CDR lock clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     CDR_LOCK_CDC_INST
     (
         .SRC_CLK_IN         (LNK_CLK_IN),           // Clock
@@ -666,8 +656,14 @@ endgenerate
         .DST_DAT_OUT        (STA_CDR_LOCK_OUT)      // Data
     );
 
+
+//-----
 // Scrambler lock clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     SCRM_LOCK_CDC_INST
     (
         .SRC_CLK_IN         (LNK_CLK_IN),           // Clock
@@ -676,8 +672,14 @@ endgenerate
         .DST_DAT_OUT        (STA_SCRM_LOCK_OUT)     // Data
     );
 
+
+//-----
 // Video enable clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     VID_EN_CDC_INST
     (
         .SRC_CLK_IN         (VID_CLK_IN),           // Clock
@@ -686,8 +688,14 @@ endgenerate
         .DST_DAT_OUT        (STA_VID_EN_OUT)        // Data
     );
 
+
+//-----
 // Video IRQ clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
     VID_IRQ_CDC_INST
     (
         .SRC_CLK_IN         (LNK_CLK_IN),        // Clock
@@ -696,8 +704,11 @@ endgenerate
         .DST_DAT_OUT        (sclk_irq_from_vid)  // Data
     );
 
+
+//-----
 // Interrupt generator
-    prt_dp_lib_edge
+//-----
+    prt_lib_edge
     VID_IRQ_EDGE_INST
     (
         .CLK_IN    (SYS_CLK_IN),            // Clock
@@ -709,7 +720,7 @@ endgenerate
 
 
 // Outputs
-    assign LNK_SYNC_OUT = |lnk_from_pars_lane[0].eol[0];
+    assign LNK_SYNC_OUT = |lnk_from_pars.eol[0];
     assign VID_IRQ_OUT = sclk_irq_from_vid_re || sclk_irq_from_vid_fe;
 
 endmodule

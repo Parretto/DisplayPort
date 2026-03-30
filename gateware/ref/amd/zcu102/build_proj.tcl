@@ -10,6 +10,9 @@ create_project dp_ref_amd_zcu102 -part xczu9eg-ffvb1156-2-e -force
 set SRC "../../src"
 
 # Library
+add_files $SRC/lib/prt_lib_if.sv
+add_files $SRC/lib/prt_lib_cmp.sv
+add_files $SRC/lib/prt_lib_mem.sv
 add_files $SRC/lib/prt_dp_pkg.sv
 add_files $SRC/lib/prt_dp_lib.sv
 add_files $SRC/lib/prt_dp_lib_if.sv
@@ -44,7 +47,8 @@ add_files $SRC/rx/prt_dprx_lnk.sv
 add_files $SRC/rx/prt_dprx_msa.sv
 add_files $SRC/rx/prt_dprx_pars.sv
 add_files $SRC/rx/prt_dprx_scrm.sv
-add_files $SRC/rx/prt_dprx_trn_lane.sv
+add_files $SRC/rx/prt_dprx_trn_ila.sv
+add_files $SRC/rx/prt_dprx_trn_chk.sv
 add_files $SRC/rx/prt_dprx_trn.sv
 add_files $SRC/rx/prt_dprx_vid_vmap.sv
 add_files $SRC/rx/prt_dprx_vid_lmap.sv

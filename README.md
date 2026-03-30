@@ -25,6 +25,7 @@ The thin host driver has a simple API, which is used by the application to inter
 	- AMD UltraScale+
 	- AMD Artix-7
 	- Lattice CertusPro-NX
+	- Lattice Avant-X/G (Preliminary)
 	- Altera Cyclone 10 GX
 	- Altera Arria 10 GX
 
@@ -46,4 +47,4 @@ a physical or non-tangible product or service that has substantial commercial, i
 # Contact
 Send an email to dp@parretto.com
 
-(c) 2021 - 2025 by Parretto B.V.
+(c) 2021 - 2026 by Parretto B.V.

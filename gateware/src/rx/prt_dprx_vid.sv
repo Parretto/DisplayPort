@@ -15,6 +15,7 @@
     v1.3 - Added VB-ID register output
     v1.4 - Added support for YCrCb colorspace 
     v1.5 - Added video interrupt
+    v1.6 - Removed interlane dependency
 
 
     License
@@ -33,10 +34,14 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_vid
 #(
     // System
     parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter               P_FAMILY = "none",  // Family (Only used for Lattice)
     parameter               P_SIM = 0,          // Simulation
 
     // Link
@@ -76,10 +81,16 @@ module prt_dprx_vid
     prt_dp_axis_if.src      VID_SRC_IF          // Source
 );
 
+
+//-----
 // Package
+//-----
 import prt_dp_pkg::*;
 
+
+//-----
 // Parameters
+//-----
 localparam P_FIFO_WRDS = 64;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = 9;
@@ -87,7 +98,45 @@ localparam P_FIFO_SEGMENTS = 4;
 localparam P_FIFO_STRIPES = 4;
 localparam P_MAP_CH = (P_PPC == 4) ? 4 : 8; // Mapper input channels
 
+
+//-----
+// Function
+//-----
+// This function calculates the head counter in four symbols
+function logic [15:0] calc_head_4spl (logic [15:0] head_in, logic [P_SPL-1:0] wr_in);
+    logic [15:0] head_out;
+        case (wr_in)
+            'b0001 : head_out = head_in + 'd1;
+            'b0010 : head_out = head_in + 'd1;
+            'b0100 : head_out = head_in + 'd1;
+            'b1000 : head_out = head_in + 'd1;
+            'b0011 : head_out = head_in + 'd2;
+            'b0110 : head_out = head_in + 'd2;
+            'b1100 : head_out = head_in + 'd2;
+            'b0111 : head_out = head_in + 'd3;
+            'b1110 : head_out = head_in + 'd3;
+            'b1111 : head_out = head_in + 'd4;
+            default : head_out = head_in;
+        endcase
+    return head_out;
+endfunction
+
+// This function calculates the head counter in two symbols
+function logic [15:0] calc_head_2spl (logic [15:0] head_in, logic [P_SPL-1:0] wr_in);
+    logic [15:0] head_out;
+        case (wr_in)
+            'b01 : head_out = head_in + 'd1;
+            'b10 : head_out = head_in + 'd1;
+            'b11 : head_out = head_in + 'd2;
+            default : head_out = head_in;
+        endcase
+    return head_out;
+endfunction
+
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic [1:0]                     lanes;      // Active lanes
     logic                           bpc;        // Active bits-per-component (0 - 8bits / 1 - 10 bits)
@@ -103,19 +152,17 @@ typedef struct {
 
 typedef struct {
     logic                           lock;                   // Lock
-    logic [P_SPL-1:0]               sol[P_LANES];
-    logic [P_SPL-1:0]               eol[P_LANES];
-    logic [P_SPL-1:0]               vid[P_LANES];
-    logic [P_SPL-1:0]               vid_reg[P_LANES];
-    logic [P_SPL-1:0]               vid_reg_del[P_LANES];
+    logic [P_SPL-1:0]               sol;
+    logic [P_SPL-1:0]               eol;
+    logic [P_SPL-1:0]               vid;
+    logic [P_SPL-1:0]               vid_reg;
+    logic [P_SPL-1:0]               vid_reg_del;
     logic                           str;                    // Start
-    logic                           str_sticky;             // Start stickey
     logic                           str_toggle;
-    logic [P_LANES-1:0]             stp_lane;
-    logic                           stp;
-    logic                           stp_re;
-    logic [P_SPL-1:0]               vbid[P_LANES];
-    logic [P_SPL-1:0]               vbid_reg[P_LANES];
+    logic                           stp;                    // Stop
+    logic                           stp_toggle;
+    logic [P_SPL-1:0]               vbid;
+    logic [P_SPL-1:0]               vbid_reg;
     logic [7:0]                     vbid_val;               // VB-ID value
     logic                           nvs;                    // No video stream flag
     logic                           vbf;                    // Vertical blanking flag 
@@ -125,13 +172,15 @@ typedef struct {
     logic [7:0]                     dat_reg[P_LANES][P_SPL];
     logic [7:0]                     dat_reg_del[P_LANES][P_SPL];
     logic                           irq;
+    logic [15:0]                    head_lane;
+    logic [15:0]                    head;
 } lnk_struct;
 
 typedef struct {
-    logic [1:0]                     lph[P_LANES];
-    logic [1:0]                     fph[P_LANES];
-    logic [1:0]                     sel[P_LANES];
-    logic [P_LANES-1:0]             str;
+    logic [1:0]                     lph;
+    logic [1:0]                     fph;
+    logic [1:0]                     sel;
+    logic                           str;
     logic [P_SPL-1:0]               wr[P_LANES];
     logic [7:0]                     dat[P_LANES][P_SPL];
 } aln_struct;
@@ -142,8 +191,6 @@ typedef struct {
 } lnk_map_struct;
 
 typedef struct {
-    logic [3:0]                     last_pipe;
-    logic                           last;
     logic                           clr;
 } lnk_fifo_struct;
 
@@ -153,27 +200,28 @@ typedef struct {
 
 typedef struct {
     logic                           clr;
-    logic	[1:0]                   dout[P_LANES][P_FIFO_SEGMENTS][P_FIFO_STRIPES];
-    logic	[P_FIFO_STRIPES-1:0]	de[P_LANES][P_FIFO_SEGMENTS];
-    logic   [5:0]                   lvl;
-    logic                           last;
+    logic [1:0]                     dout[P_LANES][P_FIFO_SEGMENTS][P_FIFO_STRIPES];
+    logic [P_FIFO_STRIPES-1:0]	    de[P_LANES][P_FIFO_SEGMENTS];
 } vid_fifo_struct;
 
 typedef struct {
-    logic	[P_FIFO_STRIPES-1:0]    rd[P_LANES][P_FIFO_SEGMENTS];
-    logic 	[P_VID_DAT-1:0]         dat;
+    logic [15:0]                    head;
+    logic [P_FIFO_STRIPES-1:0]      rd[P_LANES][P_FIFO_SEGMENTS];
+    logic  [P_VID_DAT-1:0]          dat;
+    logic                           eol;
     logic                           vld;
 } vid_map_struct;
 
 typedef struct {
-    logic [7:0]                     run_pipe;   
-    logic                           run;        // Run
-    logic [15:0]                    hwidth;
-    logic [15:0]                    hwidth_cnt;
+    logic                           run;
     logic                           str_toggle;
     logic                           str_re;
     logic                           str_fe;
     logic                           str;      // Start
+    logic                           stp_toggle;
+    logic                           stp_re;
+    logic                           stp_fe;
+    logic                           stp;      // Stop
     logic                           nvs;      // No video stream flag
     logic                           vbf;      // Vertical blanking flag 
     logic                           vbf_re;   // Vertical blanking flag rising edge
@@ -184,7 +232,10 @@ typedef struct {
     logic                           vld;      // Valid
 } vid_struct;
 
+
+//-----
 // Signals
+//-----
 lnk_ctl_struct      lclk_ctl;
 lnk_struct          lclk_lnk;
 aln_struct          lclk_aln;
@@ -212,12 +263,15 @@ genvar i, j;
 // Link input
     always_comb
     begin
+        // All the lanes are aligned, so only the first lane is used. 
+        lclk_lnk.vbid = LNK_SNK_IF.vbid[0];
+        lclk_lnk.sol  = LNK_SNK_IF.sol[0];
+        lclk_lnk.eol  = LNK_SNK_IF.eol[0];
+        lclk_lnk.vid  = LNK_SNK_IF.vid[0];
+
+        // Data
         for (int i = 0; i < P_LANES; i++)
         begin
-            lclk_lnk.vbid[i] = LNK_SNK_IF.vbid[i];
-            lclk_lnk.sol[i]  = LNK_SNK_IF.sol[i];
-            lclk_lnk.eol[i]  = LNK_SNK_IF.eol[i];
-            lclk_lnk.vid[i]  = LNK_SNK_IF.vid[i];
             lclk_lnk.k[i]    = LNK_SNK_IF.k[i];
             lclk_lnk.dat[i]  = LNK_SNK_IF.dat[i];
         end
@@ -227,11 +281,12 @@ genvar i, j;
 // This is needed for the alignment latency 
     always_ff @ (posedge LNK_CLK_IN)
     begin
+        lclk_lnk.vbid_reg    <= lclk_lnk.vbid;
+        lclk_lnk.vid_reg     <= lclk_lnk.vid;
+
         for (int i = 0; i < P_LANES; i++)
         begin
-            lclk_lnk.vbid_reg[i]    <= lclk_lnk.vbid[i];
-            lclk_lnk.vid_reg[i]     <= lclk_lnk.vid[i];
-            lclk_lnk.dat_reg[i]     <= lclk_lnk.dat[i];
+            lclk_lnk.dat_reg[i] <= lclk_lnk.dat[i];
         end
     end
 
@@ -243,8 +298,9 @@ genvar i, j;
         begin
             for (int j = 0; j < P_SPL; j++)
                 lclk_lnk.dat_reg_del[i][j] <= lclk_lnk.dat_reg[i][j]; 
-            lclk_lnk.vid_reg_del[i] <= lclk_lnk.vid_reg[i];
         end
+
+        lclk_lnk.vid_reg_del <= lclk_lnk.vid_reg;
     end
 
 // Link lock
@@ -268,91 +324,36 @@ genvar i, j;
             // Default
             lclk_lnk.str <= 0;
 
-            // Clear 
-            if (lclk_lnk.str_sticky)
-            begin
-                for (int i = 0; i < P_LANES; i++)
-                begin
-                    if (|lclk_lnk.eol[i])
-                        lclk_lnk.str_sticky <= 0;
-                end
-            end
-
             // Set
-            else if (!lclk_lnk.str_sticky)                           
-            begin
-                for (int i = 0; i < P_LANES; i++)
-                begin
-                    if (|lclk_lnk.sol[i])
-                    begin
-                        lclk_lnk.str <= 1;
-                        lclk_lnk.str_sticky <= 1;
-                    end
-                end
-            end
+            // The lanes are aligned, so only the first lane is used.
+            if (|lclk_lnk.sol)
+                lclk_lnk.str <= 1;
         end
 
+        // Idle
         else
-        begin
             lclk_lnk.str <= 0;
-            lclk_lnk.str_sticky <= 0;
-        end
     end
 
 // Link stop
-// This signal is used to generate the fifo last input.
-// The individual lanes might be lagging or leading. 
-// We want to assert this signal when an end-of-line is seen on all (active) lanes.
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_lnk_stp_lane
-        always_ff @ (posedge LNK_CLK_IN)
-        begin
-            // Lock
-            if (lclk_lnk.lock)
-            begin
-                // Clear 
-                if (lclk_lnk.str)
-                    lclk_lnk.stp_lane[i] <= 0;
-
-                // Set
-                else if (|lclk_lnk.eol[i])                           
-                    lclk_lnk.stp_lane[i] <= 1;      
-            end
-
-            else
-                lclk_lnk.stp_lane[i] <= 0;
-        end
-    end
-endgenerate
-
-// Combine into a single signal
-    always_comb
+    always_ff @ (posedge LNK_CLK_IN)
     begin
-        // Two active lanes
-        if (lclk_ctl.lanes == 'd2)
-            lclk_lnk.stp = &lclk_lnk.stp_lane[0+:2];
+        // Lock
+        if (lclk_lnk.lock)
+        begin
+            // Default
+            lclk_lnk.stp <= 0;
 
-        // One active lanes
-        else if (lclk_ctl.lanes == 'd1)
-            lclk_lnk.stp = &lclk_lnk.stp_lane[0];
+            // Set
+            // The lanes are aligned, so only the first lane is used.
+            if (|lclk_lnk.eol)
+                lclk_lnk.stp <= 1;
+        end
 
-        // Four active lanes
+        // Idle
         else
-            lclk_lnk.stp = &lclk_lnk.stp_lane[0+:4];
+            lclk_lnk.stp <= 0;
     end
-
-// Link stop edge
-// This is used to generate the fifo last signal.
-    prt_dp_lib_edge
-    LNK_STP_EDGE_INST
-    (
-        .CLK_IN    (LNK_CLK_IN),            // Clock
-        .CKE_IN    (1'b1),                  // Clock enable
-        .A_IN      (lclk_lnk.stp),          // Input
-        .RE_OUT    (lclk_lnk.stp_re),       // Rising edge
-        .FE_OUT    ()                       // Falling edge
-    );
 
 // Start toggle
 // The start of line is used to reset some processes in both the link and video clock domains.
@@ -372,6 +373,24 @@ endgenerate
             lclk_lnk.str_toggle <= 0;
     end
 
+// Stop toggle
+// The stop of line is used to flush the video mapper
+// In the link clock domain this signal is only one clock.
+// To detect this in the video clock domain this toggle signal is inverted every time an eol is detected.
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Lock
+        if (lclk_lnk.lock)
+        begin
+            // Only first lane is used
+            if (lclk_lnk.stp)
+                lclk_lnk.stp_toggle <= ~lclk_lnk.stp_toggle;
+        end
+
+        else
+            lclk_lnk.stp_toggle <= 0;
+    end
+
 // VB-ID value
 // This will capture the VB-ID 
     always_ff @ (posedge LNK_CLK_IN)
@@ -379,9 +398,10 @@ endgenerate
         // Lock
         if (lclk_lnk.lock)
         begin
+            // The VB-ID byte can appear on any sublane
             for (int i = 0; i < P_SPL; i++)
             begin
-                if (lclk_lnk.vbid_reg[0][i])
+                if (lclk_lnk.vbid_reg[i])
                     lclk_lnk.vbid_val <= lclk_lnk.dat_reg[0][i];
             end
         end
@@ -394,9 +414,9 @@ endgenerate
     assign lclk_lnk.vbf = lclk_lnk.vbid_val[0];
     assign lclk_lnk.nvs = lclk_lnk.vbid_val[3];
 
-// Veritical Blanking Flag egde detector
+// Vertical Blanking Flag egde detector
 // This is used for the interrupt 
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_VBF_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),        // Clock
@@ -435,20 +455,15 @@ endgenerate
 
 // Start of data packet
 // This signal is asserted at the start of a new data packet
-generate
-    for (i = 0; i < P_LANES; i++)
-    begin : gen_aln_vid
-        prt_dp_lib_edge
-        LNK_ALN_STR_EDGE_INST
-        (
-            .CLK_IN    (LNK_CLK_IN),            // Clock
-            .CKE_IN    (1'b1),                  // Clock enable
-            .A_IN      (|lclk_lnk.vid[i]),      // Input
-            .RE_OUT    (lclk_aln.str[i]),       // Rising edge
-            .FE_OUT    ()                       // Falling edge
-        );
-    end
-endgenerate
+    prt_lib_edge
+    LNK_ALN_STR_EDGE_INST
+    (
+        .CLK_IN    (LNK_CLK_IN),            // Clock
+        .CKE_IN    (1'b1),                  // Clock enable
+        .A_IN      (|lclk_lnk.vid),        // Input
+        .RE_OUT    (lclk_aln.str),          // Rising edge
+        .FE_OUT    ()                       // Falling edge
+    );
 
 // First phase
 // This process indicates the first phase of the incoming data
@@ -470,26 +485,23 @@ generate
     
         always_comb
         begin
-            for (int i = 0; i < P_LANES; i++)
-            begin
-                // Phase 0
-                // Highest priority 
-                if (lclk_lnk.vid[i][0] == 1)
-                    lclk_aln.fph[i] = 'd0;
+            // Phase 0
+            // Highest priority 
+            if (lclk_lnk.vid[0])
+                lclk_aln.fph = 'd0;
 
-                // Phase 1
-                else if (lclk_lnk.vid[i][1] == 1)
-                    lclk_aln.fph[i] = 'd1;
+            // Phase 1
+            else if (lclk_lnk.vid[1])
+                lclk_aln.fph = 'd1;
 
-                // Phase 2
-                else if (lclk_lnk.vid[i][2] == 1)
-                    lclk_aln.fph[i] = 'd2;
+            // Phase 2
+            else if (lclk_lnk.vid[2])
+                lclk_aln.fph = 'd2;
 
-                // Phase 3
-                // Lowest priority
-                else
-                    lclk_aln.fph[i] = 'd3;
-            end
+            // Phase 3
+            // Lowest priority
+            else
+                lclk_aln.fph = 'd3;
         end        
     end
 
@@ -498,17 +510,14 @@ generate
     begin : gen_fph_2spl
         always_comb
         begin
-            for (int i = 0; i < P_LANES; i++)
-            begin
-                // Phase 0
-                // Highest priority
-                if (lclk_lnk.vid[i][0] == 1)
-                    lclk_aln.fph[i] = 'd0;
+            // Phase 0
+            // Highest priority
+            if (lclk_lnk.vid[0])
+                lclk_aln.fph = 'd0;
 
-                // Phase 1
-                else
-                    lclk_aln.fph[i] = 'd1;
-            end
+            // Phase 1
+            else
+                lclk_aln.fph = 'd1;
         end        
     end
 endgenerate
@@ -539,95 +548,27 @@ generate
 
         always_ff @ (posedge LNK_CLK_IN)
         begin
-            for (int i = 0; i < P_LANES; i++)
+            // Clear at start of line
+            if (|lclk_lnk.sol)
+                lclk_aln.lph <= 0;
+
+            else 
             begin
-                // Clear at start of line
-                if (|lclk_lnk.sol[i])
-                    lclk_aln.lph[i] <= 0;
+                // Phase 0 - Video ends in sublane 3
+                if (lclk_lnk.vid[3])
+                    lclk_aln.lph <= 'd0;
 
-                else 
-                begin
-                    // Alignment select 1
-                    if (lclk_aln.sel[i] == 'd1)
-                    begin 
-                        // Phase 0
-                        // Highest priority
-                        if (lclk_lnk.vid[i][3] == 1)
-                            lclk_aln.lph[i] <= 'd3;
+                // Phase 3 - Video ends in sublane 2
+                else if (lclk_lnk.vid[2])
+                    lclk_aln.lph <= 'd3;
 
-                        // Phase 3
-                        else if (lclk_lnk.vid[i][2] == 1)
-                            lclk_aln.lph[i] <= 'd2;
-
-                        // Phase 2
-                        else if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-                        
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-                    end
-
-                    // Alignment select 2
-                    else if (lclk_aln.sel[i] == 'd2)
-                    begin 
-                        // Phase 0
-                        if (lclk_lnk.vid[i][3] == 1)
-                            lclk_aln.lph[i] <= 'd2;
-
-                        // Phase 3
-                        else if (lclk_lnk.vid[i][2] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-
-                        // Phase 2
-                        else if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-                        
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd3;
-                    end
-
-                    // Alignment select 3
-                    else if (lclk_aln.sel[i] == 'd3)
-                    begin 
-                        // Phase 0
-                        if (lclk_lnk.vid[i][3] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-
-                        // Phase 3
-                        else if (lclk_lnk.vid[i][2] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-
-                        // Phase 2
-                        else if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd3;
-                        
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd2;
-                    end
-
-                    // Alignment select 0
-                    else
-                    begin 
-                        // Phase 0
-                        if (lclk_lnk.vid[i][3] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-
-                        // Phase 3
-                        else if (lclk_lnk.vid[i][2] == 1)
-                            lclk_aln.lph[i] <= 'd3;
-
-                        // Phase 2
-                        else if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd2;
-                        
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-                    end
-                end
+                // Phase 2 - Video ends in sublane 1
+                else if (lclk_lnk.vid[1])
+                    lclk_aln.lph <= 'd2;
+                
+                // Phase 1 - Video ends in sublane 0
+                else if (lclk_lnk.vid[0])
+                    lclk_aln.lph <= 'd1;
             end
         end
     end
@@ -637,39 +578,20 @@ generate
     begin : gen_lph_2spl
         always_ff @ (posedge LNK_CLK_IN)
         begin
-            for (int i = 0; i < P_LANES; i++)
+            // Clear at start of line
+            if (|lclk_lnk.sol)
+                lclk_aln.lph <= 0;
+
+            else
             begin
-                // Clear at start of line
-                if (|lclk_lnk.sol[i])
-                    lclk_aln.lph[i] <= 0;
-
-                else
-                begin
-                    // Alignment select 1
-                    if (lclk_aln.sel[i] == 'd1)
-                    begin 
-                        // Phase 0
-                        if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-                    
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-                    end
-
-                    // Alignment select 0
-                    else
-                    begin 
-                        // Phase 0
-                        if (lclk_lnk.vid[i][1] == 1)
-                            lclk_aln.lph[i] <= 'd0;
-                    
-                        // Phase 1
-                        else if (lclk_lnk.vid[i][0] == 1)
-                            lclk_aln.lph[i] <= 'd1;
-                    end
-                end                                         
-            end
+                // Phase 0 - Video ends in sublane 1
+                if (lclk_lnk.vid[1])
+                    lclk_aln.lph <= 'd0;
+            
+                // Phase 1 - Video ends in sublane 0
+                else if (lclk_lnk.vid[0])
+                    lclk_aln.lph <= 'd1;
+            end                                         
         end
     end
 endgenerate
@@ -682,41 +604,69 @@ generate
     begin : gen_aln_sel_4spl
         always_ff @ (posedge LNK_CLK_IN)
         begin
-            for (int i = 0; i < P_LANES; i++)
+            // Clear at start of line
+            if (|lclk_lnk.sol)
+                lclk_aln.sel <= 0;
+
+            else
             begin
-                // Clear at start of line
-                if (|lclk_lnk.sol[i])
-                    lclk_aln.sel[i] <= 0;
-
-                else
+                // Set at start of video data
+                if (lclk_aln.str)    
                 begin
-                    // Set at start of video data
-                    if (lclk_aln.str[i])    
-                    begin
-                        case ({lclk_aln.lph[i], lclk_aln.fph[i]})
-                            {2'd0, 2'd0} : lclk_aln.sel[i] <= 'd0;    
-                            {2'd0, 2'd1} : lclk_aln.sel[i] <= 'd1;    
-                            {2'd0, 2'd2} : lclk_aln.sel[i] <= 'd2;    
-                            {2'd0, 2'd3} : lclk_aln.sel[i] <= 'd3;    
+                    case ({lclk_aln.sel, lclk_aln.lph, lclk_aln.fph})
+                        {2'd0, 2'd0, 2'd1} : lclk_aln.sel <= 2'd1;
+                        {2'd0, 2'd0, 2'd2} : lclk_aln.sel <= 2'd2;
+                        {2'd0, 2'd0, 2'd3} : lclk_aln.sel <= 2'd3;
+                        {2'd0, 2'd1, 2'd0} : lclk_aln.sel <= 2'd3;
+                        {2'd0, 2'd1, 2'd2} : lclk_aln.sel <= 2'd1;
+                        {2'd0, 2'd1, 2'd3} : lclk_aln.sel <= 2'd2;
+                        {2'd0, 2'd2, 2'd0} : lclk_aln.sel <= 2'd2;
+                        {2'd0, 2'd2, 2'd1} : lclk_aln.sel <= 2'd3;
+                        {2'd0, 2'd2, 2'd3} : lclk_aln.sel <= 2'd1;
+                        {2'd0, 2'd3, 2'd0} : lclk_aln.sel <= 2'd1;
+                        {2'd0, 2'd3, 2'd1} : lclk_aln.sel <= 2'd2;
+                        {2'd0, 2'd3, 2'd2} : lclk_aln.sel <= 2'd3;
 
-                            {2'd1, 2'd0} : lclk_aln.sel[i] <= 'd3;    
-                            {2'd1, 2'd1} : lclk_aln.sel[i] <= 'd0;    
-                            {2'd1, 2'd2} : lclk_aln.sel[i] <= 'd1;    
-                            {2'd1, 2'd3} : lclk_aln.sel[i] <= 'd2;    
+                        {2'd1, 2'd0, 2'd1} : lclk_aln.sel <= 2'd2;
+                        {2'd1, 2'd0, 2'd2} : lclk_aln.sel <= 2'd3;
+                        {2'd1, 2'd0, 2'd3} : lclk_aln.sel <= 2'd0;
+                        {2'd1, 2'd1, 2'd0} : lclk_aln.sel <= 2'd0;
+                        {2'd1, 2'd1, 2'd2} : lclk_aln.sel <= 2'd2;
+                        {2'd1, 2'd1, 2'd3} : lclk_aln.sel <= 2'd3;
+                        {2'd1, 2'd2, 2'd0} : lclk_aln.sel <= 2'd3;
+                        {2'd1, 2'd2, 2'd1} : lclk_aln.sel <= 2'd0;
+                        {2'd1, 2'd2, 2'd3} : lclk_aln.sel <= 2'd2;
+                        {2'd1, 2'd3, 2'd0} : lclk_aln.sel <= 2'd2;
+                        {2'd1, 2'd3, 2'd1} : lclk_aln.sel <= 2'd3;
+                        {2'd1, 2'd3, 2'd2} : lclk_aln.sel <= 2'd0;
 
-                            {2'd2, 2'd0} : lclk_aln.sel[i] <= 'd2;    
-                            {2'd2, 2'd1} : lclk_aln.sel[i] <= 'd3;    
-                            {2'd2, 2'd2} : lclk_aln.sel[i] <= 'd0;    
-                            {2'd2, 2'd3} : lclk_aln.sel[i] <= 'd1;    
+                        {2'd2, 2'd0, 2'd1} : lclk_aln.sel <= 2'd3;
+                        {2'd2, 2'd0, 2'd2} : lclk_aln.sel <= 2'd0;
+                        {2'd2, 2'd0, 2'd3} : lclk_aln.sel <= 2'd1;
+                        {2'd2, 2'd1, 2'd0} : lclk_aln.sel <= 2'd1;
+                        {2'd2, 2'd1, 2'd2} : lclk_aln.sel <= 2'd3;
+                        {2'd2, 2'd1, 2'd3} : lclk_aln.sel <= 2'd0;
+                        {2'd2, 2'd2, 2'd0} : lclk_aln.sel <= 2'd0;
+                        {2'd2, 2'd2, 2'd1} : lclk_aln.sel <= 2'd1;
+                        {2'd2, 2'd2, 2'd3} : lclk_aln.sel <= 2'd3;
+                        {2'd2, 2'd3, 2'd0} : lclk_aln.sel <= 2'd3;
+                        {2'd2, 2'd3, 2'd1} : lclk_aln.sel <= 2'd0;
+                        {2'd2, 2'd3, 2'd2} : lclk_aln.sel <= 2'd1;
 
-                            {2'd3, 2'd0} : lclk_aln.sel[i] <= 'd1;    
-                            {2'd3, 2'd1} : lclk_aln.sel[i] <= 'd2;    
-                            {2'd3, 2'd2} : lclk_aln.sel[i] <= 'd3;    
-                            {2'd3, 2'd3} : lclk_aln.sel[i] <= 'd0;    
-                                                    
-                            default      : lclk_aln.sel[i] <= 'd0;
-                        endcase
-                    end
+                        {2'd3, 2'd0, 2'd1} : lclk_aln.sel <= 2'd0;
+                        {2'd3, 2'd0, 2'd2} : lclk_aln.sel <= 2'd1;
+                        {2'd3, 2'd0, 2'd3} : lclk_aln.sel <= 2'd2;
+                        {2'd3, 2'd1, 2'd0} : lclk_aln.sel <= 2'd2;
+                        {2'd3, 2'd1, 2'd2} : lclk_aln.sel <= 2'd0;
+                        {2'd3, 2'd1, 2'd3} : lclk_aln.sel <= 2'd1;
+                        {2'd3, 2'd2, 2'd0} : lclk_aln.sel <= 2'd1;
+                        {2'd3, 2'd2, 2'd1} : lclk_aln.sel <= 2'd2;
+                        {2'd3, 2'd2, 2'd3} : lclk_aln.sel <= 2'd0;
+                        {2'd3, 2'd3, 2'd0} : lclk_aln.sel <= 2'd0;
+                        {2'd3, 2'd3, 2'd1} : lclk_aln.sel <= 2'd1;
+                        {2'd3, 2'd3, 2'd2} : lclk_aln.sel <= 2'd2;
+                        default            : ;
+                    endcase
                 end
             end
         end
@@ -727,27 +677,22 @@ generate
     begin : gen_aln_sel_2spl
         always_ff @ (posedge LNK_CLK_IN)
         begin
-            for (int i = 0; i < P_LANES; i++)
-            begin
-                // Clear at start of line
-                if (|lclk_lnk.sol[i])
-                    lclk_aln.sel[i] <= 0;
+            // Clear at start of line
+            if (|lclk_lnk.sol)
+                lclk_aln.sel <= 0;
 
-                else
+            else
+            begin
+                // Set at start of video data
+                if (lclk_aln.str)    
                 begin
-                    // Set at start of video data
-                    if (lclk_aln.str[i])    
-                    begin
-                        case ({lclk_aln.lph[i], lclk_aln.fph[i]})
-                            {2'd0, 2'd0} : lclk_aln.sel[i] <= 'd0;    
-                            {2'd0, 2'd1} : lclk_aln.sel[i] <= 'd1;    
-                        
-                            {2'd1, 2'd0} : lclk_aln.sel[i] <= 'd1;    
-                            {2'd1, 2'd1} : lclk_aln.sel[i] <= 'd0;    
-                        
-                            default      : lclk_aln.sel[i] <= 'd0;
-                        endcase
-                    end
+                    case ({lclk_aln.sel, lclk_aln.lph, lclk_aln.fph})
+                        {2'd0, 2'd0, 2'd1} : lclk_aln.sel <= 'd1;                   
+                        {2'd0, 2'd1, 2'd0} : lclk_aln.sel <= 'd1;
+                        {2'd1, 2'd0, 2'd1} : lclk_aln.sel <= 'd0;                   
+                        {2'd1, 2'd1, 2'd0} : lclk_aln.sel <= 'd0;                
+                        default      : ; // keep current alignment
+                    endcase
                 end
             end
         end
@@ -764,45 +709,45 @@ generate
             for (int i = 0; i < P_LANES; i++)
             begin
                 // Phase 1
-                if (lclk_aln.sel[i] == 'd1)
+                if (lclk_aln.sel == 'd1)
                 begin
                     lclk_aln.dat[i][0] <= lclk_lnk.dat_reg_del[i][1];
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg_del[i][2];
                     lclk_aln.dat[i][2] <= lclk_lnk.dat_reg_del[i][3];
                     lclk_aln.dat[i][3] <= lclk_lnk.dat_reg[i][0];
 
-                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[i][1];
-                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[i][2];
-                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg_del[i][3];
-                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][0];
+                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[1];
+                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[2];
+                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg_del[3];
+                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[0];
                 end
 
                 // Phase 2
-                else if (lclk_aln.sel[i] == 'd2)
+                else if (lclk_aln.sel == 'd2)
                 begin
                     lclk_aln.dat[i][0] <= lclk_lnk.dat_reg_del[i][2];
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg_del[i][3];
                     lclk_aln.dat[i][2] <= lclk_lnk.dat_reg[i][0];
                     lclk_aln.dat[i][3] <= lclk_lnk.dat_reg[i][1];
 
-                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[i][2];
-                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[i][3];
-                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][0];
-                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][1];
+                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[2];
+                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg_del[3];
+                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[0];
+                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[1];
                 end
 
                 // Phase 3
-                else if (lclk_aln.sel[i] == 'd3)
+                else if (lclk_aln.sel == 'd3)
                 begin
                     lclk_aln.dat[i][0] <= lclk_lnk.dat_reg_del[i][3];
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg[i][0];
                     lclk_aln.dat[i][2] <= lclk_lnk.dat_reg[i][1];
                     lclk_aln.dat[i][3] <= lclk_lnk.dat_reg[i][2];
 
-                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[i][3];
-                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[i][0];
-                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][1];
-                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][2];
+                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg_del[3];
+                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[0];
+                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[1];
+                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[2];
                 end
 
                 // Normal
@@ -813,10 +758,10 @@ generate
                     lclk_aln.dat[i][2] <= lclk_lnk.dat_reg[i][2];
                     lclk_aln.dat[i][3] <= lclk_lnk.dat_reg[i][3];
                     
-                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg[i][0];
-                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[i][1];
-                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[i][2];
-                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[i][3];
+                    lclk_aln.wr[i][0] <= lclk_lnk.vid_reg[0];
+                    lclk_aln.wr[i][1] <= lclk_lnk.vid_reg[1];
+                    lclk_aln.wr[i][2] <= lclk_lnk.vid_reg[2];
+                    lclk_aln.wr[i][3] <= lclk_lnk.vid_reg[3];
                 end
             end
         end
@@ -830,12 +775,12 @@ generate
             for (int i = 0; i < P_LANES; i++)
             begin
                 // Inverted
-                if (lclk_aln.sel[i] == 'd1)
+                if (lclk_aln.sel == 'd1)
                 begin
                     lclk_aln.dat[i][0] <= lclk_lnk.dat_reg_del[i][1];
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg[i][0];
-                    lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg_del[i][1];
-                    lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[i][0];
+                    lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg_del[1];
+                    lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[0];
                 end
 
                 // Normal
@@ -843,8 +788,8 @@ generate
                 begin
                     lclk_aln.dat[i][0] <= lclk_lnk.dat_reg[i][0];
                     lclk_aln.dat[i][1] <= lclk_lnk.dat_reg[i][1];
-                    lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg[i][0];
-                    lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[i][1];
+                    lclk_aln.wr[i][0]  <= lclk_lnk.vid_reg[0];
+                    lclk_aln.wr[i][1]  <= lclk_lnk.vid_reg[1];
                 end
             end
         end
@@ -881,21 +826,10 @@ endgenerate
         .VLD_OUT        (lclk_map.wr)       // Valid out
     );
 
-// FIFO last
-// The FIFO last signal indicates that the last data has been written in the FIFO.
-// This information is used by the FIFO module to store the last head counter.
-// Preventing invalid level information during clearing at the begin of a new line. 
-// To compensate for the alignment and mapping latency, the last signal must be delayed.
-    always_ff @ (posedge LNK_CLK_IN)
-    begin
-        lclk_fifo.last_pipe <= {lclk_fifo.last_pipe[0+:$high(lclk_fifo.last_pipe)], lclk_lnk.stp_re};
-    end
-    assign  lclk_fifo.last = lclk_fifo.last_pipe[$high(lclk_fifo.last_pipe)];
 
-/*
-    FIFO
-*/
-
+//-----
+// FIFO
+//-----
     prt_dprx_vid_fifo
     #(
         .P_VENDOR           (P_VENDOR),             // Vendor
@@ -908,33 +842,87 @@ endgenerate
     FIFO_INST
     (
         // Link port
-        .LNK_RST_IN     (LNK_RST_IN),               // Reset
-        .LNK_CLK_IN     (LNK_CLK_IN),               // Clock
-        .LNK_CLR_IN     (lclk_fifo.clr),            // Clear
-        .LNK_DAT_IN     (lclk_map.dat),             // Data
-        .LNK_WR_IN      (lclk_map.wr),              // Write
-        .LNK_LAST_IN    (lclk_fifo.last),           // Last
+        .LNK_RST_IN         (LNK_RST_IN),           // Reset
+        .LNK_CLK_IN         (LNK_CLK_IN),           // Clock
+        .LNK_CLR_IN         (lclk_fifo.clr),        // Clear
+        .LNK_DAT_IN         (lclk_map.dat),         // Data
+        .LNK_WR_IN          (lclk_map.wr),          // Write
 
         // Video port
-        .VID_RST_IN     (VID_RST_IN),               // Reset
-        .VID_CLK_IN     (VID_CLK_IN),               // Clock
-        .VID_CLR_IN     (vclk_fifo.clr),            // Clear
-        .VID_RD_IN      (vclk_map.rd),              // Read
-        .VID_DAT_OUT    (vclk_fifo.dout),           // Data
-        .VID_DE_OUT     (vclk_fifo.de),             // Data enable
-        .VID_LVL_OUT    (vclk_fifo.lvl),            // Level
-        .VID_LAST_OUT   (vclk_fifo.last)            // Last
+        .VID_RST_IN         (VID_RST_IN),           // Reset
+        .VID_CLK_IN         (VID_CLK_IN),           // Clock
+        .VID_CLR_IN         (vclk_fifo.clr),        // Clear
+        .VID_RD_IN          (vclk_map.rd),          // Read
+        .VID_DAT_OUT        (vclk_fifo.dout),       // Data
+        .VID_DE_OUT         (vclk_fifo.de)          // Data enable
     );
 
     assign lclk_fifo.clr = lclk_lnk.str;
     assign vclk_fifo.clr = vclk_vid.str;
 
+
+// Head lanes
+// This process counts the received bytes for lane 0. 
+// The head counter is used to determine the unread bytes (level) in the FIFO. 
+// The valid data packets on all lanes have the same size. 
+// In case a video line is not an integer number of bytes, the last packet will be zero-padded. 
+    always_ff @ (posedge LNK_CLK_IN)
+    begin
+        // Lock
+        if (lclk_lnk.lock)
+        begin
+            // Clear
+            if (lclk_lnk.str)
+                lclk_lnk.head_lane <= 0;
+
+            // Increment
+            else
+            begin
+                // Four symbols
+                if (P_SPL == 4)
+                    lclk_lnk.head_lane <= calc_head_4spl (lclk_lnk.head_lane, lclk_aln.wr[0]);
+
+                // Two symbols
+                else
+                    lclk_lnk.head_lane <= calc_head_2spl (lclk_lnk.head_lane, lclk_aln.wr[0]);
+            end
+        end
+
+        // Idle
+        else
+            lclk_lnk.head_lane <= 0;
+    end
+
+// Head
+// This process counts the total received bytes. 
+// All the lanes are aligned, so the received byte for lane 0 can be multiplied by the number of active lanes. 
+    always_comb
+    begin
+        // Single lane
+        if (lclk_ctl.lanes == 'd1)
+            lclk_lnk.head = lclk_lnk.head_lane;
+
+        // Two lanes
+        else if (lclk_ctl.lanes == 'd2)
+            lclk_lnk.head = {lclk_lnk.head_lane[0+:$size(lclk_lnk.head)-1], 1'b0};      // Multiply by two
+
+        // Four lanes
+        else 
+            lclk_lnk.head = {lclk_lnk.head_lane[0+:$size(lclk_lnk.head)-2], 2'b00};     // Multiply by four
+    end
+
+
 /*
     Video domain
 */
 
+//-----
 // BPC clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_BPC_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
@@ -943,8 +931,14 @@ endgenerate
         .DST_DAT_OUT    (vclk_ctl.bpc)     // Data
     );
 
-// Start clock domain crossing
-    prt_dp_lib_cdc_bit
+
+//-----
+// Start of  line clock domain crossing
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_STR_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),           // Clock
@@ -953,8 +947,11 @@ endgenerate
         .DST_DAT_OUT    (vclk_vid.str_toggle)   // Data
     );
 
+
+//-----
 // Start of line edge detector
-    prt_dp_lib_edge
+//-----
+    prt_lib_edge
     VCLK_STR_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),            // Clock
@@ -964,8 +961,43 @@ endgenerate
         .FE_OUT    (vclk_vid.str_fe)        // Falling edge
     );
 
+
+//-----
+// Stop of line clock domain crossing
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
+    VCLK_STP_CDC_INST
+    (
+        .SRC_CLK_IN     (LNK_CLK_IN),           // Clock
+        .SRC_DAT_IN     (lclk_lnk.stp_toggle),  // Data
+        .DST_CLK_IN     (VID_CLK_IN),           // Clock
+        .DST_DAT_OUT    (vclk_vid.stp_toggle)   // Data
+    );
+
+//-----
+// Stop of line edge detector
+//-----
+    prt_lib_edge
+    VCLK_STP_EDGE_INST
+    (
+        .CLK_IN    (VID_CLK_IN),            // Clock
+        .CKE_IN    (1'b1),                  // Clock enable
+        .A_IN      (vclk_vid.stp_toggle),   // Input
+        .RE_OUT    (vclk_vid.stp_re),       // Rising edge
+        .FE_OUT    (vclk_vid.stp_fe)        // Falling edge
+    );
+
+
+//-----
 // NVS clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_NVS_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),      // Clock
@@ -974,8 +1006,14 @@ endgenerate
         .DST_DAT_OUT    (vclk_vid.nvs)     // Data
     );
 
+
+//-----
 // VBF clock domain crossing
-    prt_dp_lib_cdc_bit
+//-----
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_VBF_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),      // Clock
@@ -984,7 +1022,29 @@ endgenerate
         .DST_DAT_OUT    (vclk_vid.vbf)     // Data
     );
 
+
+//-----
+// Head clock domain crossing
+//-----
+    prt_lib_cdc_vec
+    #(
+        .P_VENDOR       (P_VENDOR),
+        .P_WIDTH        ($size(lclk_lnk.head))
+    )
+    HEAD_CDC_INST
+    (
+        .SRC_RST_IN     (LNK_RST_IN),        // Reset
+        .SRC_CLK_IN     (LNK_CLK_IN),        // Clock
+        .SRC_DAT_IN     (lclk_lnk.head),     // Data
+        .DST_RST_IN     (VID_RST_IN),        // Reset
+        .DST_CLK_IN     (VID_CLK_IN),        // Clock
+        .DST_DAT_OUT    (vclk_map.head)      // Data
+    );
+
+
+//-----
 // Message Slave
+//-----
     prt_dp_msg_slv_egr
     #(
         .P_ID           (P_MSG_ID),       // Identifier
@@ -1011,67 +1071,59 @@ endgenerate
         .EGR_VLD_OUT    (vclk_msg.vld)     // Valid
     );
 
-// Horizontal width (active pixels)
-/*
-    always_ff @ (posedge VID_CLK_IN)
+// Run flag
+// This synchronizes to start the reading of the video line at the start of a frame.
+    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
     begin
-        // Valid message
-        if (vclk_msg.vld)
+        // Reset
+        if (VID_RST_IN)
+            vclk_vid.run <= 0;
+
+        else
         begin
-            // Load 
-            if (vclk_msg.idx == 'd0)
-                vclk_vid.hwidth <= vclk_msg.dat;
+            // Set during blanking
+            if (vclk_vid.vbf_re)
+                vclk_vid.run <= 1;
         end
     end
-*/
 
 // Start of line 
 // This signal is captured from the link domain
     always_ff @ (posedge VID_CLK_IN)
     begin
-        vclk_vid.str <= vclk_vid.str_re || vclk_vid.str_fe;
-    end
-
-// Run
-// At the start of a new line, the head value in the FIFO module is cleared. 
-// There is a possible race condition between the head, tail and level values when this condition occurs. 
-// To prevent a false reading of the level signal  
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-        begin
-            vclk_vid.run_pipe <= 0;
-            vclk_vid.run <= 0;
-        end
+        // Run
+        if (vclk_vid.run)
+            vclk_vid.str <= vclk_vid.str_re || vclk_vid.str_fe;
 
         else
-        begin
-            // Clear at end-of-line
-            if (vclk_fifo.last)
-            begin
-                vclk_vid.run_pipe <= 0;
-                vclk_vid.run <= 0;
-            end
-
-            // Set
-            else if (vclk_vid.str)
-            begin
-                vclk_vid.run_pipe <= 'h1;
-                vclk_vid.run <= 0;
-            end
-
-            else
-            begin
-                vclk_vid.run_pipe[$high(vclk_vid.run_pipe):1] <= vclk_vid.run_pipe[$high(vclk_vid.run_pipe)-1:0];
-                vclk_vid.run <= vclk_vid.run_pipe[$high(vclk_vid.run_pipe)];
-            end
-        end
+            vclk_vid.str <= 0;
     end
 
-/*
-    Mapper
-*/
+// Stop of line 
+// This signal is captured from the link domain
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Run
+        if (vclk_vid.run)
+        begin            
+            // Clear
+            if (vclk_vid.str)
+                vclk_vid.stp <= 0;
+
+            // Set
+            else if (vclk_vid.stp_re || vclk_vid.stp_fe)
+                vclk_vid.stp <= 1;
+        end
+
+        // Idle
+        else
+            vclk_vid.stp <= 0;
+    end
+
+
+//-----
+// Video Mapper
+//-----
     prt_dprx_vid_vmap
     #(
         // Video
@@ -1091,15 +1143,16 @@ endgenerate
         .CFG_BPC_IN     (vclk_ctl.bpc),         // Active bits-per-component
 
         // Mapper
-        .MAP_RUN_IN     (vclk_vid.run),         // Run
-        .MAP_LVL_IN     (vclk_fifo.lvl),        // Level
+        .MAP_STR_IN     (vclk_vid.str),         // Start
+        .MAP_STP_IN     (vclk_vid.stp),         // Stop
+        .MAP_HEAD_IN    (vclk_map.head),        // Head
         .MAP_RD_OUT     (vclk_map.rd),          // Read
         .MAP_DAT_IN     (vclk_fifo.dout),       // Data
-        .MAP_DE_IN      (vclk_fifo.de),         // Data enable
 
         // Video
-        .VID_DAT_OUT    (vclk_map.dat),         // Video data
-        .VID_VLD_OUT    (vclk_map.vld)          // Video valid
+        .VID_DAT_OUT    (vclk_map.dat),         // Data
+        .VID_EOL_OUT    (vclk_map.eol),         // End-of-line
+        .VID_VLD_OUT    (vclk_map.vld)          // Valid
     );
 
 
@@ -1107,8 +1160,10 @@ endgenerate
     Video
 */
 
+//-----
 // Vertical blanking flag detector
-    prt_dp_lib_edge
+//-----
+    prt_lib_edge
     VBF_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),        // Clock
@@ -1144,42 +1199,6 @@ endgenerate
         end
     end
 
-// Horizontal counter
-// This is used to generate the end-of-line signal
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_vid.hwidth_cnt <= 0;
-
-        else
-        begin
-            // Clear at start of line
-            if (vclk_vid.str)
-                vclk_vid.hwidth_cnt <= 0;
-
-            // Increment
-            else if (vclk_map.vld)
-                vclk_vid.hwidth_cnt <= vclk_vid.hwidth_cnt + P_PPC;
-        end
-    end
-
-// Horizontal width
-// This is used to generate the end of line
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
-    begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_vid.hwidth <= 0;
-
-        else
-        begin
-            // Load at start of line
-            if (vclk_vid.str)
-                vclk_vid.hwidth <= vclk_vid.hwidth_cnt;
-        end
-    end
-
 // Video data
     always_ff @ (posedge VID_CLK_IN)
     begin
@@ -1193,13 +1212,10 @@ endgenerate
     end
 
 // Start of frame
-    always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
+    always_ff @ (posedge VID_CLK_IN)
     begin
-        // Reset
-        if (VID_RST_IN)
-            vclk_vid.sof <= 0;
-        
-        else
+        // Run
+        if (vclk_vid.run)
         begin
             // Clear
             // When the first video data is transmitted
@@ -1211,23 +1227,22 @@ endgenerate
             else if (vclk_vid.str && vclk_vid.vbf_sticky)
                 vclk_vid.sof <= 1;
         end
+
+        // Idle
+        else
+            vclk_vid.sof <= 0;
     end
 
 // End of line
     always_ff @ (posedge VID_CLK_IN)
     begin
-        // Default
-        vclk_vid.eol <= 0;
-
-        // Run
-        if (vclk_vid.run && vclk_vid.vld)
-        begin
-            if (vclk_vid.hwidth_cnt == (vclk_vid.hwidth - P_PPC))
-                vclk_vid.eol <= 1;
-        end
+        vclk_vid.eol <= vclk_map.eol;
     end
 
+
+//-----
 // Outputs
+//-----
     // Link
     assign LNK_VBID_OUT     = lclk_lnk.vbid_val;   // VB-ID
     assign LNK_IRQ_OUT      = lclk_lnk.irq;        // Interrupt

@@ -5,7 +5,7 @@
 
 
     Module: Video Toolbox Top
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -30,6 +30,9 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_vtb_top
 #(
     parameter P_VENDOR = "none",  			// Vendor - "AMD", "ALTERA" or "LSC" 
@@ -336,6 +339,9 @@ endgenerate
 		.VPS_DAT_IN			(vps_dat_from_ctl),				// Data
 		.VPS_VLD_IN			(vps_vld_from_ctl),				// Valid
 
+		// Video
+		.VID_HS_IN			(vid_hs_from_tg),				// Hsync
+		
 		// Link
 		.LNK_SYNC_IN		(LNK_SYNC_IN),
 

@@ -27,7 +27,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dprx_vid_lmap
 #(
     // Video
@@ -50,15 +52,20 @@ module prt_dprx_vid_lmap
     output wire [P_STRIPES-1:0]         VLD_OUT[P_LANES]                // Valid out
 );
 
+//-----
 // Structure
+//-----
 typedef struct {
     logic [4:0]                     cnt[P_LANES][P_SPL];
     logic [P_STRIPES-1:0]           wr[P_LANES];
     logic [7:0]                     dat[P_LANES][P_STRIPES];
 } map_struct;
 
+//-----
 // Signals
+//-----
 map_struct      clk_map;
+
 
 // Counters 
 // The counters are used to map the link data into the stripe.

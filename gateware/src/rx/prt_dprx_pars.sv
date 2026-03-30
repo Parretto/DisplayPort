@@ -28,6 +28,10 @@
 
 `default_nettype none
 
+
+//-----
+// Module
+//-----
 module prt_dprx_pars
 #(
     parameter                   P_SPL = 2       // Symbols per lane
@@ -45,17 +49,21 @@ module prt_dprx_pars
     prt_dp_rx_lnk_if.src        LNK_SRC_IF      // Source
 );
 
+//-----
 // Package
+//-----
 import prt_dp_pkg::*;
 
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic                   efm;
     logic                   lock;
     logic   [8:0]           dat[P_SPL];    // Data
 } snk_struct;
 
-// Structures
 typedef struct {
     logic   [P_SPL-1:0]     be_det;
     logic   [P_SPL-1:0]     be_det_reg[2];
@@ -83,7 +91,9 @@ typedef struct {
     logic   [8:0]           dat[P_SPL];    // Data
 } src_struct;
 
+//-----
 // Signals
+//-----
 snk_struct   clk_snk;
 pars_struct  clk_pars;
 src_struct   clk_src;
@@ -1363,16 +1373,18 @@ endgenerate
 
 // Source
 // The data needs to be delayed for one clock to compensate for the detector logic.
+/*
     always_ff @ (posedge CLK_IN)
     begin
         for (int i = 0; i < P_SPL; i++)
             clk_src.dat[i] <= clk_snk.dat[i];
     end
+*/
 
 // Outputs
 generate
     for (i = 0; i < P_SPL; i++)
-        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_src.dat[i];
+        assign {LNK_SRC_IF.k[0][i], LNK_SRC_IF.dat[0][i]} = clk_snk.dat[i];
 endgenerate
 
     // Lock

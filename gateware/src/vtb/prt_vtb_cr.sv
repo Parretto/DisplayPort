@@ -5,12 +5,14 @@
 
 
     Module: Video Toolbox Clock Recovery
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
 	v1.1 - Correct issue with busy signal in video clock domain
+	v1.2 - Added video hsync input
+
 
     License
     =======
@@ -28,6 +30,9 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_vtb_cr
 #(
 	parameter				P_SIM = 0,			// Simulation
@@ -58,8 +63,11 @@ module prt_vtb_cr
 	input wire [15:0]		VPS_DAT_IN,			// Data
 	input wire 				VPS_VLD_IN,			// Valid	
 
+	// Video
+	input wire 				VID_HS_IN, 			// Hsync
+	
 	// Link
-	input wire				LNK_SYNC_IN,
+	input wire				LNK_SYNC_IN,		// Sync
 
 	// Direct I2C Access
 	input wire				DIA_RDY_IN,
@@ -107,6 +115,7 @@ typedef struct {
 	vid_sm_state						sm_cur;
 	vid_sm_state						sm_nxt;
 	logic								run;
+	logic 								hs;
 	logic	[15:0]						htotal;
 	logic								sync;
 	logic								sync_re;
@@ -203,7 +212,7 @@ dia_struct 		sclk_dia;
         .CKE_IN    (1'b1),           	 	// Clock enable
         .A_IN      (lclk_lnk.sync),      	// Input
         .RE_OUT    (lclk_lnk.sync_re), 		// Rising edge
-        .FE_OUT    ()   					// Falling edge
+        .FE_OUT    () 						// Falling edge
     );
 
 // Link toggle
@@ -233,6 +242,12 @@ dia_struct 		sclk_dia;
         .DST_CLK_IN    	(VID_CLK_IN),       // Clock
         .DST_DAT_OUT   	(vclk_vid.run)     // Data
     );
+
+// Hsync
+	always_ff @ (posedge VID_CLK_IN)
+	begin
+		vclk_vid.hs <= VID_HS_IN;
+	end
 
 // Htotal register
 	always_ff @ (posedge VID_CLK_IN)

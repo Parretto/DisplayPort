@@ -30,7 +30,9 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dprx_scrm
 #(
     parameter               P_SIM = 0,      // Simulation
@@ -50,10 +52,16 @@ module prt_dprx_scrm
     prt_dp_rx_lnk_if.src    LNK_SRC_IF      // Source
 );
 
+
+//-----
 // Package
+//-----
 import prt_dp_pkg::*;
 
+
+//-----
 // Function
+//-----
 function logic [15:0] calc_lfsr (logic [15:0] lfsr_in);
 	calc_lfsr[0]	= lfsr_in[8];
 	calc_lfsr[1]	= lfsr_in[9];
@@ -73,7 +81,10 @@ function logic [15:0] calc_lfsr (logic [15:0] lfsr_in);
 	calc_lfsr[15]	= lfsr_in[7];
 endfunction
 
+
+//-----
 // Signals
+//-----
 logic                  clk_en;
 logic                  clk_mst;
 logic                  clk_lock_in;        // Input lock
@@ -114,13 +125,22 @@ genvar i;
     end
 
 // Input registers
+// The input needs to be registered to compensate for the parser delay
+    always_ff @ (posedge CLK_IN)
+    begin
+        for (int i = 0; i < P_SPL; i++)
+            clk_din[i] <= {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
+    end
+
+/*
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_din
         assign clk_din[i] = {LNK_SNK_IF.k[0][i], LNK_SNK_IF.dat[0][i]};
     end
 endgenerate
-   
+*/
+
 // SR detector
     always_comb
     begin

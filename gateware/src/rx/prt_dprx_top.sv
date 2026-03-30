@@ -14,6 +14,8 @@
     v1.2 - Added training TPS4 
     v1.3 - Added VB-ID register output
     v1.4 - Added secondary data packet 
+    v1.5 - Added interlane aligner
+    
 
     License
     =======
@@ -31,11 +33,14 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dprx_top
 #(
     // System
     parameter                                   P_VENDOR    = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter                                   P_FAMILY    = "none",       // Family (Only used for Lattice)
     parameter                                   P_BEAT      = 'd125,        // Beat value
     parameter                                   P_MST       = 0,            // MST support
     parameter                                   P_SDP       = 0,            // SDP support
@@ -177,8 +182,10 @@ genvar i, j;
     System domain
 */
 
+//-----
 // Reset
-    prt_dp_lib_rst
+//-----
+    prt_lib_rst
     RST_INST
     (
         .SRC_RST_IN     (SYS_RST_IN),
@@ -187,7 +194,7 @@ genvar i, j;
         .DST_RST_OUT    (rst_from_sys_rst)
     );
 
-    prt_dp_lib_rst
+    prt_lib_rst
     LNK_RST_INST
     (
         .SRC_RST_IN     (~pio_from_pm[2]),
@@ -196,7 +203,7 @@ genvar i, j;
         .DST_RST_OUT    (rst_from_lnk_rst)
     );
 
-    prt_dp_lib_rst
+    prt_lib_rst
     VID_RST_INST
     (
         .SRC_RST_IN     (~pio_from_pm[3]),
@@ -205,7 +212,10 @@ genvar i, j;
         .DST_RST_OUT    (rst_from_vid_rst)
     );
 
+
+//-----
 // Policy maker
+//-----
     prt_dp_pm_top
     #(
         .P_VENDOR           (P_VENDOR),         // Vendor
@@ -262,11 +272,14 @@ genvar i, j;
     Link domain
 */
 
+//-----
 // Link
+//-----
     prt_dprx_lnk
     #(
         // System
         .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY),         // Family
         .P_SIM              (P_SIM),            // Simulation
         .P_MST              (P_MST),            // MST support
         .P_SDP              (P_SDP),            // Secondary Data Packet
@@ -346,7 +359,10 @@ genvar i, j;
     // Lock
     assign lnk_if.lock = LNK_LOCK_IN;
 
+
+//-----
 // Outputs
+//-----
 assign HB_OUT = pio_from_pm[0];
 
 assign VID_SOF_OUT = vid_if.sof;

@@ -40,7 +40,6 @@
 #define BOARD_ALINX_AXAU15              5
 #define BOARD_ENCLUSTRA_MERCURY         6
 
-//#define ADVANCED
 #define AUTO_COLORBAR
 
 #define SYS_CLK_FREQ                    50000000

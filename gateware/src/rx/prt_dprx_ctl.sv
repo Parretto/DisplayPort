@@ -30,6 +30,9 @@
 
 `default_nettype none
 
+//-----
+// Module
+//-----
 module prt_dprx_ctl
 #(
     // Message
@@ -54,7 +57,10 @@ module prt_dprx_ctl
     output wire [1:0]   CTL_BPC_OUT             // Active bits-per-component (0 - 8 bits / 1 - 10 bits / 2 - reserved / 3 - reserved)
 );
 
+
+//-----
 // Parameters
+//-----
 localparam P_CTL_WIDTH          = 7;
 localparam P_CTL_LNK_EN         = 0;
 localparam P_CTL_LANES          = 1;
@@ -62,7 +68,10 @@ localparam P_CTL_SCRM_EN        = 3;
 localparam P_CTL_MST_EN         = 4;
 localparam P_CTL_BPC            = 5;
 
+
+//-----
 // Structures
+//-----
 typedef struct {
     logic	[P_MSG_IDX-1:0]	      idx;
     logic                         first;
@@ -71,12 +80,18 @@ typedef struct {
 	logic				          vld;
 } msg_struct;
 
+
+//-----
 // Signals
+//-----
 msg_struct                  clk_msg;
 logic [P_CTL_WIDTH-1:0]     clk_msk;    // Mask
 logic [P_CTL_WIDTH-1:0]     clk_ctl;    // Control register
 
+
+//-----
 // Message Slave
+//-----
     prt_dp_msg_slv_egr
     #(
         .P_ID           (P_MSG_ID),     // Identifier
@@ -140,7 +155,10 @@ logic [P_CTL_WIDTH-1:0]     clk_ctl;    // Control register
         end
     end
 
+
+//-----
 // Outputs
+//-----
     assign CTL_LNK_EN_OUT       = clk_ctl[P_CTL_LNK_EN];
     assign CTL_LANES_OUT        = clk_ctl[P_CTL_LANES+:2];
     assign CTL_SCRM_EN_OUT      = clk_ctl[P_CTL_SCRM_EN];

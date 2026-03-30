@@ -5,7 +5,7 @@
 
 
     Module: DP Message Clock Domain Converter
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
@@ -27,10 +27,13 @@
 
 `default_nettype none
 
+//-----
 // Module
+//-----
 module prt_dp_msg_cdc
 #(
-    parameter P_VENDOR      = "none",  // Vendor "xilinx" or "lattice"
+    parameter P_VENDOR      = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter P_FAMILY      = "none",  // Family (Only used for Lattice)
     parameter P_DAT_WIDTH = 16
 )
 (
@@ -47,12 +50,16 @@ module prt_dp_msg_cdc
     prt_dp_msg_if.src                   B_MSG_SRC_IF
 );
 
+//-----
 // Parameters
+//-----
 localparam P_FIFO_WRDS = 8;
 localparam P_FIFO_ADR = $clog2(P_FIFO_WRDS);
 localparam P_FIFO_DAT = P_DAT_WIDTH + 2;        // Data + som + eom
 
+//-----
 // Structure
+//-----
 typedef struct {
     logic                       som;
     logic                       eom;
@@ -85,7 +92,9 @@ typedef struct {
     logic                       fl;
 } bclk_fifo_struct;
 
+//-----
 // Signals
+//-----
 aclk_msg_struct     aclk_msg;
 aclk_fifo_struct    aclk_fifo;
 bclk_msg_struct     bclk_msg;
@@ -96,7 +105,7 @@ bclk_fifo_struct    bclk_fifo;
 // Reset converter
 // When the port B is reset the FIFO might overflow.
 // To prevent this port A of the FIFO will be forced into reset when port B is in reset.
-    prt_dp_lib_rst
+    prt_lib_rst
     RST_INST
     (
         .SRC_RST_IN    (B_RST_IN),
@@ -111,10 +120,13 @@ bclk_fifo_struct    bclk_fifo;
     assign aclk_msg.dat = A_MSG_SNK_IF.dat;
     assign aclk_msg.vld = A_MSG_SNK_IF.vld;
 
+//-----
 // FIFO
-    prt_dp_lib_fifo_dc
+//-----
+    prt_lib_fifo_dc
     #(
         .P_VENDOR           (P_VENDOR),
+        .P_FAMILY           (P_FAMILY),
         .P_MODE             ("burst"),      // "single" or "burst"
         .P_RAM_STYLE        ("distributed"),    // "distributed" or "block"
         .P_ADR_WIDTH        (P_FIFO_ADR),
