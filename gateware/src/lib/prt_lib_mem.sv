@@ -5,13 +5,14 @@
 
 
     Module: Library Memory
-    (c) 2024 - 2025 by Parretto B.V.
+    (c) 2024 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
     v1.1 - Added Data output register option to Single clock FIFO (prt_lib_fifo_sc)
-    
+    v1.2 - Added write enable to Single clock FIFO (prt_lib_fifo_sc)
+
 
     License
     =======
@@ -49,6 +50,7 @@ module prt_lib_fifo_sc
 	input wire						CLR_IN,		// Clear
 
 	// Write
+	input wire						WR_EN_IN,		// Write enable in
 	input wire						WR_IN,		// Write in
 	input wire 	[P_DAT_WIDTH-1:0]		DAT_IN,		// Write data
 
@@ -118,7 +120,7 @@ generate
 			.clka				(CLK_IN),       
 			.addra				(clk_wp), 
 			.dina				(DAT_IN),
-			.ena					(1'b1), 
+			.ena					(WR_EN_IN), 
 			.wea					(WR_IN),
 
 			.clkb				(CLK_IN),  
@@ -163,7 +165,7 @@ generate
 			(
 				.Reset     				(1'b0),
 				.WrClock   				(CLK_IN),  
-				.WrClockEn 				(1'b1),  
+				.WrClockEn 				(WR_EN_IN),  
 				.WrAddress 				(clk_wp),  
 				.WE        				(WR_IN),  
 				.Data      				(DAT_IN),  
@@ -203,7 +205,7 @@ generate
 				.Reset     				(1'b0),  
 				
 				.WrClock   				(CLK_IN),  
-				.WrClockEn 				(1'b1),  
+				.WrClockEn 				(WR_EN_IN),  
 				.WrAddress 				(clk_wp),  
 				.WE        				(WR_IN),  
 				.Data      				(DAT_IN),  
@@ -297,14 +299,18 @@ endgenerate
 			if (CLR_IN)
 				clk_wp <= 0;
 
-			// Write
-			else if (WR_IN)
+			// Write enable
+			else if (WR_EN_IN)
 			begin
-				// Check for overflow
-				if (&clk_wp)
-					clk_wp <= 0;
-				else
-					clk_wp <= clk_wp + 'd1;
+				// Write
+				if (WR_IN)
+				begin
+					// Check for overflow
+					if (&clk_wp)
+						clk_wp <= 0;
+					else
+						clk_wp <= clk_wp + 'd1;
+				end
 			end
 		end
 	end
@@ -958,7 +964,7 @@ endmodule
 module prt_lib_sdp_ram_sc
 #(
 	parameter                   	P_VENDOR    	= "none",  			// Vendor - "AMD", "ALTERA" or "LSC"	
-    parameter 					P_FAMILY      	= "none",       // Family (Only used for Lattice)
+    	parameter 				P_FAMILY      	= "none",       // Family (Only used for Lattice)
 	parameter 				P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 				P_ADR_WIDTH 	= 7,
 	parameter					P_DAT_WIDTH 	= 512
@@ -999,7 +1005,7 @@ generate
 			.ADDR_WIDTH_B				(P_ADR_WIDTH),  
 			.AUTO_SLEEP_TIME			(0),   
 			.BYTE_WRITE_WIDTH_A			(P_DAT_WIDTH),  
-			.CASCADE_HEIGHT				(0),            
+			.CASCADE_HEIGHT			(0),            
 			.CLOCKING_MODE				("common_clock"), 
 			.ECC_MODE					("no_ecc"), 
 			.MEMORY_INIT_FILE			("none"),   
@@ -1009,12 +1015,12 @@ generate
 			.MEMORY_SIZE				(P_WRDS * P_DAT_WIDTH),        
 			.MESSAGE_CONTROL			(0),           
 			.READ_DATA_WIDTH_B			(P_DAT_WIDTH), 
-			.READ_LATENCY_B				(1),      
+			.READ_LATENCY_B			(1),      
 			.READ_RESET_VALUE_B			("0"),    
-			.RST_MODE_A					("SYNC"), 
-			.RST_MODE_B					("SYNC"), 
-			.SIM_ASSERT_CHK				(0),             
-			.USE_EMBEDDED_CONSTRAINT	(0),    
+			.RST_MODE_A				("SYNC"), 
+			.RST_MODE_B				("SYNC"), 
+			.SIM_ASSERT_CHK			(0),             
+			.USE_EMBEDDED_CONSTRAINT		(0),    
 			.USE_MEM_INIT				(1),              
 			.WAKEUP_TIME				("disable_sleep"),
 			.WRITE_DATA_WIDTH_A			(P_DAT_WIDTH),
@@ -1025,12 +1031,12 @@ generate
 			.clka					(CLK_IN),       
 			.addra					(A_ADR_IN), 
 			.dina					(A_DAT_IN),
-			.ena					(1'b1), 
-			.wea					(A_WR_IN),
+			.ena						(1'b1), 
+			.wea						(A_WR_IN),
 
 			.clkb					(CLK_IN),  
 			.addrb					(B_ADR_IN),  
-			.enb					(B_EN_IN),    
+			.enb						(B_EN_IN),    
 			.doutb					(B_DAT_OUT), 
 
 			.injectdbiterra			(1'b0),
@@ -1038,8 +1044,8 @@ generate
 			.regceb					(1'b1),             
 			.rstb					(1'b0),        
 			.sleep					(1'b0),             
-			.dbiterrb				(), 
-			.sbiterrb				()    
+			.dbiterrb					(), 
+			.sbiterrb					()    
 		);
 	end
 

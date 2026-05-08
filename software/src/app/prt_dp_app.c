@@ -195,6 +195,11 @@ int main (void)
      // Initialize PHY
      prt_phy_amd_init (&phy, &tmr, PRT_PHY_BASE);
 
+     // Use MGTREFCLK1 
+     #if (BOARD == BOARD_ENCLUSTRA_MERCURY)
+          prt_phy_amd_refclksel_set (&phy, 1);
+     #endif
+
 // Lattice LFCPNX board and Avant board
 #elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV))
      // Initialize PHY
@@ -212,10 +217,7 @@ int main (void)
      // Assign VTB1 base address
      prt_vtb_set_base (&vtb[1], PRT_VTB1_BASE);
 
-#ifdef SCALER
-     // Assign scaler base address
-     prt_scaler_set_base (&scaler, PRT_SCALER_BASE);
-#endif
+
 
 // Show board
 // AMD ZCU102 
@@ -568,11 +570,11 @@ int main (void)
      // Config
      prt_printf ("DPRX: Config...");
 
-     #if (BOARD == BOARD_AMD_ZCU102)
+     #if ((BOARD == BOARD_AMD_ZCU102) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
           dat = PRT_DP_PHY_LINERATE_8100;
 
      // Lattice CertusPro-NX
-     #elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV) || (BOARD == BOARD_ENCLUSTRA_MERCURY))
+     #elif ((BOARD == BOARD_LSC_LFCPNX) || (BOARD == BOARD_LSC_LAV) )
           dat = PRT_DP_PHY_LINERATE_5400;
 
      // Intel Cyclone 10GX
@@ -707,6 +709,7 @@ int main (void)
                               }
                          }
                          break;
+
 
                     // DPCD read
                     case 'u' :

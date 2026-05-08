@@ -15,7 +15,8 @@
     v1.3 - Added VB-ID register output
     v1.4 - Added secondary data packet 
     v1.5 - Added interlane aligner
-    
+    v1.6 - Added link training TPS status
+
 
     License
     =======
@@ -64,8 +65,8 @@ module prt_dprx_top
     output wire                                 HOST_IRQ_OUT, 
 
     // Misc
-    output wire                                 HPD_OUT,            // Hot Plug Detect
-    output wire                                 HB_OUT,             // Heart beat
+    output wire                                 HPD_OUT,                // Hot Plug Detect
+    output wire                                 HB_OUT,                 // Heart beat
     
     // AUX
     output wire                                 AUX_EN_OUT,
@@ -73,29 +74,38 @@ module prt_dprx_top
     input wire                                  AUX_RX_IN,
 
     // Link
-    input wire                                  LNK_CLK_IN,         // Clock
-    input wire                                  LNK_LOCK_IN,        // Lock
-    input wire [(P_LANES * P_SPL * 9)-1:0]      LNK_DAT_IN,         // Data
-    output wire                                 LNK_SYNC_OUT,       // Sync
-    output wire [7:0]                           LNK_VBID_OUT,       // VB-ID 
+    input wire                                  LNK_CLK_IN,             // Clock
+    input wire                                  LNK_LOCK_IN,            // Lock
+    input wire [(P_LANES * P_SPL * 9)-1:0]      LNK_DAT_IN,             // Data
+    output wire                                 LNK_SYNC_OUT,           // Sync
+    output wire [7:0]                           LNK_VBID_OUT,           // VB-ID 
+
+    // Status
+    output wire                                 LNK_TRN_TPS_CR_OUT,     // Link training TPS clock recovery sequence
+    output wire                                 LNK_TRN_TPS_EQ_OUT,     // Link training TPS equalization sequence
+    output wire                                 LNK_TRN_TPS_PASS_OUT,   // Link training TPS passed
+	output wire                                 LNK_TRN_TPS_FAIL_OUT,   // Link training TPS failed
 
     // Video
-    input wire                                  VID_CLK_IN,         // Clock
-    input wire                                  VID_RDY_IN,         // Ready
-    output wire                                 VID_SOF_OUT,        // Start of frame
-    output wire                                 VID_EOL_OUT,        // End of line
-    output wire [P_VID_DAT-1:0]                 VID_DAT_OUT,        // Data
-    output wire                                 VID_VLD_OUT,        // Valid
+    input wire                                  VID_CLK_IN,             // Clock
+    input wire                                  VID_RDY_IN,             // Ready
+    output wire                                 VID_SOF_OUT,            // Start of frame
+    output wire                                 VID_EOL_OUT,            // End of line
+    output wire [P_VID_DAT-1:0]                 VID_DAT_OUT,            // Data
+    output wire                                 VID_VLD_OUT,            // Valid
 
     // Secondary data packet
-    input wire                                  SDP_CLK_IN,         // Clock
-    output wire                                 SDP_SOP_OUT,        // Start of packet
-    output wire                                 SDP_EOP_OUT,        // End of packet
-    output wire [31:0]                          SDP_DAT_OUT,        // Data
-    output wire                                 SDP_VLD_OUT         // Valid
+    input wire                                  SDP_CLK_IN,             // Clock
+    output wire                                 SDP_SOP_OUT,            // Start of packet
+    output wire                                 SDP_EOP_OUT,            // End of packet
+    output wire [31:0]                          SDP_DAT_OUT,            // Data
+    output wire                                 SDP_VLD_OUT             // Valid
 );
 
+
+//-----
 // Parameters
+//-----
 localparam P_SIM =
 // synthesis translate_off
 (1) ? 1 :
@@ -115,7 +125,7 @@ localparam P_HW_VER_MINOR = 0;
 
 // PIO
 localparam P_PIO_IN_WIDTH = 4;
-localparam P_PIO_OUT_WIDTH = 4;
+localparam P_PIO_OUT_WIDTH = 8;
 
 // Message
 localparam P_MSG_IDX    = 5;        // Index width
@@ -126,7 +136,11 @@ localparam P_MSG_ID_MSA = 'h12;     // Message ID main stream attributes
 localparam P_MSG_ID_VID = 'h13;     // Message ID video
 localparam P_MSG_ID_SDP = 'h14;     // Message ID sdp
 
+
+//-----
 // Interfaces
+//-----
+
 // Message
 prt_dp_msg_if
 #(
@@ -138,7 +152,10 @@ prt_dp_msg_if
     .P_DAT_WIDTH (P_MSG_DAT)
 ) msg_if_to_pm();
 
+
+//-----
 // Signals
+//-----
 
 // Reset
 wire                            rst_from_sys_rst;
@@ -174,6 +191,8 @@ wire cdr_lock_from_lnk;
 wire scrm_lock_from_lnk;
 wire vid_en_from_lnk;
 wire vid_irq_from_lnk;
+
+wire [3:0]  dat_from_lnk_trn_sta_cdc;
 
 genvar i, j;
 
@@ -361,6 +380,27 @@ genvar i, j;
 
 
 //-----
+// Link training status CDC
+//-----
+generate
+    for (i = 0; i < 4; i++)
+    begin : gen_lnk_trn_sta_cdc
+        prt_lib_cdc_bit
+        #(
+            .P_VENDOR       (P_VENDOR)                      // Vendor
+        )
+        LNK_TRN_STA_CDC_INST
+        (
+            .SRC_CLK_IN     (SYS_CLK_IN),                   // Clock
+            .SRC_DAT_IN     (pio_from_pm[4+i]),             // Data
+            .DST_CLK_IN     (LNK_CLK_IN),                   // Clock
+            .DST_DAT_OUT    (dat_from_lnk_trn_sta_cdc[i])   // Data
+        );
+    end
+endgenerate
+
+
+//-----
 // Outputs
 //-----
 assign HB_OUT = pio_from_pm[0];
@@ -374,6 +414,12 @@ assign SDP_SOP_OUT = sdp_if.sop;
 assign SDP_EOP_OUT = sdp_if.eop;
 assign SDP_DAT_OUT = sdp_if.dat;
 assign SDP_VLD_OUT = sdp_if.vld;
+
+assign LNK_TRN_TPS_CR_OUT   = dat_from_lnk_trn_sta_cdc[0];
+assign LNK_TRN_TPS_EQ_OUT   = dat_from_lnk_trn_sta_cdc[1];
+assign LNK_TRN_TPS_PASS_OUT = dat_from_lnk_trn_sta_cdc[2];
+assign LNK_TRN_TPS_FAIL_OUT = dat_from_lnk_trn_sta_cdc[3];
+
 
 // Debug tap
 generate 

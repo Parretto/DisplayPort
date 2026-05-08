@@ -250,17 +250,17 @@ endmodule
 */
 module prt_lib_cdc_vec
 #(
-	parameter                      	P_VENDOR = "none",  		// Vendor
+	parameter                 	P_VENDOR = "none",  		// Vendor
 	parameter 						P_WIDTH = 8
 )
 (
 	input wire						SRC_RST_IN,		// Reset
 	input wire						SRC_CLK_IN,		// Clock
-	input wire [P_WIDTH-1:0] 		SRC_DAT_IN,		// Data
+	input wire [P_WIDTH-1:0] 	SRC_DAT_IN,		// Data
 
 	input wire						DST_RST_IN,		// Reset
 	input wire						DST_CLK_IN,		// Clock
-	output wire [P_WIDTH-1:0]		DST_DAT_OUT		// Data
+	output wire [P_WIDTH-1:0]	DST_DAT_OUT		// Data
 );
 
 // Logic

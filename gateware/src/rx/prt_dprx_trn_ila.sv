@@ -440,6 +440,23 @@ generate
     end
 endgenerate
     
+
+// Debug
+(* syn_noprune = 1 *) wire [8:0] dbg_ila_dat0;
+(* syn_noprune = 1 *) wire [8:0] dbg_ila_dat1;
+(* syn_noprune = 1 *) wire [8:0] dbg_ila_dat2;
+(* syn_noprune = 1 *) wire [8:0] dbg_ila_dat3;
+(* syn_noprune = 1 *) wire  dbg_ila_trg_in;
+(* syn_noprune = 1 *) wire  dbg_ila_trg_out;
+(* syn_noprune = 1 *) wire  dbg_ila_lock;
+assign dbg_ila_dat0 = clk_ila.dout[0];
+assign dbg_ila_dat1 = clk_ila.dout[1];
+assign dbg_ila_dat2 = clk_ila.dout[2];
+assign dbg_ila_dat3 = clk_ila.dout[3];
+assign dbg_ila_trg_in = clk_ila.trg_in;
+assign dbg_ila_trg_out = clk_ila.trg_out;
+assign dbg_ila_lock = clk_ila.lock;
+
 endmodule
 
 `default_nettype wire

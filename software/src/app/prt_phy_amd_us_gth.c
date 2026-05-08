@@ -9,14 +9,16 @@
 
     History
     =======
-    v1.0 - Initial release
-    v1.1 - Removed DP application and DP driver header dependency
+    	v1.0 - Initial release
+    	v1.1 - Removed DP application and DP driver header dependency
 	v1.2 - Change QPLL dynamic update 
 	v1.3 - Added PIO
-    v1.4 - Updated PHY reset controller
+    	v1.4 - Updated PHY reset controller
 	v1.5 - Added RX CDR configuration
 	v1.6 - Added support for 135 MHz reference clock
 	v1.7 - Added PCS reset and CDR lock
+	v1.8 - Added reference clock select
+
 
     License
     =======
@@ -84,9 +86,9 @@
 
 // Reference clock 270 MHz
 #else
-	prt_u32 qpll_cfg_drp_array[4][5] = {
+	prt_u32 qpll_cfg_drp_array[8][5] = {
 
-		// Configuration 1.62 Gbps
+		// Configuration 1.62 Gbps - MGTREFCLK0
 		{
 			0x001187c1, /* DRP address=0x11, data=0xfc3e */
 			0x0014002e, /* DRP address=0x14, data=0x5e */
@@ -95,7 +97,7 @@
 			0x001b87c1  /* DRP address=0x1b, data=0x21f */
 		},
 
-		// Configuration 2.7 Gbps
+		// Configuration 2.7 Gbps - MGTREFCLK0
 		{
 			0x001187c1, /* DRP address=0x11, data=0xfc3e */
 			0x00140026, /* DRP address=0x14, data=0x5e */
@@ -104,7 +106,7 @@
 			0x001b87c1  /* DRP address=0x1b, data=0x21f */
 		},
 
-		// Configuration 5.4 Gbps
+		// Configuration 5.4 Gbps - MGTREFCLK0
 		{
 			0x001187c1, /* DRP address=0x11, data=0xfc3e */
 			0x00140026, /* DRP address=0x14, data=0x5e */
@@ -113,13 +115,49 @@
 			0x001b87c1  /* DRP address=0x1b, data=0x21f */
 		},
 
-		// Configuration 8.1 Gbps
+		// Configuration 8.1 Gbps - MGTREFCLK0
 		{
 			0x001187c0, /* DRP address=0x11, data=0xfc3e */
 			0x0014003a, /* DRP address=0x14, data=0x5e */
 			0x00180808, /* DRP address=0x18, data=0x020 */
 			0x0019031d,  /* DRP address=0x19, data=0x21f */
 			0x001b87c0  /* DRP address=0x1b, data=0x21f */
+		},
+
+		// Configuration 1.62 Gbps - MGTREFCLK1
+		{
+			0x00110fc1, /* DRP address=0x11, data=0xfc1 */
+			0x0014002e, /* DRP address=0x14, data=0x2e */
+			0x00180810, /* DRP address=0x18, data=0x810 */
+			0x0019037f,  /* DRP address=0x19, data=0x37f */
+			0x001b0fc1  /* DRP address=0x1b, data=0xfc1 */
+		},
+
+		// Configuration 2.7 Gbps - MGTREFCLK1
+		{
+			0x00110fc1, /* DRP address=0x11, data=0xfc1 */
+			0x00140026, /* DRP address=0x14, data=0x26 */
+			0x00180810, /* DRP address=0x18, data=0x810 */
+			0x0019037f,  /* DRP address=0x19, data=0x37f */
+			0x001b0fc1  /* DRP address=0x1b, data=0xfc1 */
+		},
+
+		// Configuration 5.4 Gbps - MGTREFCLK1
+		{
+			0x00110fc1, /* DRP address=0x11, data=0xfc1 */
+			0x00140026, /* DRP address=0x14, data=0x26 */
+			0x00180810, /* DRP address=0x18, data=0x810 */
+			0x0019037f,  /* DRP address=0x19, data=0x37f */
+			0x001b0fc1  /* DRP address=0x1b, data=0xfc1 */
+		},
+
+		// Configuration 8.1 Gbps - MGTREFCLK1
+		{
+			0x00110fc0, /* DRP address=0x11, data=0xfc0 */
+			0x0014003a, /* DRP address=0x14, data=0x3a */
+			0x00180810, /* DRP address=0x18, data=0x810 */
+			0x0019031d,  /* DRP address=0x19, data=0x31d */
+			0x001b0fc0  /* DRP address=0x1b, data=0xfc0 */
 		}
 	};
 #endif
@@ -202,6 +240,17 @@ void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u
 
 	// Timer
 	phy->tmr = tmr;
+
+	// Reference clock select
+	phy->refclksel = 0;
+}
+
+// MGTREFCLK select
+// This function sets the reference clock
+void prt_phy_amd_refclksel_set (prt_phy_amd_ds_struct *phy, prt_u8 refclksel)
+{
+	// Reference clock select
+	phy->refclksel = refclksel;
 }
 
 // DRP read
@@ -534,7 +583,6 @@ prt_u8 prt_phy_amd_encode_txout_div (prt_u8 txout_div)
 // When switching line rates, besides changing the QPLL FBDIV and QPLL REFCLK DIV parameters,
 // also the transceivers wizard sets other QPLL configuration registers.
 // So for the QPLL,  instead of looking up the divider values, we just write the QPLL DRP registers that are updated by the wizard.
-// WARNING! Updating the QPLL registers also resets the QPLL reference clock select back to MGTREFCLK0. 
 
 prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u8 ssc)
 {
@@ -569,7 +617,14 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
-			cfg_idx = 1;
+			// MGTREFCLK1
+			if (phy->refclksel)
+				cfg_idx = 5;
+	
+			// MGTREFCLK0
+			else
+				cfg_idx = 1;
+	
 			rxout_div = prt_phy_amd_encode_rxout_div (4);
 			break;
 
@@ -584,7 +639,14 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
-			cfg_idx = 2;
+			// MGTREFCLK1
+			if (phy->refclksel)
+				cfg_idx = 6;
+	
+			// MGTREFCLK0
+			else
+				cfg_idx = 2;
+
 			rxout_div = prt_phy_amd_encode_rxout_div (2);
 			break;
 
@@ -599,7 +661,14 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
-			cfg_idx = 3;
+			// MGTREFCLK1
+			if (phy->refclksel)
+				cfg_idx = 7;
+	
+			// MGTREFCLK0
+			else
+				cfg_idx = 3;
+
 			rxout_div = prt_phy_amd_encode_rxout_div (2);
 			break;
 
@@ -614,7 +683,14 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 			qpll_refclk_div = prt_phy_amd_encode_qpll_refclk_div (1);
 			*/
 
-			cfg_idx = 0;
+			// MGTREFCLK1
+			if (phy->refclksel)
+				cfg_idx = 4;
+	
+			// MGTREFCLK0
+			else
+				cfg_idx = 0;
+
 			rxout_div = prt_phy_amd_encode_rxout_div (8);
 			break;
 	}
@@ -633,8 +709,6 @@ prt_sta_type prt_phy_amd_rx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate, prt_u
 	prt_phy_amd_drp_wr (phy, 4, 0x18, dat);
 	*/
 
-if (1)
-{
 	// Update QPLL DRP registers
 	for (prt_u8 i = 0; i < sizeof (qpll_cfg_drp_array[0])/4; i++)
 	{
@@ -660,7 +734,6 @@ if (1)
 			prt_phy_amd_drp_wr (phy, ch, drp_adr, drp_dat);
 	}
 
-
 	// RXOUT_DIV
 	for (prt_u8 i = 0; i < 4; i++)
 	{
@@ -670,7 +743,7 @@ if (1)
 		drp_dat |= rxout_div;
 		prt_phy_amd_drp_wr (phy, i, drp_adr, drp_dat);
 	}
-}
+
 	// Reset PHY RX PLL and datapath
 	sta = prt_phy_amd_rx_pll_rst (phy);
 

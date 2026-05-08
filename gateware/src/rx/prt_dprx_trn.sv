@@ -142,42 +142,6 @@ lnk_if_from_ila[P_LANES]();
 genvar i, j;
 
 
-// debug
-(* syn_keep = 1 *) wire dbg_ila0_lock;
-(* syn_keep = 1 *) wire dbg_ila1_lock;
-(* syn_keep = 1 *) wire dbg_ila_lock;
-(* syn_keep = 1 *) wire[2:0] dbg_tps;
-(* syn_keep = 1 *) wire[2:0] dbg_lanes;
-(* syn_keep = 1 *) wire dbg_ila0_trg;
-(* syn_keep = 1 *) wire dbg_ila1_trg;
-(* syn_keep = 1 *) wire [8:0] dbg_datl00;
-(* syn_keep = 1 *) wire [8:0] dbg_datl01;
-(* syn_keep = 1 *) wire [8:0] dbg_datl02;
-(* syn_keep = 1 *) wire [8:0] dbg_datl03;
-(* syn_keep = 1 *) wire [8:0] dbg_datl10;
-(* syn_keep = 1 *) wire [8:0] dbg_datl11;
-(* syn_keep = 1 *) wire [8:0] dbg_datl12;
-(* syn_keep = 1 *) wire [8:0] dbg_datl13;
-
-assign dbg_ila0_lock = lnk_if_from_ila[0].lock;
-assign dbg_ila1_lock = lnk_if_from_ila[1].lock;
-assign dbg_ila_lock = clk_ila_lock;
-
-assign dbg_tps = clk_cfg_tps;
-assign dbg_lanes = clk_act_lanes;
-assign dbg_ila0_trg = trg_from_ila[0];
-assign dbg_ila1_trg = trg_from_ila[1];
-assign dbg_datl00 = {lnk_if_from_chk[0].k[0][0], lnk_if_from_chk[0].dat[0][0]};
-assign dbg_datl01 = {lnk_if_from_chk[0].k[0][1], lnk_if_from_chk[0].dat[0][1]};
-assign dbg_datl02 = {lnk_if_from_chk[0].k[0][2], lnk_if_from_chk[0].dat[0][2]};
-assign dbg_datl03 = {lnk_if_from_chk[0].k[0][3], lnk_if_from_chk[0].dat[0][3]};
-
-assign dbg_datl10 = {lnk_if_from_chk[1].k[0][0], lnk_if_from_chk[1].dat[0][0]};
-assign dbg_datl11 = {lnk_if_from_chk[1].k[0][1], lnk_if_from_chk[1].dat[0][1]};
-assign dbg_datl12 = {lnk_if_from_chk[1].k[0][2], lnk_if_from_chk[1].dat[0][2]};
-assign dbg_datl13 = {lnk_if_from_chk[1].k[0][3], lnk_if_from_chk[1].dat[0][3]};
-
-
 // Logic
 
 //-----

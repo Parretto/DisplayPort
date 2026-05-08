@@ -16,6 +16,7 @@
     v1.4 - Added support for YCrCb colorspace 
     v1.5 - Added video interrupt
     v1.6 - Removed interlane dependency
+    v1.7 - Updated end-of-line generation
 
 
     License
@@ -217,19 +218,21 @@ typedef struct {
     logic                           str_toggle;
     logic                           str_re;
     logic                           str_fe;
-    logic                           str;      // Start
+    logic                           str;        // Start
     logic                           stp_toggle;
     logic                           stp_re;
     logic                           stp_fe;
-    logic                           stp;      // Stop
-    logic                           nvs;      // No video stream flag
-    logic                           vbf;      // Vertical blanking flag 
-    logic                           vbf_re;   // Vertical blanking flag rising edge
+    logic                           stp;        // Stop
+    logic                           nvs;        // No video stream flag
+    logic                           vbf;        // Vertical blanking flag 
+    logic                           vbf_re;     // Vertical blanking flag rising edge
     logic                           vbf_sticky;
-    logic                           sof;      // Start of frame
-    logic                           eol;      // End of line
-    logic [P_VID_DAT-1:0] 			dat;      // Data
-    logic                           vld;      // Valid
+    logic [15:0]                    hwidth;     // Horizontal width
+    logic [15:0]                    hcnt;       // Horizontal counter
+    logic                           sof;        // Start of frame
+    logic                           eol;        // End of line
+    logic [P_VID_DAT-1:0] 			dat;        // Data
+    logic                           vld;        // Valid
 } vid_struct;
 
 
@@ -1071,6 +1074,13 @@ endgenerate
         .EGR_VLD_OUT    (vclk_msg.vld)     // Valid
     );
 
+// Horizontal width
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        if (vclk_msg.first && vclk_msg.vld)
+            vclk_vid.hwidth <= vclk_msg.dat >> (P_PPC/2);   // Adjust to pixels-per-clock
+    end
+
 // Run flag
 // This synchronizes to start the reading of the video line at the start of a frame.
     always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
@@ -1208,7 +1218,10 @@ endgenerate
 // Video valid
     always_ff @ (posedge VID_CLK_IN)
     begin
-        vclk_vid.vld <= vclk_map.vld;
+        if (vclk_vid.hcnt < vclk_vid.hwidth)
+            vclk_vid.vld <= vclk_map.vld;
+        else
+            vclk_vid.vld <= 0;
     end
 
 // Start of frame
@@ -1233,10 +1246,33 @@ endgenerate
             vclk_vid.sof <= 0;
     end
 
+// Horizontal counter
+    always_ff @ (posedge VID_CLK_IN)
+    begin
+        // Run
+        if (vclk_vid.run)
+        begin
+            // Clear at start
+            if (vclk_vid.str)
+                vclk_vid.hcnt <= 0;
+
+            // Increment
+            else if (vclk_map.vld)
+                vclk_vid.hcnt <= vclk_vid.hcnt + 'd1;
+        end
+
+        // Idle
+        else
+            vclk_vid.hcnt <= 0;
+    end
+
 // End of line
     always_ff @ (posedge VID_CLK_IN)
     begin
-        vclk_vid.eol <= vclk_map.eol;
+        if (vclk_vid.hcnt == (vclk_vid.hwidth - 'd1))
+            vclk_vid.eol <= 1;
+        else
+            vclk_vid.eol <= 0;
     end
 
 

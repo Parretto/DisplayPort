@@ -5,7 +5,7 @@
 
 
     Module: PHY AMD UltraScale GTH Header
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
    
     License
     =======
@@ -37,8 +37,9 @@ typedef struct {
 
 // Data structure
 typedef struct {
-  volatile prt_phy_amd_dev_struct *dev;  // Device
-  prt_tmr_ds_struct *tmr;                // Timer 
+  volatile prt_phy_amd_dev_struct *dev;         // Device
+  prt_tmr_ds_struct               *tmr;         // Timer
+  prt_u8                          refclksel;    // Reference clock input select 0 - MGTREFCLK0 / 1 - MGTREFCLK1
 } prt_phy_amd_ds_struct;
 
 // Defines
@@ -84,6 +85,7 @@ typedef struct {
 
 // Prototype
 void prt_phy_amd_init (prt_phy_amd_ds_struct *phy, prt_tmr_ds_struct *tmr, prt_u32 base);
+void prt_phy_amd_refclksel_set (prt_phy_amd_ds_struct *phy, prt_u8 refclksel);
 prt_u16 prt_phy_amd_drp_rd (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr);
 void prt_phy_amd_drp_wr (prt_phy_amd_ds_struct *phy, prt_u8 port, prt_u16 adr, prt_u16 dat);
 prt_sta_type prt_phy_amd_tx_rate (prt_phy_amd_ds_struct *phy, prt_u8 rate);
