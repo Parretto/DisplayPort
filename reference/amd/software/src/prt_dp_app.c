@@ -124,31 +124,6 @@ static uint8_t phy_rate(uint8_t rate) {
     }
 }
 
-// PHY status
-static void phy_sts_print(void) {
-    uint32_t pio = prt_phy_amd_gth_pio_get(&phy);
-    char clk_buf[16];
-
-    printf("PHY: power good %u | QPLL1 lock %u\n",
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_PWRGD) ? 1U : 0U,
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_QPLL_LOCK) ? 1U : 0U);
-
-    printf("PHY TX: reset done %u | user clock active %u | link clock %s MHz\n",
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_TX_RST_DONE) ? 1U : 0U,
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_TX_CLK_ACT) ? 1U : 0U,
-           clk_mhz((prt_vtb_get_tx_lnk_clk_freq(&vtb) + 500U) / 1000U, clk_buf));
-
-    printf("PHY RX: reset done %u | CDR lock 0x%x | link clock %s MHz\n",
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_RX_RST_DONE) ? 1U : 0U,
-           (unsigned int)((pio >> PRT_PHY_AMD_GTH_PIO_IN_CDR_SHIFT) & 0xfU),
-           clk_mhz((prt_vtb_get_rx_lnk_clk_freq(&vtb) + 500U) / 1000U, clk_buf));
-
-    printf("PHY RX: CPLL lock 0x%x | PMA reset done 0x%x | CDR stable %u | user clock active %u\n",
-           (unsigned int)((pio >> PRT_PHY_AMD_GTH_PIO_IN_CPLL_SHIFT) & 0xfU),
-           (unsigned int)((pio >> PRT_PHY_AMD_GTH_PIO_IN_RX_PMA_SHIFT) & 0xfU),
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_RX_CDR_STB) ? 1U : 0U,
-           (unsigned int)(pio & PRT_PHY_AMD_GTH_PIO_IN_RX_CLK_ACT) ? 1U : 0U);
-}
 
 /*
     Tentiva I2C callbacks
@@ -790,64 +765,6 @@ static prt_sta_type vtb_pass(void) {
     return PRT_STA_OK;
 }
 
-// Send a secondary data packet with the API (processor packet)
-// w - HDR static metadata InfoFrame SDP (48 bytes), r - short test packet (28 bytes)
-static void sdp_send(bool hdr) {
-    // HDR: Dynamic Range and Mastering InfoFrame (CTA-861), PQ, BT.2020 primaries, 1000 cd/m2
-    static uint8_t hdr_hb[4] = {0x00, 0x87, 0x1d, 0x4c};
-    static uint8_t hdr_db[32] = {
-        0x01, 0x1a,                         // CTA version, length
-        0x02, 0x00,                         // EOTF (SMPTE ST 2084), static metadata descriptor ID
-        0xc2, 0x33, 0xc4, 0x86,             // Display primaries x0, y0
-        0x4c, 0x1d, 0xb8, 0x0b,             // x1, y1
-        0xd0, 0x84, 0x80, 0x3e,             // x2, y2
-        0x13, 0x3d, 0x42, 0x40,             // White point x, y
-        0xe8, 0x03, 0x01, 0x00,             // Max luminance, min luminance
-        0xe8, 0x03, 0x90, 0x01,             // MaxCLL, MaxFALL
-        0x00, 0x00, 0x00, 0x00};
-    // Short test packet (custom packet type 0x7e)
-    static uint8_t tst_hb[4] = {0x00, 0x7e, 0x00, 0x00};
-    static uint8_t tst_db[16] = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7,
-                                 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf};
-
-    printf("DPTX: Send SDP...");
-    if (hdr)
-        printf((prt_dptx_sdp_send(&dptx, hdr_hb, hdr_db, 32)) ? "ok\n" : "error\n");
-    else
-        printf((prt_dptx_sdp_send(&dptx, tst_hb, tst_db, 16)) ? "ok\n" : "error\n");
-}
-
-// Burst of processor packets with the handshake (prt_dptx_sdp_is_rdy)
-// Packet type 0x7f, DB0 is the sequence number, the even packets are long (48 bytes) and the odd packets short (28 bytes).
-// DBn = 0xc0 + n for n > 0.
-static void sdp_burst(void) {
-    static uint8_t seq = 0;
-    uint8_t hb[4] = {0x00, 0x7f, 0x00, 0x00};
-    uint8_t db[32];
-    uint32_t waits = 0;
-    uint32_t errors = 0;
-    uint32_t n;
-
-    for (n = 1; n < 32; n++)
-        db[n] = 0xc0 + n;
-
-    for (n = 0; n < 64; n++) {
-        // Wait for room (time out 100 ms)
-        uint64_t t0 = prt_zu_tmr_us();
-        while (!prt_dptx_sdp_is_rdy(&dptx)) {
-            waits++;
-            if ((prt_zu_tmr_us() - t0) > 100000)
-                break;
-        }
-        db[0] = seq;
-        if (prt_dptx_sdp_send(&dptx, hb, db, (seq & 1) ? 16 : 32))
-            seq++;
-        else
-            errors++;
-    }
-    printf("DPTX: SDP burst...%s (64 packets, %lu waits, %lu errors)\n", (errors) ? "error" : "ok",
-           (unsigned long)waits, (unsigned long)errors);
-}
 
 static void show_menu(void) {
     printf("\nCommands\n");
@@ -856,10 +773,6 @@ static void show_menu(void) {
     printf("\n__DPTX__\n");
     printf("q - Ping\n");
     printf("e - Status\n");
-    printf("w - Send SDP (HDR metadata)\n");
-    printf("r - Send SDP (short test packet)\n");
-    printf("b - Send SDP burst (64 packets with handshake)\n");
-    printf("i - SDP is ready\n");
 
     printf("\n__DPRX__\n");
     printf("a - Ping\n");
@@ -869,8 +782,6 @@ static void show_menu(void) {
     printf("\n__VTB__\n");
     printf("l - Status\n");
 
-    printf("\n__PHY__\n");
-    printf("s - Status\n");
 
     printf("\n__Operation__\n");
     printf("z - Colorbar\n");
@@ -891,7 +802,7 @@ int main(void) {
     printf("   |__)  /\\  |__) |__) |__   |   |  /  \\ \n");
     printf("   |    /~~\\ |  \\ |  \\ |___  |   |  \\__/ \n");
     printf("\n");
-    printf("DisplayPort reference design v2.0\n");
+    printf("DisplayPort reference design v2.0.1\n");
     printf("(c) 2021 - 2026 by Parretto B.V.\n");
     printf("www.parretto.com\n");
     printf("Board: %s\n", DP_APP_BOARD);
@@ -1006,22 +917,6 @@ int main(void) {
             prt_dp_sta(&dptx);
             break;
 
-        case 'w':
-            sdp_send(true);
-            break;
-
-        case 'r':
-            sdp_send(false);
-            break;
-
-        case 'b':
-            sdp_burst();
-            break;
-
-        case 'i':
-            printf("DPTX: SDP is ready...");
-            printf((prt_dptx_sdp_is_rdy(&dptx)) ? "yes\n" : "no\n");
-            break;
 
         // DPRX
         case 'a':
@@ -1054,10 +949,6 @@ int main(void) {
             vtb_pass();
             break;
 
-        // PHY
-        case 's':
-            phy_sts_print();
-            break;
 
         default:
             printf("Unknown command\n");

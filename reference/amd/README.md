@@ -89,5 +89,3 @@ Commands on the console:
 | `e` / `d` | Status of the DPTX / DPRX |
 | `f` | DPRX hot plug pulse |
 | `l` | Video toolbox status |
-| `s` | PHY status |
-| `w` / `r` / `b` / `i` | DPTX secondary data packets: HDR metadata, a short test packet, a burst of 64 packets, ready status |

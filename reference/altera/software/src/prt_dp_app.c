@@ -135,32 +135,6 @@ static uint32_t vid_pll_lock(void) {
     return (REG(PIO_IN_BASE) & PIO_IN_VID_LOCK) ? 1U : 0U;
 }
 
-// PHY status
-static void phy_sts_print(void) {
-    uint32_t sts = prt_phy_alt_gts_sts();
-    char clk_buf[16];
-
-    // The link clock is measured by the VTB
-    printf("PHY TX status: reset ack %u, ready %u, PLL locked 0x%x, link clock %s MHz\n",
-           (unsigned int)(sts & PRT_PHY_ALT_GTS_STS_TX_RST_ACK) ? 1U : 0U,
-           (unsigned int)(sts & PRT_PHY_ALT_GTS_STS_TX_RDY) ? 1U : 0U,
-           (unsigned int)((sts & PRT_PHY_ALT_GTS_STS_TX_PLL_MASK) >> PRT_PHY_ALT_GTS_STS_TX_PLL_SHIFT),
-           clk_mhz((prt_vtb_get_tx_lnk_clk_freq(&vtb) + 500U) / 1000U, clk_buf));
-
-    printf("PHY RX status: reset ack %u, ready %u, CDR locked to data 0x%x, link clock %s MHz\n",
-           (unsigned int)(sts & PRT_PHY_ALT_GTS_STS_RX_RST_ACK) ? 1U : 0U,
-           (unsigned int)(sts & PRT_PHY_ALT_GTS_STS_RX_RDY) ? 1U : 0U,
-           (unsigned int)((sts & PRT_PHY_ALT_GTS_STS_RX_LOCK_MASK) >> PRT_PHY_ALT_GTS_STS_RX_LOCK_SHIFT),
-           clk_mhz((prt_vtb_get_rx_lnk_clk_freq(&vtb) + 500U) / 1000U, clk_buf));
-
-    printf("PHY TX equalizer (main tap / post tap 1):");
-    for (uint32_t i = 0; i < PRT_PHY_ALT_GTS_LANES; i++) {
-        uint32_t main_tap, post_tap;
-        prt_phy_alt_gts_tx_eq_get(i, &main_tap, &post_tap);
-        printf(" %u/%u", (unsigned int)main_tap, (unsigned int)post_tap);
-    }
-    printf("\n");
-}
 
 /*
     DP callbacks
@@ -780,9 +754,6 @@ static void show_menu(void) {
     printf("\n__VTB__\n");
     printf("l - Status\n");
 
-    printf("\n__PHY__\n");
-    printf("s - Status\n");
-    printf("v - TX voltage swing and pre-emphasis\n");
 
     printf("\n__Operation__\n");
     printf("z - Colorbar\n");
@@ -807,7 +778,7 @@ int main(void) {
     printf("   |__)  /\\  |__) |__) |__   |   |  /  \\ \n");
     printf("   |    /~~\\ |  \\ |  \\ |___  |   |  \\__/ \n");
     printf("\n");
-    printf("DisplayPort reference design v2.0\n");
+    printf("DisplayPort reference design v2.0.1\n");
     printf("(c) 2021 - 2026 by Parretto B.V.\n");
     printf("www.parretto.com\n");
     printf("Date: '%s'\n", __DATE__);
@@ -950,29 +921,6 @@ int main(void) {
             vtb_pass();
             break;
 
-        // PHY TX voltage swing and pre-emphasis
-        // Set in the transceiver only, the sink is not told. Meant for tuning a receiver,
-        // for example while the training is held (policy maker built with TRN_HOLD).
-        case 'v': {
-            printf("Voltage swing level (0 - 3): ");
-            fflush(stdout);
-            uint8_t volt = prt_uart_get_key() - '0';
-            printf("%c\nPre-emphasis level (0 - 3): ", volt + '0');
-            fflush(stdout);
-            uint8_t pre = prt_uart_get_key() - '0';
-            printf("%c\n", pre + '0');
-            if ((volt > 3U) || (pre > 3U) || ((volt + pre) > 3U)) {
-                printf("Invalid levels (swing + pre-emphasis is 3 at most)\n");
-            } else if (prt_phy_alt_gts_tx_vap(volt, pre) == 0) {
-                phy_sts_print();
-            }
-            break;
-        }
-
-        // PHY
-        case 's':
-            phy_sts_print();
-            break;
 
         default:
             printf("Unknown command\n");

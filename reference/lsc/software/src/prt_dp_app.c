@@ -164,7 +164,7 @@ int main (void)
      printf ("   |__)  /\\  |__) |__) |__   |   |  /  \\ \n");
      printf ("   |    /~~\\ |  \\ |  \\ |___  |   |  \\__/ \n");
      printf ("\n");
-     printf ("DisplayPort reference design v2.0\n");
+     printf ("DisplayPort reference design v2.0.1\n");
      printf ("(c) 2021 - 2026 by Parretto B.V.\n");
      printf ("www.parretto.com\n");
      printf ("Date: '%s'\n", __DATE__);

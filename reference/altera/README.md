@@ -75,5 +75,3 @@ Commands on the console:
 | `e` / `d` | Status of the DPTX / DPRX |
 | `f` | DPRX hot plug pulse |
 | `l` | Video toolbox status |
-| `s` | PHY status |
-| `v` | DPTX voltage swing and pre-emphasis |
