@@ -35,6 +35,7 @@
 //-----
 module prt_vtb_cr
 #(
+	parameter				P_VENDOR = "none",	// Vendor - "AMD", "ALTERA" or "LSC"
 	parameter				P_SIM = 0,			// Simulation
 	parameter 				P_PPC = 2			// Pixels per clock
 )
@@ -189,7 +190,10 @@ dia_struct 		sclk_dia;
 */
 
 // Run capture
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     LCLK_RUN_CDC_INST
     (
         .SRC_CLK_IN   	(SYS_CLK_IN),       // Clock
@@ -205,7 +209,7 @@ dia_struct 		sclk_dia;
 	end
 
 // Edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     LCLK_SYNC_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN), 		   	// Clock
@@ -234,7 +238,10 @@ dia_struct 		sclk_dia;
 */
 
 // Run capture
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_RUN_CDC_INST
     (
         .SRC_CLK_IN   	(SYS_CLK_IN),       // Clock
@@ -258,7 +265,10 @@ dia_struct 		sclk_dia;
 	end
 
 // Sync capture
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     VCLK_SYNC_CDC_INST
     (
         .SRC_CLK_IN   	(LNK_CLK_IN),           // Clock
@@ -267,7 +277,7 @@ dia_struct 		sclk_dia;
         .DST_DAT_OUT   	(vclk_vid.sync)      	// Data
     );
 
-    prt_dp_lib_edge
+    prt_lib_edge
     VCLK_SYNC_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN), 		   	// Clock
@@ -453,7 +463,13 @@ dia_struct 		sclk_dia;
 		end
 	end
 
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+
+    #(
+
+        .P_VENDOR       (P_VENDOR)
+
+    )
     VCLK_BUSY_CDC_INST
     (
     	.SRC_CLK_IN   	(SYS_CLK_IN),          	// Clock
@@ -462,7 +478,7 @@ dia_struct 		sclk_dia;
        	.DST_DAT_OUT  	(vclk_vid.busy)      	// Data
 	);
 
-    prt_dp_lib_edge
+    prt_lib_edge
     VCLK_BUSY_EDGE_INST
     (
         .CLK_IN    	(VID_CLK_IN), 		   	// Clock
@@ -478,20 +494,26 @@ dia_struct 		sclk_dia;
 */
 
 // Error clock domain crossing
-	prt_dp_lib_cdc_vec
+	prt_lib_cdc_vec
 	#(
+		.P_VENDOR       (P_VENDOR),
 		.P_WIDTH 		($size(sclk_dcl.err))
 	)
 	SCLK_ERR_CDC_INST
 	(
+		.SRC_RST_IN     (1'b0),      // No reset, as before
 		.SRC_CLK_IN		(VID_CLK_IN),			// Clock
 		.SRC_DAT_IN		(vclk_vid.err_cnt),		// Data
+		.DST_RST_IN     (1'b0),           // No reset, as before
 		.DST_CLK_IN		(SYS_CLK_IN),			// Clock
 		.DST_DAT_OUT	(sclk_dcl.err)			// Data
 	);
 
 // Sync capture
-	prt_dp_lib_cdc_bit
+	prt_lib_cdc_bit
+	#(
+	    .P_VENDOR       (P_VENDOR)
+	)
 	SCLK_RDY_CDC_INST
 	(
  		.SRC_CLK_IN   	(VID_CLK_IN),      	// Clock
@@ -786,7 +808,7 @@ dia_struct 		sclk_dia;
 		sclk_dia.rdy <= DIA_RDY_IN;
 	end
 
-    prt_dp_lib_edge
+    prt_lib_edge
     SCLK_dia_RDY_EDGE_INST
     (
         .CLK_IN    	(SYS_CLK_IN), 		// Clock

@@ -30,6 +30,7 @@
 module prt_vtb_fifo
 #(
     parameter P_VENDOR = "none",  				// Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter P_FAMILY = "none",      // Family (Only used for Lattice)
 	parameter P_PPC = 2,						// Pixels per clock
 	parameter P_BPC = 8,						// Bits per component
     parameter P_AXIS_DAT = 48					// AXIS data width
@@ -47,6 +48,7 @@ module prt_vtb_fifo
 	output wire 							STA_LOCK_OUT,		// Lock
 	output wire [9:0]						STA_MAX_WRDS_OUT,	// Maximum words	
 	output wire [9:0]						STA_MIN_WRDS_OUT,	// Minimum words	
+	output wire [31:0]						STA_LOSS_OUT,		// Loss of lock capture. {count, empty, full, line, words}
 
 	// Timing
 	output wire 							TG_RUN_OUT,			// Run
@@ -123,12 +125,25 @@ typedef struct {
 	logic							en_clr;
 	logic							lock;
 	logic							lock_fe;
+	logic [11:0]					lin;		// Timing generator lines since vsync
 } vid_struct;
+
+// Loss of lock capture
+// What the fifo looked like when the lock went, for the host to read. The count keeps
+// running until reset, the rest holds the last loss.
+typedef struct {
+	logic [7:0]						cnt;		// Number of losses
+	logic							ep;			// Empty
+	logic							fl;			// Full
+	logic [11:0]					lin;		// Timing generator line since vsync
+	logic [9:0]						wrds;		// Words in the fifo
+} loss_struct;
 
 // Signals
 axis_struct 	vclk_axis;
 fifo_struct 	vclk_fifo;
 vid_struct 		vclk_vid;
+loss_struct 	vclk_loss;
 
 genvar i;
 
@@ -211,9 +226,10 @@ genvar i;
 	end	
 
 // FIFO
-    prt_dp_lib_fifo_dc
+    prt_lib_fifo_dc
     #(
     	.P_VENDOR		(P_VENDOR),				// Vendor
+    	.P_FAMILY  (P_FAMILY),    // Family
     	.P_MODE         ("burst"),		        // "single" or "burst"
     	.P_RAM_STYLE	("block"),	   			// "distributed" or "block"
     	.P_ADR_WIDTH	(P_FIFO_ADR),
@@ -278,7 +294,7 @@ genvar i;
 
 // DE edge detector
 // This is used for the fifo words storage
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_DE_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
@@ -464,7 +480,7 @@ genvar i;
 	end
 
 // VS edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_VS_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
@@ -520,8 +536,57 @@ genvar i;
 		end
 	end
 
+// Timing generator line counter
+// Counts the lines of the timing generator since its vsync, so a loss of lock can be
+// placed in the frame. It stops at the top instead of wrapping.
+	always_ff @ (posedge VID_CLK_IN)
+	begin
+		// Enable
+		if (VID_CKE_IN)
+		begin
+			if (vclk_vid.vs_re)
+				vclk_vid.lin <= 0;
+
+			else if (vclk_vid.de_re && !(&vclk_vid.lin))
+				vclk_vid.lin <= vclk_vid.lin + 'd1;
+		end
+	end
+
+// Loss of lock capture
+// Taken on the same condition that clears the lock below.
+	always_ff @ (posedge VID_RST_IN, posedge VID_CLK_IN)
+	begin
+		// Reset
+		if (VID_RST_IN)
+		begin
+			vclk_loss.cnt <= 0;
+			vclk_loss.ep <= 0;
+			vclk_loss.fl <= 0;
+			vclk_loss.lin <= 0;
+			vclk_loss.wrds <= 0;
+		end
+
+		else
+		begin
+			// Enable
+			if (VID_CKE_IN)
+			begin
+				if (vclk_vid.run && vclk_vid.lock && !vclk_vid.en_set && vclk_fifo.rd && (vclk_fifo.ep || vclk_fifo.fl))
+				begin
+					if (!(&vclk_loss.cnt))
+						vclk_loss.cnt <= vclk_loss.cnt + 'd1;
+
+					vclk_loss.ep <= vclk_fifo.ep;
+					vclk_loss.fl <= vclk_fifo.fl;
+					vclk_loss.lin <= vclk_vid.lin;
+					vclk_loss.wrds <= vclk_fifo.wrds[9:0];
+				end
+			end
+		end
+	end
+
 // Lock edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_LOCK_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),      	// Clock
@@ -547,5 +612,6 @@ genvar i;
 	assign STA_LOCK_OUT 	= vclk_vid.lock;
 	assign STA_MAX_WRDS_OUT	= vclk_fifo.max_wrds;
 	assign STA_MIN_WRDS_OUT	= vclk_fifo.min_wrds;
+	assign STA_LOSS_OUT		= {vclk_loss.cnt, vclk_loss.ep, vclk_loss.fl, vclk_loss.lin, vclk_loss.wrds};
 
 endmodule

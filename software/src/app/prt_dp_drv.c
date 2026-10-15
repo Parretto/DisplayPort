@@ -19,6 +19,9 @@
 	v1.7 - Added power control callback
 	v1.8 - Enhanced DPTX EDID handling
 	v1.9 - Improved mail response handling and fixed bug in PHY reset callback
+	v1.10 - Added YCbCr 4:4:4 to the MSA
+	v1.11 - Callbacks run in the event handler, the PHY callbacks stay in the interrupt
+	v1.12 - The policy maker images are const
 
 
     License
@@ -95,6 +98,7 @@ void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id)
 
 	// Clear flags
 	dp->evt = 0;
+	dp->evt_ack = 0;
 	dp->cb.hpd = 0;
 	dp->cb.sta = 0;
 	dp->cb.trn = 0;
@@ -158,24 +162,37 @@ bool prt_dp_ping (prt_dp_ds_struct *dp)
 }
 
 // License key
-bool prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
+// The key has 16 characters. Returns the license state: PRT_DP_LIC_NONE (the time bomb stops
+// the core after 1 hour), PRT_DP_LIC_EVAL (after 8 hours) or PRT_DP_LIC_FULL.
+uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic)
 {
-	// Variables
-	uint8_t sta;
+	dp->lic.sta = PRT_DP_LIC_NONE;
+	dp->lic.cust = 0;
+	dp->lic.pend = true;
 
 	dp->mail_out.len = 0;
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_LIC;	// License token
 	
 	// Copy license key
-	for (uint8_t i = 0; i < 8; i++)
+	for (uint8_t i = 0; i < 16; i++)
 		dp->mail_out.dat[dp->mail_out.len++] = *(lic+i);
 	
 	// Send mail
 	prt_dp_mail_send (dp);
 
 	// Wait for response
-	sta = prt_dp_mail_resp_get (dp);
-	return sta;
+	// The answer carries the license state and the customer ID (see prt_dp_mail_dec)
+	if (!prt_dp_mail_resp_get (dp))
+		dp->lic.sta = PRT_DP_LIC_NONE;
+	dp->lic.pend = false;
+	return dp->lic.sta;
+}
+
+// License customer ID
+// Valid when prt_dp_lic returned PRT_DP_LIC_EVAL or PRT_DP_LIC_FULL
+uint16_t prt_dp_lic_cust (prt_dp_ds_struct *dp)
+{
+	return dp->lic.cust;
 }
 
 // Config
@@ -374,6 +391,60 @@ uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd)
 	return sta;
 }
 
+// Send secondary data packet
+// The DPTX sends the packet once (for example HDR or custom metadata).
+// hb  : header bytes HB0 - HB3
+// db  : payload bytes DB0 - DB15 (len = 16, 28 byte packet) or DB0 - DB31 (len = 32, 48 byte packet)
+// The DPTX calculates the parity bytes.
+// The policy maker answers when the packet is passed to the DPTX.
+// The function returns false when the link is down or the DPTX has no room for the packet (see prt_dptx_sdp_is_rdy).
+uint8_t prt_dptx_sdp_send (prt_dp_ds_struct *dp, uint8_t *hb, uint8_t *db, uint8_t len)
+{
+	// Variables
+	uint8_t sta;
+
+	// Only 16 or 32 payload bytes are supported
+	if ((len != 16) && (len != 32))
+		return false;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_SDP_DAT;		// SDP
+	dp->mail_out.dat[dp->mail_out.len++] = len;						// Payload length
+
+	// Header
+	for (uint8_t i = 0; i < 4; i++)
+		dp->mail_out.dat[dp->mail_out.len++] = hb[i];
+
+	// Payload
+	for (uint8_t i = 0; i < len; i++)
+		dp->mail_out.dat[dp->mail_out.len++] = db[i];
+
+	prt_dp_mail_send (dp);
+
+	// Wait for response
+	sta = prt_dp_mail_resp_get (dp);
+
+	return sta;
+}
+
+// Secondary data packet ready
+// Returns true when the DPTX has room for a new packet (prt_dptx_sdp_send).
+// The DPTX holds two packets until they are inserted in the main stream.
+uint8_t prt_dptx_sdp_is_rdy (prt_dp_ds_struct *dp)
+{
+	// Variables
+	uint8_t sta;
+
+	dp->mail_out.len = 0;
+	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_SDP_RDY;		// SDP ready
+	prt_dp_mail_send (dp);
+
+	// Wait for response
+	sta = prt_dp_mail_resp_get (dp);
+
+	return sta;
+}
+
 // Set MSA
 uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t stream)
 {
@@ -391,6 +462,7 @@ uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t st
 	dp->vid[stream].tp.vstart 	= tp->vstart;
 	dp->vid[stream].tp.vsw 		= tp->vsw;
 	dp->vid[stream].tp.bpc 		= tp->bpc;
+	dp->vid[stream].tp.csf 		= tp->csf;
 
 	dp->mail_out.len = 0;
 	dp->mail_out.dat[dp->mail_out.len++] = PRT_DP_MAIL_MSA_DAT;					// MSA set
@@ -414,9 +486,15 @@ uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t st
 	
 	// Set MISC bits-per-component
 	if (dp->vid[stream].tp.bpc == 10)
-		dat = 0x40;		// RGB 10-bits
+		dat = 0x40;		// 10-bits
 	else
-		dat = 0x20;		// RGB 8-bits
+		dat = 0x20;		// 8-bits
+
+	// Color space
+	// YCbCr 4:4:4 (bits 2:1), CTA range (bit 3) and ITU-R BT.709 (bit 4).
+	// Anything else is sent as RGB.
+	if (dp->vid[stream].tp.csf == PRT_DP_CSF_YCBCR444)
+		dat |= 0x04 | 0x08 | 0x10;
 
 	dp->mail_out.dat[dp->mail_out.len++] = dat;  // Misc 0
 	dp->mail_out.dat[dp->mail_out.len++] = 0;  	// Misc 1
@@ -997,6 +1075,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 {
 	// Variables
 	uint32_t dat;
+	uint32_t isr_evt = 0;
 	uint8_t stream;
 	uint8_t i = 0;
 
@@ -1007,6 +1086,12 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			break;
 
 		case PRT_DP_MAIL_OK:
+			// The answer to the license key carries the license state and the customer ID
+			if (dp->lic.pend && (dp->mail_in.len >= 4))
+			{
+				dp->lic.sta = dp->mail_in.dat[1];
+				dp->lic.cust = (dp->mail_in.dat[2] << 8) | dp->mail_in.dat[3];
+			}
 			prt_dp_mail_resp_put (dp, true);
 			break;
 
@@ -1014,7 +1099,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			prt_dp_debug_put (dp, dp->mail_in.dat[1]);
 			
 			// Set event
-			dp->evt |= PRT_DP_EVT_DEBUG;
+			prt_dp_evt_set (dp, PRT_DP_EVT_DEBUG);
 			break;
 
 		case PRT_DP_MAIL_STA:
@@ -1031,28 +1116,28 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->sta.vid_up = dp->mail_in.dat[11];
 
 			// Set event
-			dp->evt |= PRT_DP_EVT_STA;
+			prt_dp_evt_set (dp, PRT_DP_EVT_STA);
 			break;
 
 		case PRT_DP_MAIL_HPD_UNPLUG:
 			dp->hpd = PRT_DP_HPD_UNPLUG;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_HPD;
+			prt_dp_evt_set (dp, PRT_DP_EVT_HPD);
 			break;
 
 		case PRT_DP_MAIL_HPD_PLUG:
 			dp->hpd = PRT_DP_HPD_PLUG;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_HPD;
+			prt_dp_evt_set (dp, PRT_DP_EVT_HPD);
 			break;
 
 		case PRT_DP_MAIL_HPD_IRQ:
 			dp->hpd = PRT_DP_HPD_IRQ;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_HPD;
+			prt_dp_evt_set (dp, PRT_DP_EVT_HPD);
 			break;
 
 		case PRT_DP_MAIL_PWR_CTL:		
@@ -1060,7 +1145,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->pwr_ctl.dat = dp->mail_in.dat[i++];
 			
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_PWR_CTL;
+			prt_dp_evt_set (dp, PRT_DP_EVT_PWR_CTL);
 			break;
 
 		case PRT_DP_MAIL_PHY_RST_REQ:		
@@ -1074,7 +1159,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.lanes = dp->mail_in.dat[i++];
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_PHY_RST;
+			isr_evt |= PRT_DP_EVT_PHY_RST;
 			break;
 
 		case PRT_DP_MAIL_TRN_PASS:
@@ -1101,7 +1186,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->trn.tps = 0;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_TRN;
+			prt_dp_evt_set (dp, PRT_DP_EVT_TRN);
 			break;
 
 		case PRT_DP_MAIL_TRN_ERR:
@@ -1128,7 +1213,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->trn.tps = 0;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_TRN;
+			prt_dp_evt_set (dp, PRT_DP_EVT_TRN);
 			break;
 
 		case PRT_DP_MAIL_LNK_RATE_REQ:
@@ -1146,7 +1231,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			}
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_PHY_RATE;
+			isr_evt |= PRT_DP_EVT_PHY_RATE;
 			break;
 
 		case PRT_DP_MAIL_LNK_VAP_REQ:
@@ -1155,7 +1240,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.pre = dp->mail_in.dat[i++];
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_PHY_VAP;
+			isr_evt |= PRT_DP_EVT_PHY_VAP;
 			break;
 
 		case PRT_DP_MAIL_LNK_UP:
@@ -1163,7 +1248,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.up = true;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_LNK;
+			prt_dp_evt_set (dp, PRT_DP_EVT_LNK);
 			break;
 
 		case PRT_DP_MAIL_LNK_DOWN:
@@ -1174,7 +1259,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->lnk.reason = dp->mail_in.dat[i++];
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_LNK;
+			prt_dp_evt_set (dp, PRT_DP_EVT_LNK);
 			break;
 
 		case PRT_DP_MAIL_VID_STR:
@@ -1203,7 +1288,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->vid[stream].evt = true;
 
 			// Set dp event flag
-			dp->evt |= PRT_DP_EVT_VID;
+			prt_dp_evt_set (dp, PRT_DP_EVT_VID);
 			break;
 
 		case PRT_DP_MAIL_VID_DOWN:
@@ -1251,7 +1336,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->vid[stream].evt = true;
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_VID;
+			prt_dp_evt_set (dp, PRT_DP_EVT_VID);
 			break;
 
 		case PRT_DP_MAIL_MSA_DAT:
@@ -1324,7 +1409,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->vid[stream].tp.csf = dp->mail_in.dat[26];
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_MSA;
+			prt_dp_evt_set (dp, PRT_DP_EVT_MSA);
 
 			break;
 
@@ -1354,7 +1439,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			}
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_DPCD;
+			isr_evt |= PRT_DP_EVT_DPCD;
 
 			break;
 
@@ -1378,7 +1463,7 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			dp->dpcd.len = dp->mail_in.dat[4];
 
 			// Set event flag
-			dp->evt |= PRT_DP_EVT_DPCD;
+			isr_evt |= PRT_DP_EVT_DPCD;
 
 			break;
 
@@ -1453,109 +1538,113 @@ void prt_dp_mail_dec (prt_dp_ds_struct *dp)
 			break;	
 	}
 
-	// Callbacks
-	if (dp->evt)
+	// Callbacks in the interrupt
+	// The policy maker waits for the answer of these: the PHY reset and rate change while
+	// the DPRX defers the source, and a DPCD access within 250 us. The other callbacks
+	// run in prt_dp_evt_handler.
+
+	// PHY reset
+	if (isr_evt & PRT_DP_EVT_PHY_RST)
 	{
-		// HPD
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_HPD) && (dp->cb.hpd != 0))
+		if (dp->cb.phy_rst != 0)
 		{
 			// Jump callback
-			dp->cb.hpd (dp);
+			dp->cb.phy_rst (dp);
 		}
 
-		// Status
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_STA) && (dp->cb.sta != 0))
+		// If the callback was not registered, then send an acknowledge immediately.
+		else
 		{
-			// Jump callback
-			dp->cb.sta (dp);
+			prt_dprx_phy_rst_ack (dp);
 		}
+	}
 
-		// Power control
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PWR_CTL) && (dp->cb.pwr_ctl != 0))
-		{
-			// Jump callback
-			dp->cb.pwr_ctl (dp);
-		}
-		
-		// PHY reset
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RST))
-		{
-			if (dp->cb.phy_rst != 0)
-			{
-				// Jump callback
-				dp->cb.phy_rst (dp);
-			}
+	// PHY rate
+	if ((isr_evt & PRT_DP_EVT_PHY_RATE) && (dp->cb.phy_rate != 0))
+	{
+		// Jump callback
+		dp->cb.phy_rate (dp);
+	}
 
-			// If the callback was not registered, then send an acknowledge immediately.
-			else
-			{
-				prt_dprx_phy_rst_ack (dp);
-			}
-		}
+	// PHY vap
+	if ((isr_evt & PRT_DP_EVT_PHY_VAP) && (dp->cb.phy_vap != 0))
+	{
+		// Jump callback
+		dp->cb.phy_vap (dp);
+	}
 
-		// PHY rate
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_RATE) && (dp->cb.phy_rate != 0))
-		{
-			// Jump callback
-			dp->cb.phy_rate (dp);
-		}
+	// DPCD
+	if ((isr_evt & PRT_DP_EVT_DPCD) && (dp->cb.dpcd != 0))
+	{
+		// Jump callback
+		dp->cb.dpcd (dp);
+	}
+}
 
-		// PHY vap
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_PHY_VAP) && (dp->cb.phy_vap != 0))
-		{
-			// Jump callback
-			dp->cb.phy_vap (dp);
-		}
+// Event handler
+// Runs the callbacks of the events the interrupt has set. The application calls this from
+// its main loop, so the callbacks (logging, video start) are not done in the interrupt.
+void prt_dp_evt_handler (prt_dp_ds_struct *dp)
+{
+	// HPD
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_HPD) && (dp->cb.hpd != 0))
+	{
+		// Jump callback
+		dp->cb.hpd (dp);
+	}
 
-		// Training
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_TRN) && (dp->cb.trn != 0))
-		{
-			// Jump callback
-			dp->cb.trn (dp);
-		}
+	// Status
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_STA) && (dp->cb.sta != 0))
+	{
+		// Jump callback
+		dp->cb.sta (dp);
+	}
 
-		// Link
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_LNK) && (dp->cb.lnk != 0))
-		{
-			// Jump callback
-			dp->cb.lnk (dp);
-		}
+	// Power control
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_PWR_CTL) && (dp->cb.pwr_ctl != 0))
+	{
+		// Jump callback
+		dp->cb.pwr_ctl (dp);
+	}
 
-		// Video
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_VID) && (dp->cb.vid != 0))
-		{
-			// Jump callback
-			dp->cb.vid (dp);
-		}
+	// Training
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_TRN) && (dp->cb.trn != 0))
+	{
+		// Jump callback
+		dp->cb.trn (dp);
+	}
 
-		// MSA
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_MSA) && (dp->cb.msa != 0))
-		{
-			// Jump callback
-			dp->cb.msa (dp);
-		}
+	// Link
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_LNK) && (dp->cb.lnk != 0))
+	{
+		// Jump callback
+		dp->cb.lnk (dp);
+	}
 
-		// DPCD
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_DPCD) && (dp->cb.dpcd != 0))
-		{
-			// Jump callback
-			dp->cb.dpcd (dp);
-		}
-		
-		// Debug
-		if (prt_dp_is_evt (dp, PRT_DP_EVT_DEBUG) && (dp->cb.dbg != 0))
-		{
-			// Jump callback
-			dp->cb.dbg (dp);
-		}
+	// Video
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_VID) && (dp->cb.vid != 0))
+	{
+		// Jump callback
+		dp->cb.vid (dp);
+	}
 
-		// Clear all events
-		dp->evt = 0;
+	// MSA
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_MSA) && (dp->cb.msa != 0))
+	{
+		// Jump callback
+		dp->cb.msa (dp);
+	}
+
+	// Debug
+	if (prt_dp_is_evt (dp, PRT_DP_EVT_DEBUG) && (dp->cb.dbg != 0))
+	{
+		// Jump callback
+		dp->cb.dbg (dp);
 	}
 }
 
 // DP Initialize rom
-void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom)
+void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, const uint8_t *rom)
 {
 	uint32_t dat = 0;
 
@@ -1574,7 +1663,7 @@ void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom)
 }
 
 // DP Initialize ram
-void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram)
+void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, const uint8_t *ram)
 {
 	uint32_t dat = 0;
 
@@ -1828,13 +1917,26 @@ void prt_dp_irq_handler (prt_dp_ds_struct *dp)
 	#endif
 }
 
-// Event
+// Events
+// The interrupt only writes evt and the event handler only writes evt_ack. An event is
+// pending while its bits differ. So neither side does a read-modify-write on a word the
+// other side writes, and no event gets lost without disabling the interrupt.
+
+// Set event (interrupt)
+void prt_dp_evt_set (prt_dp_ds_struct *dp, uint32_t evt)
+{
+	// An event that is still pending stays pending
+	if (!((dp->evt ^ dp->evt_ack) & evt))
+		dp->evt ^= evt;
+}
+
+// Check and clear event (event handler)
 bool prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt)
 {
-	if (dp->evt & evt)
+	if ((dp->evt ^ dp->evt_ack) & evt)
 	{
 		// Clear flag
-		dp->evt &= ~evt;
+		dp->evt_ack ^= evt;
 		return true;
 	}
 	else
@@ -1852,6 +1954,15 @@ void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat)
 		dp->debug.head = 0;
 	else
 		dp->debug.head++;
+}
+
+// Is debug
+// Returns true when the debug buffer has data. The debug event is a single flag, so when
+// more debug mails arrive before the application handles the event, only this tells it
+// how many values are waiting.
+bool prt_dp_is_debug (prt_dp_ds_struct *dp)
+{
+	return (dp->debug.head != dp->debug.tail);
 }
 
 // Debug get

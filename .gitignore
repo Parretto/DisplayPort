@@ -1,5 +1,5 @@
-# Ignore synthesis folders
+# Synthesis projects: create reference/<vendor>/gateware/syn/<board> and run build_proj.tcl there
 syn/
 
-# Ignore the software folder (for now)
-software/build
+# Python
+__pycache__/

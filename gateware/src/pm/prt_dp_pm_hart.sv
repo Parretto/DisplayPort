@@ -1539,7 +1539,7 @@ generate
 		end
 
 		// Lattice
-		else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
+		else if (P_VENDOR == "LSC")
 		begin : gen_lsc
 			pmi_distributed_dpram
 			#(

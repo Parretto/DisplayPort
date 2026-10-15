@@ -321,7 +321,7 @@ endgenerate
 	end
 
 // Beat counter end rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	BEAT_CNT_END_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),					// Clock
@@ -354,7 +354,7 @@ endgenerate
 	end
 
 // Beat 2 MHz edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	BEAT_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),				// Clock
@@ -393,7 +393,7 @@ endgenerate
 // Heart beat
 // The timer interrupt is set every ~ 500 ms
 // This can used as a heart beat indicator
-	prt_dp_lib_edge
+	prt_lib_edge
 	HEART_BEAT_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),					// Clock
@@ -440,7 +440,7 @@ generate
 		end
 
 	// Counter end edge
-		prt_dp_lib_edge
+		prt_lib_edge
 		ALRM_CNT_END_EDGE_INST
 		(
 			.CLK_IN		(CLK_IN),					// Clock

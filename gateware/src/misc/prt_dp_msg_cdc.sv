@@ -106,7 +106,10 @@ bclk_fifo_struct    bclk_fifo;
 // When the port B is reset the FIFO might overflow.
 // To prevent this port A of the FIFO will be forced into reset when port B is in reset.
     prt_lib_rst
-    RST_INST
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+RST_INST
     (
         .SRC_RST_IN    (B_RST_IN),
         .SRC_CLK_IN    (B_CLK_IN),

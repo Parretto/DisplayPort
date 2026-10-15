@@ -31,7 +31,8 @@
 module prt_dp_pm_msg
 #(
      // System
-     parameter              	P_VENDOR = "none"  // Vendor "xilinx" or "lattice"
+     parameter              	P_VENDOR = "none", // Vendor "xilinx" or "lattice"
+     parameter              	P_FAMILY = "none"  // Family (Only used for Lattice)
 )
 (
 	// Reset and clock
@@ -268,7 +269,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 	end
 
 // Time out rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	STA_TO_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),					// Clock
@@ -330,9 +331,10 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 /*
 	RX FIFO
 */
-	prt_dp_lib_fifo_sc
+	prt_lib_fifo_sc
 	#(
 		.P_VENDOR      (P_VENDOR),         // Vendor
+		.P_FAMILY      (P_FAMILY),         // Family
 		.P_MODE        ("single"),			// "single" or "burst"
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_RX_FIFO_ADR),
@@ -346,6 +348,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 		.CLR_IN		(~clk_ctl.run),			// Clear
 
 		// Write
+		.WR_EN_IN       (1'b1),            // Write enable
 		.WR_IN		(clk_rx_fifo.wr),		// Write in
 		.DAT_IN		(clk_rx_fifo.din),		// Write data
 

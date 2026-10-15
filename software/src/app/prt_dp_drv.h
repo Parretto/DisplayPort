@@ -13,6 +13,7 @@
 	  v1.1 - Added colorspace 
 		v1.2 - Enhanced DPTX EDID handling
 		v1.3 - Improved mail response handling
+		v1.4 - The policy maker images are const
 
 	
     License
@@ -155,6 +156,13 @@ typedef struct {
 	bool vid_up;
 } prt_dp_sta_struct;
 
+// License
+typedef struct {
+	volatile bool 		pend;		// Waiting for the answer of the policy maker
+	volatile uint8_t 	sta;		// License state (PRT_DP_LIC_NONE / EVAL / FULL)
+	volatile uint16_t 	cust;		// Customer ID of the license
+} prt_dp_lic_struct;
+
 // Training
 typedef struct {
 	bool pass;	// Pass
@@ -177,7 +185,7 @@ typedef struct {
 // Mail structure
 typedef struct {
 	prt_dp_mail_rrb_struct rrb;	// Response Ring buffer
-	uint8_t 			dat[32]; 			// Data
+	uint8_t 			dat[48]; 			// Data (a secondary data packet has 38 bytes)
 	uint8_t 			len;  				// Length
 } prt_dp_mail_ds_struct;
 
@@ -277,9 +285,11 @@ typedef struct {
 	prt_dp_mail_ds_struct 						mail_in;		// Mail in
 	prt_dp_mail_ds_struct 						mail_out;		// Mail out
 	volatile prt_dp_debug_struct			debug;			// Debug
-	volatile uint32_t 								evt;			// Event
+	volatile uint32_t 								evt;			// Event (written by the interrupt)
+	volatile uint32_t 								evt_ack;		// Event acknowledge (written by the event handler)
 	prt_dp_cb_struct									cb;				// Callback
 	prt_dp_sta_struct									sta;			// Status
+	prt_dp_lic_struct									lic;			// License
 	prt_dp_trn_struct									trn;			// Training
 	prt_dp_hpd_type 									hpd;			// HPD
 	prt_dp_pwr_ctl_struct							pwr_ctl;		// Power control
@@ -298,11 +308,12 @@ typedef struct {
 // Shared
 uint8_t prt_dp_set_base (prt_dp_ds_struct *dp, uint32_t base);
 void prt_dp_set_cb (prt_dp_ds_struct *dp, prt_dp_cb_type cb_type, void *cb_handler);
-void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *rom);
-void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, uint8_t *ram);
+void prt_dp_rom_init (prt_dp_ds_struct *dp, uint32_t len, const uint8_t *rom);
+void prt_dp_ram_init (prt_dp_ds_struct *dp, uint32_t len, const uint8_t *ram);
 void prt_dp_init (prt_dp_ds_struct *dp, uint8_t id);
 bool prt_dp_ping (prt_dp_ds_struct *dp);
-bool prt_dp_lic (prt_dp_ds_struct *dp, char *lic);
+uint8_t prt_dp_lic (prt_dp_ds_struct *dp, char *lic);
+uint16_t prt_dp_lic_cust (prt_dp_ds_struct *dp);
 void prt_dp_set_lnk_max_lanes (prt_dp_ds_struct *dp, uint8_t lanes);
 void prt_dp_set_lnk_max_rate (prt_dp_ds_struct *dp, uint8_t rate);
 bool prt_dp_cfg (prt_dp_ds_struct *dp);
@@ -325,6 +336,8 @@ uint8_t prt_dp_get_lnk_ssc (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_vid_str (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dptx_vid_stp (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dptx_msa_set (prt_dp_ds_struct *dp, prt_dp_tp_struct *tp, uint8_t stream);
+uint8_t prt_dptx_sdp_send (prt_dp_ds_struct *dp, uint8_t *hb, uint8_t *db, uint8_t len);
+uint8_t prt_dptx_sdp_is_rdy (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_dpcd_wr (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
 uint8_t prt_dptx_dpcd_rd (prt_dp_ds_struct *dp, uint32_t adr, uint8_t len, uint8_t *dat);
 uint8_t prt_dptx_mst_str (prt_dp_ds_struct *dp);
@@ -343,6 +356,7 @@ void prt_dprx_dpcd_nack (prt_dp_ds_struct *dp);
 
 // Internal
 void prt_dp_irq_handler (prt_dp_ds_struct *dp);
+void prt_dp_evt_handler (prt_dp_ds_struct *dp);
 uint8_t prt_dptx_aux_test (prt_dp_ds_struct *dp, uint8_t run);
 uint8_t prt_dptx_phy_test (prt_dp_ds_struct *dp, uint8_t tps, uint8_t volt, uint8_t pre);
 void prt_dp_mail_send (prt_dp_ds_struct *dp);
@@ -362,12 +376,14 @@ bool prt_dp_is_vid_up (prt_dp_ds_struct *dp, uint8_t stream);
 uint8_t prt_dp_get_vid_reason (prt_dp_ds_struct *dp, uint8_t stream);
 bool prt_dp_is_trn_pass (prt_dp_ds_struct *dp);
 uint8_t prt_dp_log (prt_dp_ds_struct *dp, char *log);
+void prt_dp_evt_set (prt_dp_ds_struct *dp, uint32_t evt);
 bool prt_dp_is_evt (prt_dp_ds_struct *dp, uint32_t evt);
 uint8_t prt_dprx_hpd (prt_dp_ds_struct *dp, uint8_t hpd);
 prt_dp_sta_struct prt_dp_get_sta (prt_dp_ds_struct *dp);
 uint8_t prt_dp_get_id (prt_dp_ds_struct *dp);
 void prt_dp_debug_put (prt_dp_ds_struct *dp, uint8_t dat);
 uint8_t prt_dp_debug_get (prt_dp_ds_struct *dp);
+bool prt_dp_is_debug (prt_dp_ds_struct *dp);
 
 // Simulation
 #ifdef PRT_SIM

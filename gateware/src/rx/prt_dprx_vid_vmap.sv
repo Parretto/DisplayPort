@@ -2636,7 +2636,12 @@ endfunction
 // Logic
 
 // Map control
-    assign clk_ctl.bpc = CFG_BPC_IN;
+// The bpc is static during a video stream. It is registered here, as it has a large
+// fanout and is the start of the level threshold compare in the select load.
+    always_ff @ (posedge CLK_IN)
+    begin
+        clk_ctl.bpc <= CFG_BPC_IN;
+    end
 
 // Map video
     assign clk_map.str = MAP_STR_IN;

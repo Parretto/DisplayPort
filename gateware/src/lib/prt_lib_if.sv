@@ -5,7 +5,7 @@
 
 
     Module: Library Interfaces
-    (c) 2024 - 2025 by Parretto B.V.
+    (c) 2024 - 2026 by Parretto B.V.
 
     History
     =======
@@ -53,7 +53,7 @@ interface prt_axil_if
 #(
 	parameter P_ADR_WIDTH = 32				// Address width
 );
-	logic	[P_ADR_WIDTH-1:0] 	awadr;
+	logic	[P_ADR_WIDTH-1:0] 		awadr;
 	logic						awvalid;
 	logic						awready;
 	logic	[31:0]				wdata;
@@ -62,7 +62,7 @@ interface prt_axil_if
 	logic	[1:0]				bresp;
 	logic						bvalid;
 	logic						bready;
-	logic	[P_ADR_WIDTH-1:0] 	aradr;
+	logic	[P_ADR_WIDTH-1:0] 		aradr;
 	logic						arvalid;
 	logic						arready;
 	logic	[31:0]				rdata;
@@ -92,12 +92,13 @@ interface prt_axis_if
 );
 	logic 						rdy;
 	logic 						sof;
+	logic 						eof;
 	logic 						eol;
-	logic	[P_DAT_WIDTH-1:0] 	dat;
+	logic	[P_DAT_WIDTH-1:0] 		dat;
 	logic						vld;
 
-	modport snk (output rdy, input sof, input eol, input dat, input vld);
-	modport src (input rdy, output sof, output eol, output dat, output vld);
+	modport snk (output rdy, input sof, input eof, input eol, input dat, input vld);
+	modport src (input rdy, output sof, output eof, output eol, output dat, output vld);
 
 endinterface
 

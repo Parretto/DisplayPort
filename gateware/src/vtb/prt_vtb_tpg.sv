@@ -12,6 +12,7 @@
     v1.0 - Initial release
 	v1.1 - Added control format 
 	v1.2 - Added 10-bits video support
+	v1.3 - Added YCbCr 4:4:4
 
     License
     =======
@@ -44,6 +45,7 @@ module prt_vtb_tpg
 	// Control
 	input wire 								CTL_RUN_IN,		// Run
 	input wire [2:0]						CTL_FMT_IN,		// Format. 0 - full, 1 - red, 2 - green, 3 - blue, 4 - ramp
+	input wire 								CTL_CSF_IN,		// Color space. 0 - RGB, 1 - YCbCr 4:4:4
 
 	// Video parameter set
 	input wire [3:0]						VPS_IDX_IN,		// Index
@@ -66,9 +68,48 @@ module prt_vtb_tpg
 localparam P_HI_VAL = 'h3ff; //(P_BPC == 10) ? 'd720 : 'd180;
 localparam P_LO_VAL = 'd0; //(P_BPC == 10) ? 'd64 : 'd16;
 
+// YCbCr 4:4:4 (BT.709, limited range, 100% bars)
+// Ten bits per component, a smaller bit depth is rounded from the top.
+// The components take the place of red, green and blue as DisplayPort maps them:
+// Cr on red, Y on green and Cb on blue.
+typedef enum {black, white, yellow, cyan, green, magenta, red, blue} bar_type;
+
+localparam logic [9:0] P_YUV_Y  [0:7] = '{10'd64,  10'd940, 10'd877, 10'd754, 10'd691, 10'd313, 10'd250, 10'd127};
+localparam logic [9:0] P_YUV_CB [0:7] = '{10'd512, 10'd512, 10'd64,  10'd615, 10'd167, 10'd857, 10'd409, 10'd960};
+localparam logic [9:0] P_YUV_CR [0:7] = '{10'd512, 10'd512, 10'd553, 10'd64,  10'd105, 10'd919, 10'd960, 10'd471};
+localparam logic [9:0] P_YUV_MID = 10'd512;
+
+// Component value in the bit depth of the core
+function automatic logic [P_BPC-1:0] yuv_cmp (logic [9:0] val);
+	logic [10:0] rnd;
+	if (P_BPC >= 10)
+		return P_BPC'(val) << (P_BPC - 10);
+	else
+	begin
+		rnd = val + (11'd1 << (10 - P_BPC - 1));
+		return (rnd[10]) ? '1 : rnd[9-:P_BPC];
+	end
+endfunction
+
+// Colour of a bar as {red / Cr, green / Y, blue / Cb}
+function automatic logic [(3 * P_BPC)-1:0] bar_col (bar_type bar, logic csf);
+	logic r, g, b;
+	if (csf)
+		return {yuv_cmp(P_YUV_CR[bar]), yuv_cmp(P_YUV_Y[bar]), yuv_cmp(P_YUV_CB[bar])};
+	else
+	begin
+		r = (bar == white) || (bar == yellow) || (bar == magenta) || (bar == red);
+		g = (bar == white) || (bar == yellow) || (bar == cyan) || (bar == green);
+		b = (bar == white) || (bar == cyan) || (bar == magenta) || (bar == blue);
+		return {(r ? P_BPC'(P_HI_VAL) : P_BPC'(P_LO_VAL)), (g ? P_BPC'(P_HI_VAL) : P_BPC'(P_LO_VAL)), (b ? P_BPC'(P_HI_VAL) : P_BPC'(P_LO_VAL))};
+	end
+endfunction
+
 // Signals
 logic 							clk_run;
 logic [2:0]						clk_fmt;
+logic 							clk_csf;
+logic [(3 * P_BPC)-1:0]			clk_col;
 logic [15:0]					clk_hwidth;	
 logic [15:0]					clk_vheight;
 logic [15:0]					clk_vheight_quad;
@@ -85,7 +126,7 @@ logic [15:0]					clk_lcnt;
 logic [(P_PPC * P_BPC)-1:0]		clk_r;
 logic [(P_PPC * P_BPC)-1:0]		clk_g;
 logic [(P_PPC * P_BPC)-1:0]		clk_b;
-enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
+bar_type						clk_bar;
 
 // Logic
 
@@ -94,6 +135,7 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 	begin
 		clk_run <= CTL_RUN_IN;
 		clk_fmt <= CTL_FMT_IN;
+		clk_csf <= CTL_CSF_IN;
 	end
 
 // Video Inputs
@@ -142,7 +184,7 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 	end
 
 // Vsync edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     VS_EDGE_INST
     (
         .CLK_IN    (CLK_IN),        // Clock
@@ -153,7 +195,7 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
     );
 
 // DE edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     DE_EDGE_INST
     (
         .CLK_IN    (CLK_IN),        // Clock
@@ -241,124 +283,77 @@ enum {black, white, yellow, cyan, green, magenta, red, blue} clk_bar;
 		end
 	end
 
+// Colour of the bar or of the single colour format
+	always_comb
+	begin
+		case (clk_fmt)
+			'd1 : clk_col = bar_col (red, clk_csf);
+			'd2 : clk_col = bar_col (green, clk_csf);
+			'd3 : clk_col = bar_col (blue, clk_csf);
+			default : clk_col = bar_col (clk_bar, clk_csf);
+		endcase
+	end
+
 // Video
 	always_ff @ (posedge CLK_IN)
 	begin
 		// Clock enable
 		if (CKE_IN)
 		begin
-			// Red only
-			if (clk_fmt == 'd1)
+			// Red, green or blue only
+			if ((clk_fmt == 'd1) || (clk_fmt == 'd2) || (clk_fmt == 'd3))
 			begin
-				clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
-				clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-				clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-			end
-
-			// Green only
-			else if (clk_fmt == 'd2)
-			begin
-				clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-				clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
-				clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-			end
-
-			// Blue only
-			else if (clk_fmt == 'd3)
-			begin
-				clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-				clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-				clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
+				clk_r <= {P_PPC{clk_col[(2*P_BPC)+:P_BPC]}};
+				clk_g <= {P_PPC{clk_col[(1*P_BPC)+:P_BPC]}};
+				clk_b <= {P_PPC{clk_col[(0*P_BPC)+:P_BPC]}};
 			end
 
 			// Ramp
+			// In YCbCr the ramp is on the luma, the chroma stays in the middle (grey).
 			else if ((clk_fmt == 'd4) || ((clk_lcnt >= clk_ramp_str) && (clk_lcnt < clk_lines_str)))
 			begin
 				// Four pixels per clock
 				if (P_PPC == 4)
 				begin
-					clk_r <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
+					clk_r <= (clk_csf) ? {P_PPC{yuv_cmp(P_YUV_MID)}} : {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
 					clk_g <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
-					clk_b <= {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
+					clk_b <= (clk_csf) ? {P_PPC{yuv_cmp(P_YUV_MID)}} : {clk_pcnt[P_BPC-3:0], 2'b11, clk_pcnt[P_BPC-3:0], 2'b10, clk_pcnt[P_BPC-3:0], 2'b01, clk_pcnt[P_BPC-3:0], 2'b00};
 				end
 
 				// Two pixels per clock
 				else
 				begin
-					clk_r <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
+					clk_r <= (clk_csf) ? {P_PPC{yuv_cmp(P_YUV_MID)}} : {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
 					clk_g <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
-					clk_b <= {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
+					clk_b <= (clk_csf) ? {P_PPC{yuv_cmp(P_YUV_MID)}} : {clk_pcnt[P_BPC-2:0], 1'b1, clk_pcnt[P_BPC-2:0], 1'b0};
 				end
 			end
 
 			// Lines
+			// In YCbCr the lines are black and white.
 			else if (clk_lcnt >= clk_lines_str)
 			begin
-				clk_r <= clk_pcnt[0] ? '1 : 0;
-				clk_g <= clk_pcnt[0] ? '1 : 0;
-				clk_b <= clk_pcnt[0] ? '1 : 0;
+				if (clk_csf)
+				begin
+					clk_r <= {P_PPC{yuv_cmp(P_YUV_MID)}};
+					clk_g <= {P_PPC{clk_pcnt[0] ? yuv_cmp(P_YUV_Y[white]) : yuv_cmp(P_YUV_Y[black])}};
+					clk_b <= {P_PPC{yuv_cmp(P_YUV_MID)}};
+				end
+
+				else
+				begin
+					clk_r <= clk_pcnt[0] ? '1 : 0;
+					clk_g <= clk_pcnt[0] ? '1 : 0;
+					clk_b <= clk_pcnt[0] ? '1 : 0;
+				end
 			end
 
 			// Color bar
 			else
 			begin
-				case (clk_bar)
-					white : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
-					end					
-
-					yellow : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-					end					
-
-					cyan : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
-					end					
-
-					green : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-					end					
-
-					magenta : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
-					end					
-
-					red : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_HI_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-					end					
-
-					blue : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_HI_VAL)}};
-					end					
-
-					default : 
-					begin
-						clk_r <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_g <= {P_PPC{P_BPC'(P_LO_VAL)}};
-						clk_b <= {P_PPC{P_BPC'(P_LO_VAL)}};
-					end					
-				endcase 
+				clk_r <= {P_PPC{clk_col[(2*P_BPC)+:P_BPC]}};
+				clk_g <= {P_PPC{clk_col[(1*P_BPC)+:P_BPC]}};
+				clk_b <= {P_PPC{clk_col[(0*P_BPC)+:P_BPC]}};
 			end
 		end
 	end

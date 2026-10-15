@@ -36,6 +36,7 @@ module prt_dp_pm_top
 #
 (
     parameter                           P_VENDOR        = "none",    // Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter                           P_FAMILY        = "none",    // Family (Only used for Lattice)
     parameter                           P_BEAT          = 'd125,     // Beat value
     parameter                           P_HW_VER_MAJOR  = 1,         // Hardware version major
     parameter                           P_HW_VER_MINOR  = 0,         // Hardware version minor
@@ -243,6 +244,7 @@ mutex_lb();
     prt_dp_pm_rom
     #(
         .P_VENDOR       (P_VENDOR),         // Vendor
+        .P_FAMILY       (P_FAMILY),         // Family
         .P_ADR          (P_ROM_ADR),        // Address bits
         .P_INIT_FILE    (P_ROM_INIT_FILE)   // Init file
     )
@@ -266,6 +268,7 @@ mutex_lb();
     prt_dp_pm_ram
     #(
         .P_VENDOR       (P_VENDOR),         // Vendor
+        .P_FAMILY       (P_FAMILY),         // Family
         .P_ADR          (P_RAM_ADR),        // Address bits
         .P_INIT_FILE    (P_RAM_INIT_FILE)   // Init file
     )
@@ -434,7 +437,8 @@ mutex_lb();
 // Exchange
     prt_dp_pm_exch
     #(
-        .P_VENDOR           (P_VENDOR)         // Vendor
+        .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY)          // Family
     )
     EXCH_INST
     (
@@ -533,6 +537,7 @@ endgenerate
     prt_dp_pm_aux
     #(
         .P_VENDOR               (P_VENDOR),     // Vendor
+        .P_FAMILY               (P_FAMILY),     // Family
         .P_SIM                  (P_SIM),
         .P_BEAT                 (P_BEAT)        // Beat value
     )
@@ -566,7 +571,8 @@ endgenerate
 // Message
     prt_dp_pm_msg
     #(
-        .P_VENDOR          (P_VENDOR)         // Vendor
+        .P_VENDOR          (P_VENDOR),         // Vendor
+        .P_FAMILY          (P_FAMILY)          // Family
     )
     MSG_INST
     (

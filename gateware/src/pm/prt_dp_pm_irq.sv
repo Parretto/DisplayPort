@@ -210,7 +210,7 @@ genvar i;
 generate
     for (i = 0; i < P_IRQ; i++)
     begin
-        prt_dp_lib_edge
+        prt_lib_edge
         IRQ_REQ_EDGE_INST
         (
             .CLK_IN     (CLK_IN),             	// Clock

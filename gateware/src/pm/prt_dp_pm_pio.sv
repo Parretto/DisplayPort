@@ -277,7 +277,7 @@ genvar i;
 generate
     for (i = 0; i < P_IN_WIDTH; i++)
     begin
-        prt_dp_lib_edge
+        prt_lib_edge
         DIN_EDGE_INST
         (
             .CLK_IN     (CLK_IN),              // Clock

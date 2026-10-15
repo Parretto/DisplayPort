@@ -13,6 +13,8 @@
     v1.1 - Added MST support
     v1.2 - Added 10-bits video support
     v1.3 - Added secondary data packet 
+    v1.4 - Single video data input (YCbCr 4:4:4 has the same mapping as RGB)
+    v1.5 - Added the 8b/10b encoder for Altera Agilex
 
     License
     =======
@@ -35,6 +37,7 @@ module prt_dptx_top
 #(
     // System
     parameter                                   P_VENDOR            = "none",   // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter                                   P_FAMILY            = "none",   // Family. Lattice: "LFCPNX", Altera: "AGX" (Agilex)
     parameter                                   P_BEAT              = 'd50,     // Beat value
     parameter                                   P_MST               = 0,        // MST support   
     parameter                                   P_SDP               = 0,        // SDP support
@@ -70,9 +73,7 @@ module prt_dptx_top
     input wire                                  VID0_CKE_IN,    // Clock enable
     input wire                                  VID0_VS_IN,     // Vsync
     input wire                                  VID0_HS_IN,     // Hsync
-    input wire [(P_PPC * P_BPC)-1:0]            VID0_R_IN,      // Red
-    input wire [(P_PPC * P_BPC)-1:0]            VID0_G_IN,      // Green
-    input wire [(P_PPC * P_BPC)-1:0]            VID0_B_IN,      // Blue
+    input wire [(3 * P_PPC * P_BPC)-1:0]        VID0_DAT_IN,    // Data. Per pixel {R / Cr, B / Cb, G / Y}
     input wire                                  VID0_DE_IN,     // Data enable
 
     // Secondary data packet
@@ -88,9 +89,7 @@ module prt_dptx_top
     input wire                                  VID1_CKE_IN,    // Clock enable
     input wire                                  VID1_VS_IN,     // Vsync
     input wire                                  VID1_HS_IN,     // Hsync
-    input wire [(P_PPC * P_BPC)-1:0]            VID1_R_IN,      // Red
-    input wire [(P_PPC * P_BPC)-1:0]            VID1_G_IN,      // Green
-    input wire [(P_PPC * P_BPC)-1:0]            VID1_B_IN,      // Blue
+    input wire [(3 * P_PPC * P_BPC)-1:0]        VID1_DAT_IN,    // Data. Per pixel {R / Cr, B / Cb, G / Y}
     input wire                                  VID1_DE_IN,     // Data enable
 
     // Link
@@ -119,7 +118,7 @@ localparam P_HW_VER_MAJOR = 2;
 localparam P_HW_VER_MINOR = 0;
 
 // PIO
-localparam P_PIO_IN_WIDTH = 3;
+localparam P_PIO_IN_WIDTH = 7;
 localparam P_PIO_OUT_WIDTH = 5;
 
 // Message
@@ -130,6 +129,7 @@ localparam P_MSG_ID_TPS  = 'h11;     // Message ID training pattern sequence
 localparam P_MSG_ID_MSA0 = 'h12;     // Message ID main stream attributes 0
 localparam P_MSG_ID_MSA1 = 'h13;     // Message ID main stream attributes 1
 localparam P_MSG_ID_MST  = 'h14;     // Message ID MST
+localparam P_MSG_ID_SDP  = 'h15;     // Message ID SDP (processor packets)
 
 // Interfaces
 
@@ -173,6 +173,8 @@ wire [1:0]                      rst_from_vid_rst;
 // Policy maker
 wire [1:0]                      irq_to_pm;
 wire [P_PIO_IN_WIDTH-1:0]       pio_to_pm;
+wire [3:0]                      sdp_prc_cnt_from_lnk;   // Processor packets taken (SDP clock domain)
+wire [3:0]                      sdp_prc_cnt_to_pm;      // Processor packets taken (system clock domain)
 wire [P_PIO_OUT_WIDTH-1:0]      pio_from_pm;
 
 // Link
@@ -186,8 +188,11 @@ genvar i, j;
 */
 
 // Reset
-    prt_dp_lib_rst
-    SYS_RST_INST
+    prt_lib_rst
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+SYS_RST_INST
     (
         .SRC_RST_IN         (SYS_RST_IN),
         .SRC_CLK_IN         (SYS_CLK_IN),
@@ -195,8 +200,11 @@ genvar i, j;
         .DST_RST_OUT        (rst_from_sys_rst)
     );
 
-    prt_dp_lib_rst
-    LNK_RST_INST
+    prt_lib_rst
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_RST_INST
     (
         .SRC_RST_IN         (~pio_from_pm[2]),
         .SRC_CLK_IN         (SYS_CLK_IN),
@@ -204,8 +212,11 @@ genvar i, j;
         .DST_RST_OUT        (rst_from_lnk_rst)
     );
 
-    prt_dp_lib_rst
-    VID0_RST_INST
+    prt_lib_rst
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID0_RST_INST
     (
         .SRC_RST_IN         (~pio_from_pm[3]),
         .SRC_CLK_IN         (SYS_CLK_IN),
@@ -213,8 +224,11 @@ genvar i, j;
         .DST_RST_OUT        (rst_from_vid_rst[0])
     );
 
-    prt_dp_lib_rst
-    VID1_RST_INST
+    prt_lib_rst
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID1_RST_INST
     (
         .SRC_RST_IN         (~pio_from_pm[4]),
         .SRC_CLK_IN         (SYS_CLK_IN),
@@ -226,6 +240,7 @@ genvar i, j;
     prt_dp_pm_top
     #(
         .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY),         // Family
         .P_BEAT             (P_BEAT),           // Beat value
         .P_HW_VER_MAJOR     (P_HW_VER_MAJOR),   // Hardware version major
         .P_HW_VER_MINOR     (P_HW_VER_MINOR),   // Hardware version minor
@@ -276,6 +291,31 @@ genvar i, j;
     assign pio_to_pm[0]     = lnk_clkdet_from_lnk;
     assign pio_to_pm[1]     = vid_clkdet_from_lnk[0];
     assign pio_to_pm[2]     = vid_clkdet_from_lnk[1];
+    assign pio_to_pm[3+:4]  = sdp_prc_cnt_to_pm;
+
+// SDP processor packet counter CDC
+generate
+    if (P_SDP)
+    begin : gen_sdp_prc_cnt
+        prt_lib_cdc_gray
+        #(
+            .P_VENDOR       (P_VENDOR),
+            .P_WIDTH        (4)
+        )
+        SDP_PRC_CNT_CDC_INST
+        (
+            .SRC_RST_IN     (1'b0),
+            .SRC_CLK_IN     (SDP_CLK_IN),
+            .SRC_DAT_IN     (sdp_prc_cnt_from_lnk),
+            .DST_RST_IN     (1'b0),
+            .DST_CLK_IN     (SYS_CLK_IN),
+            .DST_DAT_OUT    (sdp_prc_cnt_to_pm)
+        );
+    end
+
+    else
+        assign sdp_prc_cnt_to_pm = 0;
+endgenerate
 
 // Message to PM
 // A return message from the link is not used,
@@ -291,6 +331,7 @@ genvar i, j;
     #(
         // System
         .P_VENDOR               (P_VENDOR),         // Vendor
+        .P_FAMILY               (P_FAMILY),         // Family
         .P_SIM                  (P_SIM),            // Simulation
         .P_MST                  (P_MST),            // MST support
         .P_SDP                  (P_SDP),            // SDP
@@ -310,7 +351,8 @@ genvar i, j;
         .P_MSG_ID_TPS           (P_MSG_ID_TPS),     // Message ID training pattern sequence
         .P_MSG_ID_MSA0          (P_MSG_ID_MSA0),    // Message ID main stream attributes 0
         .P_MSG_ID_MSA1          (P_MSG_ID_MSA1),    // Message ID main stream attributes 1
-        .P_MSG_ID_MST           (P_MSG_ID_MST)      // Message ID MST
+        .P_MSG_ID_MST           (P_MSG_ID_MST),     // Message ID MST
+        .P_MSG_ID_SDP           (P_MSG_ID_SDP)      // Message ID SDP (processor packets)
     )
     LNK_INST
     (
@@ -344,23 +386,44 @@ genvar i, j;
 
         // Secondary data packet
         .SDP_CLK_IN             (SDP_CLK_IN),           // Clock
-        .SDP_SNK_IF             (sdp_if)                // Sink
+        .SDP_SNK_IF             (sdp_if),               // Sink
+        .SDP_PRC_CNT_OUT        (sdp_prc_cnt_from_lnk)  // Processor packets taken
     );
+
+// Video data
+// The data input carries per pixel {R / Cr, B / Cb, G / Y}, the same as the HDMI video pattern generator.
+// The components go to the red, green and blue positions of the mapping. YCbCr 4:4:4 has the same
+// mapping as RGB: Cr on red, Y on green and Cb on blue.
+wire [(P_PPC * P_BPC)-1:0]  vid_r_from_dat[0:1];
+wire [(P_PPC * P_BPC)-1:0]  vid_g_from_dat[0:1];
+wire [(P_PPC * P_BPC)-1:0]  vid_b_from_dat[0:1];
+
+generate
+    for (i = 0; i < P_PPC; i++)
+    begin : gen_vid_dat
+        assign vid_r_from_dat[0][(i*P_BPC)+:P_BPC] = VID0_DAT_IN[((i*3*P_BPC)+(2*P_BPC))+:P_BPC];
+        assign vid_g_from_dat[0][(i*P_BPC)+:P_BPC] = VID0_DAT_IN[(i*3*P_BPC)+:P_BPC];
+        assign vid_b_from_dat[0][(i*P_BPC)+:P_BPC] = VID0_DAT_IN[((i*3*P_BPC)+(1*P_BPC))+:P_BPC];
+        assign vid_r_from_dat[1][(i*P_BPC)+:P_BPC] = VID1_DAT_IN[((i*3*P_BPC)+(2*P_BPC))+:P_BPC];
+        assign vid_g_from_dat[1][(i*P_BPC)+:P_BPC] = VID1_DAT_IN[(i*3*P_BPC)+:P_BPC];
+        assign vid_b_from_dat[1][(i*P_BPC)+:P_BPC] = VID1_DAT_IN[((i*3*P_BPC)+(1*P_BPC))+:P_BPC];
+    end
+endgenerate
 
 // Map video interface stream 0
     assign vid_if[0].vs        = VID0_VS_IN;
     assign vid_if[0].hs        = VID0_HS_IN;
-    assign vid_if[0].dat[0]    = VID0_R_IN;
-    assign vid_if[0].dat[1]    = VID0_G_IN;
-    assign vid_if[0].dat[2]    = VID0_B_IN;
+    assign vid_if[0].dat[0]    = vid_r_from_dat[0];
+    assign vid_if[0].dat[1]    = vid_g_from_dat[0];
+    assign vid_if[0].dat[2]    = vid_b_from_dat[0];
     assign vid_if[0].de        = VID0_DE_IN;
 
 // Map video interface stream 1
     assign vid_if[1].vs        = (P_MST) ? VID1_VS_IN : 0;
     assign vid_if[1].hs        = (P_MST) ? VID1_HS_IN : 0;
-    assign vid_if[1].dat[0]    = (P_MST) ? VID1_R_IN : 0;
-    assign vid_if[1].dat[1]    = (P_MST) ? VID1_G_IN : 0;
-    assign vid_if[1].dat[2]    = (P_MST) ? VID1_B_IN : 0;
+    assign vid_if[1].dat[0]    = (P_MST) ? vid_r_from_dat[1] : 0;
+    assign vid_if[1].dat[1]    = (P_MST) ? vid_g_from_dat[1] : 0;
+    assign vid_if[1].dat[2]    = (P_MST) ? vid_b_from_dat[1] : 0;
     assign vid_if[1].de        = (P_MST) ? VID1_DE_IN : 0;
 
 // Map SDP interface
@@ -373,15 +436,57 @@ genvar i, j;
 // Outputs
     assign HB_OUT  = pio_from_pm[0];
 
+// Link symbols
+// Per symbol {disparity control, disparity value, K, data}
+wire [(P_LANES * P_SPL * 11)-1:0]   lnk_sym;
+
     generate
         for (i = 0; i < P_LANES; i++)
         begin : gen_lnk_dat
             for (j = 0; j < P_SPL; j++)
             begin
-                assign LNK_DAT_OUT[(i*P_SPL*11)+(j*11)+:11] = {lnk_if.disp_ctl[i][j], lnk_if.disp_val[i][j], lnk_if.k[i][j], lnk_if.dat[i][j]};
+                assign lnk_sym[(i*P_SPL*11)+(j*11)+:11] = {lnk_if.disp_ctl[i][j], lnk_if.disp_val[i][j], lnk_if.k[i][j], lnk_if.dat[i][j]};
             end
         end
     endgenerate
+
+// Link data
+// The Altera Agilex transceiver has no 8b/10b encoder in DisplayPort mode, the DPTX encodes the symbols.
+// The link data has the same width for all vendors: for Agilex each symbol slot carries the
+// 10-bit code group in bits [9:0], bit 10 is zero.
+generate
+    if ((P_VENDOR == "ALTERA") && (P_FAMILY == "AGX"))
+    begin : gen_8b10b
+        logic [(P_LANES * P_SPL * 11)-1:0]  lclk_sym;
+        wire [(P_LANES * P_SPL * 10)-1:0]   cg_from_enc;
+
+        // Register (timing at the link clock of 405 MHz)
+        always_ff @ (posedge LNK_CLK_IN)
+            lclk_sym <= lnk_sym;
+
+        prt_dptx_8b10b_enc
+        #(
+            .P_LANES        (P_LANES),          // Lanes
+            .P_SPL          (P_SPL)             // Symbols per lane
+        )
+        ENC_INST
+        (
+            .CLK_IN         (LNK_CLK_IN),       // Link clock
+            .LNK_DAT_IN     (lclk_sym),         // Link symbols
+            .PHY_DAT_OUT    (cg_from_enc)       // Code groups
+        );
+
+        for (i = 0; i < (P_LANES * P_SPL); i++)
+        begin : gen_cg
+            assign LNK_DAT_OUT[(i*11)+:11] = {1'b0, cg_from_enc[(i*10)+:10]};
+        end
+    end
+
+    else
+    begin : gen_sym
+        assign LNK_DAT_OUT = lnk_sym;
+    end
+endgenerate
 
 // Debug tap
 generate 
@@ -397,8 +502,11 @@ generate
         end
 
     // Debug (link clock)
-        prt_dp_lib_cdc_bit
-        LCLK_DBG_CDC_INST
+        prt_lib_cdc_bit
+        #(
+            .P_VENDOR           (P_VENDOR)
+        )
+LCLK_DBG_CDC_INST
         (
             .SRC_CLK_IN         (SYS_CLK_IN),    // Clock
             .SRC_DAT_IN         (sclk_dbg),      // Data

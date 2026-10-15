@@ -30,8 +30,10 @@
 module prt_vtb_ctl
 #(
 	parameter P_VENDOR = "none",	// Vendor
+	parameter P_FAMILY = "none", // Family (Only used for Lattice)
 	parameter P_IG_PORTS = 8,	// Ingress Ports
-	parameter P_OG_PORTS = 8		// Outgress Ports
+	parameter P_OG_PORTS = 8,		// Outgress Ports
+	parameter P_TXT_ADR = 7			// On screen display text address bits
 )
 (
 	// System
@@ -54,7 +56,14 @@ module prt_vtb_ctl
 	// Video parameter set
 	output wire [3:0]					VPS_IDX_OUT,			// Index
 	output wire [15:0]					VPS_DAT_OUT,			// Data
-	output wire 						VPS_VLD_OUT			// Valid	
+	output wire 						VPS_VLD_OUT,			// Valid
+
+	// On screen display text
+	// The write pointer moves on by itself, so the host sets it once through the control
+	// register and then streams the characters. A whole line is 128 writes instead of 256.
+	output wire [P_TXT_ADR-1:0]			TXT_ADR_OUT,			// Address
+	output wire 						TXT_WR_OUT,				// Write
+	output wire [7:0]					TXT_DAT_OUT				// Data
 );
 
 // Parameters
@@ -79,7 +88,15 @@ typedef struct {
 	logic [3:0]				ig;
 	logic [3:0]				og;
 	logic [3:0]				vps;
+	logic [P_TXT_ADR-1:0]	txt;
 } ctl_struct;
+
+typedef struct {
+	logic 					sel;
+	logic [P_TXT_ADR-1:0]	adr;
+	logic 					wr;
+	logic [7:0]				din;
+} txt_struct;
 
 typedef struct {
 	logic 					sel;
@@ -114,6 +131,7 @@ ig_struct		sclk_ig;
 og_struct		sclk_og;
 vps_wr_struct 	sclk_vps;
 vps_rd_struct 	vclk_vps;
+txt_struct 		sclk_txt;
 
 genvar i;
 
@@ -137,11 +155,13 @@ genvar i;
 		sclk_ig.sel 	= 0;
 		sclk_og.sel 	= 0;
 		sclk_vps.sel	= 0;
+		sclk_txt.sel	= 0;
 
 		case (sclk_lb.adr)
 			'd1  	: sclk_ig.sel = 1;
 			'd2  	: sclk_og.sel = 1;
 			'd3  	: sclk_vps.sel = 1;
+			'd4  	: sclk_txt.sel = 1;
 			default 	: sclk_ctl.sel = 1;
 		endcase
 	end
@@ -165,6 +185,7 @@ genvar i;
 	assign sclk_ctl.ig 	= sclk_ctl.r[0+:4];		// Ingress port
 	assign sclk_ctl.og 	= sclk_ctl.r[8+:4];		// Outgress port
 	assign sclk_ctl.vps	= sclk_ctl.r[16+:4];	// Video parameters address
+	assign sclk_ctl.txt	= sclk_ctl.r[20+:P_TXT_ADR];	// On screen display text address
 
 // Register data out
 // Must be combinatorial
@@ -260,9 +281,10 @@ genvar i;
 
 // Dual ported ram
 // This is used to cross the video parameters into the video clock domain
-	prt_dp_lib_sdp_ram_dc
+	prt_lib_sdp_ram_dc
 	#(
 		.P_VENDOR		(P_VENDOR),
+		.P_FAMILY  (P_FAMILY),        // Family
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_RAM_ADR),
 		.P_DAT_WIDTH 	(P_RAM_DAT)
@@ -320,6 +342,43 @@ genvar i;
 			vclk_vps.rd <= 1;
 	end
 
+/*
+	On screen display text
+*/
+// Address
+// Loaded from the control register and moved on by every write, so the host sets the
+// pointer once and then streams the characters. The incoming data is taken rather than
+// the register, because the register is written on this same edge.
+	always_ff @ (posedge SYS_RST_IN, posedge SYS_CLK_IN)
+	begin
+		// Reset
+		if (SYS_RST_IN)
+			sclk_txt.adr <= 0;
+
+		else
+		begin
+			// Load
+			if (sclk_ctl.sel && sclk_lb.wr)
+				sclk_txt.adr <= sclk_lb.din[20+:P_TXT_ADR];
+
+			// Next character
+			else if (sclk_txt.wr)
+				sclk_txt.adr <= sclk_txt.adr + 'd1;
+		end
+	end
+
+// Write
+	always_comb
+	begin
+		if (sclk_txt.sel && sclk_lb.wr)
+			sclk_txt.wr = 1;
+		else
+			sclk_txt.wr = 0;
+	end
+
+// Data out
+	assign sclk_txt.din = sclk_lb.din[0+:$size(sclk_txt.din)];
+
 // Outputs
 	assign LB_IF.dout 		= sclk_lb.dout;
 	assign LB_IF.vld		= sclk_lb.vld;
@@ -336,6 +395,11 @@ endgenerate
 	assign VPS_DAT_OUT 		= vclk_vps.dout;
 	assign VPS_IDX_OUT 		= vclk_vps.adr[1];
 	assign VPS_VLD_OUT 		= vclk_vps.vld;
+
+	// On screen display text
+	assign TXT_ADR_OUT		= sclk_txt.adr;
+	assign TXT_WR_OUT		= sclk_txt.wr;
+	assign TXT_DAT_OUT		= sclk_txt.din;
 	
 endmodule
 

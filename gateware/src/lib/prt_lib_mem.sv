@@ -12,6 +12,7 @@
     v1.0 - Initial release
     v1.1 - Added Data output register option to Single clock FIFO (prt_lib_fifo_sc)
     v1.2 - Added write enable to Single clock FIFO (prt_lib_fifo_sc)
+    v1.3 - The Altera memories take the device family from the project (no intended_device_family)
 
 
     License
@@ -36,7 +37,7 @@
 module prt_lib_fifo_sc
 #(
 	parameter                      	P_VENDOR    	= "none",  		// Vendor - "AMD", "ALTERA" or "LSC" 
-     parameter 					P_FAMILY      	= "none",       	// Family (Only used for Lattice)
+     parameter 					P_FAMILY      	= "none",       	// Family (only used for the Lattice PMI family, the Altera family follows from the project device)
 	parameter						P_MODE         = "single",		// "single" or "burst"
 	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 					P_DOUT_REG	= "no",			// Data output register; "no" or "yes"
@@ -233,7 +234,6 @@ generate
 			.clock_enable_input_b 			("BYPASS"),
 			.clock_enable_output_b 			("BYPASS"),
 			.enable_force_to_zero 			("FALSE"),
-			.intended_device_family 			("Cyclone 10 GX"),
 			.lpm_type 					("altera_syncram"),
 			.numwords_a 					(P_WRDS),
 			.numwords_b 					(P_WRDS),
@@ -436,7 +436,7 @@ endmodule
 module prt_lib_fifo_dc
 #(
 	parameter                     	  	P_VENDOR    	= "none",  			// Vendor - "AMD", "ALTERA" or "LSC" 
-    	parameter 						P_FAMILY      	= "none",       	// Family (Only used for Lattice)
+    	parameter 						P_FAMILY      	= "none",       	// Family (only used for the Lattice PMI family, the Altera family follows from the project device)
 	parameter							P_MODE        	= "single",			// "single" or "burst"
 	parameter 						P_RAM_STYLE	= "distributed",	// "distributed" or "block"
 	parameter 						P_OPT 		= 0,				// In optimized mode some logic is saved. The status port are not available. 
@@ -655,11 +655,10 @@ generate
 			.ram_block_type 				(P_RAM_TYPE),
 			.address_aclr_b 				("NONE"),
 			.address_reg_b  				("CLOCK1"),
-			.clock_enable_input_a 			("BYPASS"),
-			.clock_enable_input_b 			("BYPASS"),
-			.clock_enable_output_b 			("BYPASS"),
+			.clock_enable_input_a 			("NORMAL"),		// The clock enables (A_CKE_IN and B_CKE_IN) gate the RAM registers,
+			.clock_enable_input_b 			("NORMAL"),		// as in the AMD and Lattice branches. With BYPASS the read pipeline
+			.clock_enable_output_b 			("NORMAL"),		// runs ahead of the data enable when B_CKE_IN has gaps.
 			.enable_force_to_zero 			("FALSE"),
-			.intended_device_family 			("Cyclone 10 GX"),
 			.lpm_type 					("altera_syncram"),
 			.numwords_a 					(P_WRDS),
 			.numwords_b 					(P_WRDS),
@@ -964,7 +963,7 @@ endmodule
 module prt_lib_sdp_ram_sc
 #(
 	parameter                   	P_VENDOR    	= "none",  			// Vendor - "AMD", "ALTERA" or "LSC"	
-    	parameter 				P_FAMILY      	= "none",       // Family (Only used for Lattice)
+    	parameter 				P_FAMILY      	= "none",       // Family (only used for the Lattice PMI family, the Altera family follows from the project device)
 	parameter 				P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 				P_ADR_WIDTH 	= 7,
 	parameter					P_DAT_WIDTH 	= 512
@@ -1095,7 +1094,6 @@ generate
 			.clock_enable_input_b 				("NORMAL"),
 			.clock_enable_output_b 				("BYPASS"),
 			.enable_force_to_zero 				("FALSE"),
-			.intended_device_family 			("Cyclone 10 GX"),
 			.lpm_type 							("altera_syncram"),
 			.numwords_a 						(P_WRDS),
 			.numwords_b 						(P_WRDS),
@@ -1164,7 +1162,7 @@ endmodule
 module prt_lib_sdp_ram_dc
 #(
 	parameter                   		P_VENDOR    	= "none",  		// Vendor - "AMD", "ALTERA" or "LSC"
-    	parameter 					P_FAMILY      	= "none",       // Family (Only used for Lattice)
+    	parameter 					P_FAMILY      	= "none",       // Family (only used for the Lattice PMI family, the Altera family follows from the project device)
 	parameter 					P_RAM_STYLE	= "distributed",	// "distributed", "block" or "ultra"
 	parameter 					P_ADR_WIDTH 	= 7,
 	parameter						P_DAT_WIDTH 	= 512
@@ -1300,7 +1298,6 @@ generate
 			.clock_enable_input_b 			("BYPASS"),
 			.clock_enable_output_b 			("BYPASS"),
 			.enable_force_to_zero 			("FALSE"),
-			.intended_device_family 		("Cyclone 10 GX"),
 			.lpm_type 						("altera_syncram"),
 			.numwords_a 					(P_WRDS),
 			.numwords_b 					(P_WRDS),

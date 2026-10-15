@@ -37,6 +37,7 @@ module prt_dp_pm_aux
 #(
      // System
     parameter              	P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter              	P_FAMILY = "none",  // Family (Only used for Lattice)
 	parameter 				P_SIM = 0,
 	parameter               P_BEAT 	= 'd125     // Beat value
 )
@@ -511,7 +512,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 	end
 
 // Time out rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	STA_TO_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),			// Clock
@@ -525,9 +526,10 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 /*
 	TX FIFO
 */
-	prt_dp_lib_fifo_sc
+	prt_lib_fifo_sc
 	#(
 		.P_VENDOR		(P_VENDOR),			// Vendor
+		.P_FAMILY  (P_FAMILY),   // Family
 		.P_MODE         ("single"),			// "single" or "burst"
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_FIFO_ADR),
@@ -541,6 +543,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 		.CLR_IN		(clk_tx_fifo.clr),		// Clear
 
 		// Write
+		.WR_EN_IN       (1'b1),            // Write enable
 		.WR_IN		(clk_tx_fifo.wr),		// Write in
 		.DAT_IN		(clk_tx_fifo.din),		// Write data
 
@@ -850,7 +853,7 @@ rx_fifo_struct		clk_rx_fifo;	// RX fifo
 	end
 
 // Beat edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	AUX_BEAT_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),				// Clock
@@ -899,9 +902,10 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 /*
 	RX FIFO
 */
-	prt_dp_lib_fifo_sc
+	prt_lib_fifo_sc
 	#(
 		.P_VENDOR		(P_VENDOR),			// Vendor
+		.P_FAMILY  (P_FAMILY),   // Family
 		.P_MODE         ("single"),			// "single" or "burst"
 		.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 		.P_ADR_WIDTH 	(P_FIFO_ADR),
@@ -915,6 +919,7 @@ assign clk_tx_aux.shft_out = clk_tx_aux.shft[7];
 		.CLR_IN		(clk_rx_fifo.clr),		// Clear
 
 		// Write
+		.WR_EN_IN       (1'b1),            // Write enable
 		.WR_IN		(clk_rx_fifo.wr),		// Write in
 		.DAT_IN		(clk_rx_fifo.din),		// Write data
 
@@ -1213,7 +1218,7 @@ generate
 endgenerate
 
 // RX edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	RX_AUX_RX_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),				// Clock
@@ -1335,7 +1340,7 @@ endgenerate
 	end
 
 // Stop counter rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	STP_CNT_END_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),						// Clock
@@ -1418,7 +1423,7 @@ endgenerate
     end
 
 // Watchdog end rising end
-	prt_dp_lib_edge
+	prt_lib_edge
 	RX_AUX_WD_END_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),					 // Clock

@@ -33,7 +33,8 @@
 // Module
 module prt_dp_pm_exch
 #(
-	parameter                P_VENDOR        = "none"  // Vendor - "AMD", "ALTERA" or "LSC" 
+	parameter                P_VENDOR        = "none", // Vendor - "AMD", "ALTERA" or "LSC" 
+	parameter                P_FAMILY        = "none"  // Family (Only used for Lattice)
 )
 (
 	// Reset and clock
@@ -516,9 +517,10 @@ genvar i;
 generate
 	for (i = 0; i < P_BOXES; i++)
 	begin : gen_ram
-		prt_dp_lib_sdp_ram_sc
+		prt_lib_sdp_ram_sc
 		#(
 			.P_VENDOR		(P_VENDOR),
+			.P_FAMILY  (P_FAMILY),        // Family
 			.P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
 			.P_ADR_WIDTH 	(P_RAM_ADR),
 			.P_DAT_WIDTH 	(P_RAM_DAT)
@@ -718,7 +720,7 @@ generate
 		// Read edge detector
 		// The box read signal is used to select the ram address
 		// After the data has been read the read pointer can be incremented.
-		prt_dp_lib_edge
+		prt_lib_edge
 		BOX_RD_EDGE_INST
 		(
 			.CLK_IN		(CLK_IN),			// Clock

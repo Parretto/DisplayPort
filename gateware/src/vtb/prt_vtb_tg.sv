@@ -107,7 +107,7 @@ vid_struct 		clk_vid;
 
 // run edge detector
 // This is used to set the counter when in sync mode
-    prt_dp_lib_edge
+    prt_lib_edge
     RUN_EDGE_INST
     (
         .CLK_IN    (CLK_IN), 		       	// Clock
@@ -321,7 +321,7 @@ vid_struct 		clk_vid;
 
 // Hsync edge detector
 // This is used to increment the vertical counter
-    prt_dp_lib_edge
+    prt_lib_edge
     HS_EDGE_INST
     (
         .CLK_IN    (CLK_IN), 		       	// Clock

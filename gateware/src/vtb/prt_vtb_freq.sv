@@ -29,6 +29,7 @@
 
 module prt_vtb_freq
 #(
+	parameter P_VENDOR = "none",	// Vendor - "AMD", "ALTERA" or "LSC"
 	parameter P_SYS_FREQ = 'd125000000
 )
 (
@@ -253,7 +254,10 @@ mon_struct	mclk_mon;
 */
 
 // Reset
-    prt_dp_lib_rst
+    prt_lib_rst
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     MON_RST_INST
     (
         .SRC_RST_IN     (sclk_sys.rst),
@@ -263,7 +267,10 @@ mon_struct	mclk_mon;
     );
 
 // Run clock domain crossing
-    prt_dp_lib_cdc_bit
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR       (P_VENDOR)
+    )
     MON_RUN_CDC_INST
     (
         .SRC_CLK_IN     (SYS_CLK_IN),       // Clock
@@ -292,14 +299,17 @@ mon_struct	mclk_mon;
 	end
 
 // Cross counter value
-	prt_dp_lib_cdc_vec
+	prt_lib_cdc_vec
 	#(
+		.P_VENDOR		(P_VENDOR),
 		.P_WIDTH		($size(mclk_mon.cnt))
 	)
 	MON_CNT_CDC_INST
 	(
+		.SRC_RST_IN     (1'b0),     // No reset, as before
 		.SRC_CLK_IN		(MON_CLK_IN),		// Clock
 		.SRC_DAT_IN		(mclk_mon.cnt),	// Data
+		.DST_RST_IN     (1'b0),      // No reset, as before
 		.DST_CLK_IN		(SYS_CLK_IN),		// Clock
 		.DST_DAT_OUT	(sclk_sys.freq_cdc)	// Data
 	);

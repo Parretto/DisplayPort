@@ -1,0 +1,125 @@
+###
+# Timing
+###
+
+# Link clocks
+# The link clock is the line rate divided by 40. The CertusPro-NX supports up to HBR2,
+# 5.4 Gbps, which gives 135 MHz: the same as the PHY reference clock. The rates below
+# use the same 135 MHz reference and give slower link clocks.
+
+# DPTX link clock
+create_generated_clock -name {tx_lnk_clk} -source [get_ports SD_REFCLK0_IN_P] -divide_by 1 -multiply_by 1 [get_pins PHY_INST.lscc_mpcs_top_inst.Q0_PCSX4.u_PCSX4_Q0_pcs_merge_pcs_merge.PCSX4_inst/CH0_PIPE_PCS_TXCLKOUT]
+
+# DPRX link clock
+create_generated_clock -name {rx_lnk_clk} -source [get_ports SD_REFCLK0_IN_P] -divide_by 1 -multiply_by 1 [get_pins PHY_INST.lscc_mpcs_top_inst.Q0_PCSX4.u_PCSX4_Q0_pcs_merge_pcs_merge.PCSX4_inst/CH0_RXOUTCLK]
+
+
+set_clock_groups -group [get_clocks sys_clk] -group [get_clocks phy_ref_clk] -group [get_clocks clk_from_sys_pll] -group [get_clocks rx_lnk_clk] -group [get_clocks tx_lnk_clk] -group [get_clocks vid_clk] -asynchronous
+
+
+###
+# False path
+###
+
+
+# Reset synchronizers of the Lattice clock domain crossing (lscc_cdc_hs_bus)
+# The first stage of the reset synchronizer runs on the falling clock edge and takes the
+# destination reset asynchronously. That reset comes from the link or video reset of the
+# DP cores, a register on the rising edge with a large fanout, and it only gets half a
+# clock period to reach the falling edge flop, which the 150 MHz video clock does not
+# make in the -7 speed grade. It is an asynchronous reset into the first stage of a
+# synchronizer, which the following stage takes care of, so the path needs no timing.
+# The constraint file that comes with lscc_cdc does not cover this path.
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/VID0_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_INST/HEAD_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/VSC_DAT_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc.ff_inst/LSR}]
+
+###
+# Pins
+###
+
+# Bank VCCIO
+ldc_set_vcc -bank 1 3.3
+ldc_set_vcc -bank 3 1.8
+ldc_set_vcc -bank 4 1.8
+ldc_set_vcc -bank 5 1.8
+ldc_set_vcc -bank 7 3.3
+#ldc_set_sysconfig {CONFIGIO_VOLTAGE_BANK1=3.3}
+
+# Clocks
+ldc_set_location -site {N25} [get_ports SYS_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports SYS_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVDS} [get_ports TENTIVA_VID_CLK_IN]
+ldc_set_location -site {AD21} [get_ports TENTIVA_VID_CLK_IN]
+
+# LED
+ldc_set_location -site {N5} [get_ports {LED_OUT[0]}]
+ldc_set_location -site {N6} [get_ports {LED_OUT[1]}]
+ldc_set_location -site {N7} [get_ports {LED_OUT[2]}]
+ldc_set_location -site {N8} [get_ports {LED_OUT[3]}]
+ldc_set_location -site {L6} [get_ports {LED_OUT[4]}]
+ldc_set_location -site {N9} [get_ports {LED_OUT[5]}]
+ldc_set_location -site {L8} [get_ports {LED_OUT[6]}]
+ldc_set_location -site {M9} [get_ports {LED_OUT[7]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[0]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[1]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[2]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[3]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[4]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[5]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[6]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports {LED_OUT[7]}]
+
+# Switch
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports SYS_RSTN_IN]
+ldc_set_location -site {J5} [get_ports SYS_RSTN_IN]
+
+# I2C
+ldc_set_location -site {H22} [get_ports I2C_SCL_INOUT]
+ldc_set_location -site {H23} [get_ports I2C_SDA_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SCL_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SDA_INOUT]
+
+# UART
+# On-board device
+#ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_TX_OUT]
+#ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports UART_RX_IN]
+#ldc_set_location -site {L1} [get_ports UART_TX_OUT]
+#ldc_set_location -site {L2} [get_ports UART_RX_IN]
+
+# Tentiva
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports UART_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports UART_RX_IN]
+ldc_set_location -site {W10} [get_ports UART_TX_OUT]
+ldc_set_location -site {W11} [get_ports UART_RX_IN]
+
+# Tentiva Rev. D
+
+# Tentiva DP2.1 RX
+ldc_set_location -site {AB22} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_location -site {AA22} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_location -site {AC9} [get_ports DPRX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_AUX_RX_IN]
+ldc_set_location -site {AC22} [get_ports DPRX_HPD_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_HPD_OUT]
+ldc_set_location -site {AB9} [get_ports DPRX_I2C_SEL_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_I2C_SEL_OUT]
+ldc_set_location -site {AD23} [get_ports DPRX_CABDET_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPRX_CABDET_IN]
+
+# Tentiva DP2.1 TX
+ldc_set_location -site {AE26} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_location -site {AB25} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_location -site {AF25} [get_ports DPTX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_AUX_RX_IN]
+ldc_set_location -site {W21} [get_ports DPTX_HPD_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_HPD_IN]
+ldc_set_location -site {AC24} [get_ports DPTX_I2C_SEL_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18H} [get_ports DPTX_I2C_SEL_OUT]

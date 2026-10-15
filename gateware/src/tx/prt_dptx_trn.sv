@@ -32,6 +32,7 @@ module prt_dptx_trn
 #(
     // System
     parameter P_VENDOR      = "none",      // Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter P_FAMILY      = "none",      // Family (Only used for Lattice)
 
     // PHY
     parameter P_LANES       = 2,           // Lanes
@@ -143,9 +144,10 @@ genvar i;
 generate
     for (i = 0; i < P_SPL; i++)
     begin : gen_ram
-    	prt_dp_lib_sdp_ram_sc
+    	prt_lib_sdp_ram_sc
     	#(
     		.P_VENDOR       (P_VENDOR),
+    		.P_FAMILY       (P_FAMILY),         // Family
             .P_RAM_STYLE	("distributed"),	// "distributed", "block" or "ultra"
     		.P_ADR_WIDTH 	(P_RAM_ADR),
     		.P_DAT_WIDTH 	(P_RAM_DAT)

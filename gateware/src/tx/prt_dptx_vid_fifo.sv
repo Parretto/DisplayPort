@@ -5,11 +5,12 @@
 
 
     Module: DP TX Video - FIFO
-    (c) 2021 - 2025 by Parretto B.V.
+    (c) 2021 - 2026 by Parretto B.V.
 
     History
     =======
     v1.0 - Initial release
+    v1.1 - The last flag is read with the last segment of the last FIFO (1 and 2 lanes)
 
     License
     =======
@@ -30,6 +31,7 @@
 module prt_dptx_vid_fifo
 #(
     parameter                               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter                               P_FAMILY = "none",  // Family (Only used for Lattice)
     parameter                               P_SIM = 0,          // Simulation
     parameter                               P_FIFO_WRDS = 64,   // FIFO words
     parameter                               P_LANES = 4,        // Lanes
@@ -152,7 +154,7 @@ genvar i, j, k;
     assign vclk_fifo.hs = VID_HS_IN;
 
 // Hsync edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     VCLK_HS_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),         // Clock
@@ -170,7 +172,7 @@ genvar i, j, k;
     end
 
 // Last edge
-    prt_dp_lib_edge
+    prt_lib_edge
     VCLK_LAST_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),            // Clock
@@ -267,9 +269,10 @@ generate
             for (k = 0; k < P_STRIPES; k++)
             begin : gen_fifo_stripes
                 // FIFO
-                prt_dp_lib_fifo_dc
+                prt_lib_fifo_dc
                 #(
                     .P_VENDOR       (P_VENDOR),             // Vendor
+                    .P_FAMILY       (P_FAMILY),             // Family
                     .P_MODE         ("burst"),		        // "single" or "burst"
                     .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
                     .P_OPT 			(P_FIFO_OPT),			// In optimized mode the status port are not available. This saves some logic.
@@ -313,9 +316,10 @@ endgenerate
 
 // Last FIFO
 // This fifo is used to store the last flag
-    prt_dp_lib_fifo_dc
+    prt_lib_fifo_dc
     #(
         .P_VENDOR       (P_VENDOR),             // Vendor
+        .P_FAMILY       (P_FAMILY),             // Family
         .P_MODE         ("burst"),		        // "single" or "burst"
         .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
         .P_OPT 			(P_FIFO_OPT),			// In optimized mode the status port are not available. This saves some logic.
@@ -354,36 +358,43 @@ endgenerate
     );
 
 // Head clock domain crossing
-    prt_dp_lib_cdc_gray
+    prt_lib_cdc_gray
     #(
         .P_VENDOR       (P_VENDOR),
         .P_WIDTH        ($size(lclk_fifo.head_cdc))
     )
     LCLK_HEAD_CDC_INST
     (
+        .SRC_RST_IN     (1'b0),                 // No reset, as before
         .SRC_CLK_IN     (VID_CLK_IN),           // Clock
         .SRC_DAT_IN     (vclk_fifo.head),       // Data
+        .DST_RST_IN     (1'b0),                 // No reset, as before
         .DST_CLK_IN     (LNK_CLK_IN),           // Clock
         .DST_DAT_OUT    (lclk_fifo.head_cdc)    // Data
     );
 
 // Head last clock domain crossing
-    prt_dp_lib_cdc_gray
+    prt_lib_cdc_gray
     #(
         .P_VENDOR       (P_VENDOR),
         .P_WIDTH        ($size(lclk_fifo.head_last_cdc))
     )
     LCLK_HEAD_LAST_CDC_INST
     (
+        .SRC_RST_IN     (1'b0),                     // No reset, as before
         .SRC_CLK_IN     (VID_CLK_IN),               // Clock
         .SRC_DAT_IN     (vclk_fifo.head_last),      // Data
+        .DST_RST_IN     (1'b0),                     // No reset, as before
         .DST_CLK_IN     (LNK_CLK_IN),               // Clock
         .DST_DAT_OUT    (lclk_fifo.head_last_cdc)   // Data
     );
 
 // End-of-line clock domain crossing
-    prt_dp_lib_cdc_bit
-    LCLK_EOL_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LCLK_EOL_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),           // Clock
         .SRC_DAT_IN     (vclk_fifo.eol),        // Data
@@ -392,7 +403,7 @@ endgenerate
     );
 
 // End-of-line edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     LCLK_EOL_CDC_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),                // Clock
@@ -403,8 +414,11 @@ endgenerate
     );
 
 // Hsync clock domain crossing
-    prt_dp_lib_cdc_bit
-    LCLK_HS_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LCLK_HS_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),       // Clock
         .SRC_DAT_IN     (vclk_fifo.hs),     // Data
@@ -413,7 +427,7 @@ endgenerate
     );
 
 // Hsync edge detector
-    prt_dp_lib_edge
+    prt_lib_edge
     LCLK_HS_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),         // Clock
@@ -444,7 +458,9 @@ generate
 endgenerate
 
 // Last FIFO
-    assign lclk_last.rd = lclk_strp.rd[0][3][3];
+// The last flag is read with the last segment of the last FIFO. 
+// In 1 and 2 lanes the last segment of the first FIFO is read before the other FIFO's.
+    assign lclk_last.rd = lclk_strp.rd[P_LANES-1][3][3];
 
 // Video End-of-line
 // This flag is asserted to indicate the video domain has reached the end-of-line. 
@@ -469,7 +485,7 @@ endgenerate
 
 // Video end-of-line edge detector
 // This is used by the state machine
-    prt_dp_lib_edge
+    prt_lib_edge
     LCLK_HEAD_LAST_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),                // Clock
@@ -680,7 +696,7 @@ endgenerate
     end
 
 // Watchdog counter end
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_CNT_END_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),                // Clock

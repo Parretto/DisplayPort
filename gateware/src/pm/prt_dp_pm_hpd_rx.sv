@@ -162,7 +162,7 @@ hpd_struct          clk_hpd;
     end
 
 // Beat rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	BEAT_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),			// Clock

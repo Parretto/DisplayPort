@@ -39,6 +39,7 @@ module prt_dptx_lnk
 #(
     // System
     parameter           P_VENDOR       = "none",  // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter           P_FAMILY       = "none",  // Family (Only used for Lattice)
     parameter           P_SIM          = 0,       // Simulation
     parameter           P_MST          = 0,       // MST support
     parameter           P_SDP          = 0,       // SDP support
@@ -58,7 +59,8 @@ module prt_dptx_lnk
     parameter           P_MSG_ID_TPS   = 'h11,    // Message ID training pattern sequence
     parameter           P_MSG_ID_MSA0  = 'h12,    // Message ID main stream attribute 0
     parameter           P_MSG_ID_MSA1  = 'h13,    // Message ID main stream attribute 1
-    parameter           P_MSG_ID_MST   = 'h14     // Message ID MST
+    parameter           P_MSG_ID_MST   = 'h14,    // Message ID MST
+    parameter           P_MSG_ID_SDP   = 'h15     // Message ID SDP (processor packets)
 )
 (
     // System
@@ -91,7 +93,8 @@ module prt_dptx_lnk
 
     // Secondary data packet
     input wire              SDP_CLK_IN,             // Clock
-    prt_dp_tx_sdp_if.snk    SDP_SNK_IF              // Sink
+    prt_dp_tx_sdp_if.snk    SDP_SNK_IF,             // Sink
+    output wire [3:0]       SDP_PRC_CNT_OUT         // Processor packets taken (SDP clock domain)
 );
 
 
@@ -442,6 +445,7 @@ endgenerate
     #(
         // System
         .P_VENDOR           (P_VENDOR),             // Vendor
+        .P_FAMILY           (P_FAMILY),             // Family
         .P_SIM              (P_SIM),                // Simulation
         .P_STREAM           (0),                    // Stream
 
@@ -493,6 +497,7 @@ endgenerate
     #(
         // System
         .P_VENDOR           (P_VENDOR),
+        .P_FAMILY           (P_FAMILY),             // Family
         .P_SIM              (P_SIM),                // Simulation
         .P_STREAM           (0),                    // Stream
 
@@ -546,6 +551,7 @@ generate
         #(
             // System
             .P_VENDOR           (P_VENDOR),             // Vendor - "AMD", "ALTERA" or "LSC"
+            .P_FAMILY           (P_FAMILY),             // Family
 
             // Link
             .P_LANES            (P_LANES),    	        // Lanes
@@ -554,7 +560,8 @@ generate
             // Message
             .P_MSG_IDX          (P_MSG_IDX),            // Index width
             .P_MSG_DAT          (P_MSG_DAT),            // Data width
-            .P_MSG_ID           (P_MSG_ID_MSA0)         // Message ID MSA (main stream attribute)
+            .P_MSG_ID_MSA       (P_MSG_ID_MSA0),        // Message ID MSA (main stream attribute)
+            .P_MSG_ID_SDP       (P_MSG_ID_SDP)          // Message ID SDP (processor packets)
         )
         SDP_INST
         (
@@ -568,6 +575,7 @@ generate
             // Secondary data packet
             .SDP_CLK_IN         (SDP_CLK_IN),         // Clock
             .SDP_SNK_IF         (SDP_SNK_IF),         // Sink
+            .SDP_PRC_CNT_OUT    (SDP_PRC_CNT_OUT),    // Processor packets taken
 
             // Link
             .LNK_RST_IN         (LNK_RST_IN),         // Reset
@@ -589,6 +597,8 @@ generate
         assign lnk_msg_if[4].eom = lnk_msg_if[3].eom;
         assign lnk_msg_if[4].dat = lnk_msg_if[3].dat;
         assign lnk_msg_if[4].vld = lnk_msg_if[3].vld;
+
+        assign SDP_PRC_CNT_OUT = 0;
     end
 endgenerate
 
@@ -603,6 +613,7 @@ generate
         #(
             // System
             .P_VENDOR           (P_VENDOR),             // Vendor
+            .P_FAMILY           (P_FAMILY),             // Family
             .P_SIM              (P_SIM),                // Simulation
             .P_STREAM           (1),                    // Stream
 
@@ -659,6 +670,7 @@ generate
         #(
             // System
             .P_VENDOR           (P_VENDOR),
+            .P_FAMILY           (P_FAMILY),             // Family
             .P_SIM              (P_SIM),                // Simulation
             .P_STREAM           (1),                    // Stream
             
@@ -797,6 +809,7 @@ endgenerate
     #(
         // System
         .P_VENDOR           (P_VENDOR),
+        .P_FAMILY           (P_FAMILY),    // Family
 
         // Link
         .P_LANES            (P_LANES),              // Lanes

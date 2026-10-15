@@ -15,6 +15,7 @@
     v1.3 - Updated support for any length packets
     v1.4 - Added VSC packet snooping
     v1.5 - Removed interlane dependency
+    v1.6 - Added parity check (RS(15,13)) with error flag
     
 
     License
@@ -71,6 +72,7 @@ module prt_dprx_sdp
     prt_dp_rx_sdp_if.src    SDP_SRC_IF          // Source
 );
 
+
 //-----
 // Parameters
 //-----
@@ -81,6 +83,7 @@ localparam P_DAT_FIFO_DAT = 4;
 localparam P_LEN_FIFO_WRDS = 8;
 localparam P_LEN_FIFO_ADR = $clog2(P_LEN_FIFO_WRDS);
 localparam P_LEN_FIFO_DAT = 6;
+
 
 //-----
 // Structure
@@ -130,12 +133,14 @@ typedef struct {
     logic   [2:0]                   sel[4];
     logic   [1:0]                   wr[4][4];               // Write
     logic   [P_DAT_FIFO_DAT-1:0]    din[4][4][2];           // Write data (LANE - SUBLANE - NIBBLE)
+    logic   [1:0]                   fl[4][4];               // Full
 } dat_fifo_wr_struct;
 
 typedef struct {
     logic                           clr;                  // Clear
     logic                           wr;                   // Write
     logic   [P_LEN_FIFO_DAT-1:0]    din;                  // Write data
+    logic                           fl;                   // Full
 } len_fifo_wr_struct;
 
 typedef struct {
@@ -177,6 +182,25 @@ typedef struct {
 } sdp_struct;
 
 typedef struct {
+    logic   [3:0]                   cnt;                    // Word counter
+    logic                           hdr;                    // Header word
+    logic                           pb;                     // Parity word
+    logic                           db;                     // Data word
+    logic   [1:0]                   sel;                    // Data code word select
+    logic   [7:0]                   par[4];                 // Parity
+    logic                           mis;                    // Parity mismatch
+    logic                           acc;                    // Accumulated parity error
+} ecc_struct;
+
+typedef struct {
+    logic                           sop;
+    logic                           eop;
+    logic   [31:0]                  dat;
+    logic                           vld;
+    logic                           err;
+} out_struct;
+
+typedef struct {
     logic                           hdr;
     logic   [4:0]                   cnt;
     logic   [1:0]                   csf;
@@ -184,7 +208,10 @@ typedef struct {
     logic   [4:0]                   dat;
 } vsc_struct;
 
+
+//-----
 // Signals
+//-----
 msg_struct          lclk_msg;    // Message
 lnk_struct          lclk_lnk; 
 aln_struct          lclk_aln; 
@@ -194,6 +221,9 @@ dat_fifo_rd_struct  sclk_dat_fifo;
 len_fifo_rd_struct  sclk_len_fifo;
 sdp_struct          sclk_sdp;
 vsc_struct          sclk_vsc;
+ecc_struct          sclk_ecc;
+out_struct          sclk_out;
+
 
 genvar i, j, n;
 
@@ -1107,7 +1137,7 @@ generate
 
                     // Status (A)
                     .A_WRDS_OUT    (),                              // Used words
-                    .A_FL_OUT      (),                              // Full
+                    .A_FL_OUT      (lclk_dat_fifo.fl[i][j][n]),     // Full
                     .A_EP_OUT      (),                              // Empty
 
                     // Status (B)
@@ -1138,9 +1168,10 @@ endgenerate
 // Length FIFO
 // The length FIFO stores the length of a packet. 
 //-----
-    prt_dp_lib_fifo_dc
+    prt_lib_fifo_dc
     #(
         .P_VENDOR       (P_VENDOR),             // Vendor
+        .P_FAMILY       (P_FAMILY),             // Family
         .P_MODE         ("single"),		        // "single" or "burst"
         .P_RAM_STYLE	("distributed"),	    // "distributed" or "block"
         .P_OPT 			(0),			        // In optimized mode the status port are not available. This saves some logic.
@@ -1169,7 +1200,7 @@ endgenerate
 
         // Status (A)
         .A_WRDS_OUT    (),                              // Used words
-        .A_FL_OUT      (),                              // Full
+        .A_FL_OUT      (lclk_len_fifo.fl),              // Full
         .A_EP_OUT      (),                              // Empty
 
         // Status (B)
@@ -2335,6 +2366,129 @@ endgenerate
             sclk_sdp.vld <= 0;
     end
 
+//-----
+// Parity check
+//-----
+// The packet words are HB0-3, PB0-3, DB0-3, DB4-7, DB8-11, DB12-15, PB4-7 (, DB16-19 .. DB28-31, PB8-11).
+// Every header byte and every data word is an RS(15,13) code word (DP 1.4 section 2.2.6),
+// the parity bytes follow in the next parity word.
+// The parity of each code word is calculated and compared with the received parity.
+// A mismatch in any code word asserts the error flag together with the end of packet.
+
+// GF(16) multiply by alpha
+    function automatic [3:0] gf_mul1 (input [3:0] c);
+        return {c[2], c[1], c[0] ^ c[3], c[3]};
+    endfunction
+
+// GF(16) multiply by alpha^4
+    function automatic [3:0] gf_mul4 (input [3:0] c);
+        return {c[2] ^ c[3], c[1] ^ c[2], c[0] ^ c[1] ^ c[3], c[0] ^ c[3]};
+    endfunction
+
+// Parity byte of a code word with eight data nibbles (lowest nibble first)
+// Leading zero nibbles don't change the parity, so a header byte is placed in the upper byte
+    function automatic [7:0] ecc_par (input [31:0] din);
+        logic [3:0] fb;
+        logic [3:0] x0;
+        logic [3:0] x1;
+
+        x0 = 0;
+        x1 = 0;
+        for (int i = 0; i < 8; i++)
+        begin
+            fb = din[(i*4)+:4] ^ x1;
+            x1 = x0 ^ gf_mul4(fb);
+            x0 = gf_mul1(fb);
+        end
+        return {x0, x1};
+    endfunction
+
+// Word counter
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        if (sclk_sdp.vld)
+        begin
+            if (sclk_sdp.sop)
+                sclk_ecc.cnt <= 'd1;
+            else
+                sclk_ecc.cnt <= sclk_ecc.cnt + 'd1;
+        end
+    end
+
+// Word type
+    always_comb
+    begin
+        sclk_ecc.hdr = 0;
+        sclk_ecc.pb = 0;
+        sclk_ecc.db = 0;
+
+        if (sclk_sdp.vld)
+        begin
+            if (sclk_sdp.sop)
+                sclk_ecc.hdr = 1;
+            else if ((sclk_ecc.cnt == 'd1) || (sclk_ecc.cnt == 'd6) || (sclk_ecc.cnt == 'd11))
+                sclk_ecc.pb = 1;
+            else
+                sclk_ecc.db = 1;
+        end
+    end
+
+// Parity
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        // Header
+        if (sclk_ecc.hdr)
+        begin
+            for (int i = 0; i < 4; i++)
+                sclk_ecc.par[i] <= ecc_par({sclk_sdp.dat[(i*8)+:8], 24'h0});
+            sclk_ecc.sel <= 0;
+        end
+
+        // Data
+        else if (sclk_ecc.db)
+        begin
+            sclk_ecc.par[sclk_ecc.sel] <= ecc_par(sclk_sdp.dat);
+            sclk_ecc.sel <= sclk_ecc.sel + 'd1;
+        end
+
+        // Parity
+        else if (sclk_ecc.pb)
+            sclk_ecc.sel <= 0;
+    end
+
+// Mismatch
+    always_comb
+    begin
+        if (sclk_ecc.pb && (sclk_sdp.dat != {sclk_ecc.par[3], sclk_ecc.par[2], sclk_ecc.par[1], sclk_ecc.par[0]}))
+            sclk_ecc.mis = 1;
+        else
+            sclk_ecc.mis = 0;
+    end
+
+// Accumulated error
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        if (sclk_ecc.hdr)
+            sclk_ecc.acc <= 0;
+        else if (sclk_ecc.mis)
+            sclk_ecc.acc <= 1;
+    end
+
+// Output registers
+// The outputs are delayed by one clock, so the error flag is valid together with the end of packet
+    always_ff @ (posedge SDP_CLK_IN)
+    begin
+        sclk_out.sop <= sclk_sdp.sop;
+        sclk_out.eop <= sclk_sdp.eop;
+        sclk_out.dat <= sclk_sdp.dat;
+        sclk_out.vld <= sclk_sdp.vld;
+
+        if (sclk_sdp.vld && sclk_sdp.eop && (sclk_ecc.acc || sclk_ecc.mis))
+            sclk_out.err <= 1;
+        else
+            sclk_out.err <= 0;
+    end
+
 // VSC snooping
 
 // Counter
@@ -2418,7 +2572,10 @@ endgenerate
 		.DST_DAT_OUT	(lclk_lnk.vsc_dat)	// Data
 	);
 
+
+//-----
 // Outputs
+//-----
 generate
     for (i = 0; i < P_LANES; i++)
     begin
@@ -2435,10 +2592,11 @@ endgenerate
 
     assign LNK_SRC_IF.lock  = lclk_lnk.lock;
 
-    assign SDP_SRC_IF.sop = sclk_sdp.sop;
-    assign SDP_SRC_IF.eop = sclk_sdp.eop;
-    assign SDP_SRC_IF.dat = sclk_sdp.dat;
-    assign SDP_SRC_IF.vld = sclk_sdp.vld;
+    assign SDP_SRC_IF.sop = sclk_out.sop;
+    assign SDP_SRC_IF.eop = sclk_out.eop;
+    assign SDP_SRC_IF.dat = sclk_out.dat;
+    assign SDP_SRC_IF.vld = sclk_out.vld;
+    assign SDP_SRC_IF.err = sclk_out.err;
 
 endmodule
 

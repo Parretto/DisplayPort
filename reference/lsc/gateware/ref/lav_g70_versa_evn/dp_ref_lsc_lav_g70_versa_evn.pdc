@@ -1,0 +1,152 @@
+###
+# Timing
+###
+# Link clocks
+# The link clock is the line rate divided by 40: four symbols per clock at every rate,
+# because all PHY profiles use gearing 2. The fastest rate, 8.1 Gbps, gives 202.5 MHz,
+# 1.5 times the 135 MHz reference; the design has to meet timing there.
+# DPTX link clock
+create_generated_clock -name {tx_lnk_clk} -source [get_pins {PHY_INST/lscc_mpphy_inst/mpp_nonpipe_x4_q0.u_Q0_nonpipe_x4.MPPHYX4A_MODE_inst/REFCLK_P}] -divide_by 2 -multiply_by 3 [get_pins {PHY_INST/lscc_mpphy_inst/mpp_nonpipe_x4_q0.u_Q0_nonpipe_x4.MPPHYX4A_MODE_inst/TXOUTGCLK_PLL0}]
+# DPRX link clock
+create_generated_clock -name {rx_lnk_clk} -source [get_pins {PHY_INST/lscc_mpphy_inst/mpp_nonpipe_x4_q0.u_Q0_nonpipe_x4.MPPHYX4A_MODE_inst/REFCLK_P}] -divide_by 2 -multiply_by 3 [get_pins {PHY_INST/lscc_mpphy_inst/mpp_nonpipe_x4_q0.u_Q0_nonpipe_x4.MPPHYX4A_MODE_inst/RXOUTGCLK_L0}]
+
+set_clock_groups -group [get_clocks sys_clk] -group [get_clocks phy_ref_clk] -group [get_clocks clk_from_sys_pll] -group [get_clocks rx_lnk_clk] -group [get_clocks tx_lnk_clk] -group [get_clocks vid_clk] -asynchronous
+
+###
+# False path
+###
+# Reset synchronizers of the Lattice clock domain crossings (lscc_cdc_hs_bus)
+# The first stage of each reset synchronizer runs on the falling clock edge and takes the
+# reset of the other domain asynchronously, so it only gets half a clock period to reach
+# it. That is an asynchronous reset into the first stage of a synchronizer, which the
+# following stages take care of, so the path needs no timing. The constraint file that
+# comes with lscc_cdc does not cover it. One synchronizer per direction per crossing; a
+# crossing whose resets are tied off has no synchronizer left to constrain.
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/SYS_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/SYS_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_INST/HEAD_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_INST/HEAD_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/VID_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/LEN_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/LEN_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/SCLK_LANES_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/SCLK_LANES_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/VSC_DAT_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPRX_INST/DPRX_INST/LNK_INST/gen_sdp.SDP_INST/VSC_DAT_CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/LNK_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/VID0_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/VID0_MSG_CDC_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {VTB_INST/VTB_INST/FIFO_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {VTB_INST/VTB_INST/FIFO_INST/FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_dest_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+# DPTX secondary data packet FIFOs (data FIFO per lane, sublane and nibble, processor packet FIFO, length FIFO)
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[0].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[0].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[1].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[1].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[2].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[2].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[3].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[0].gen_fifo_s[3].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[0].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[0].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[1].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[1].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[2].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[2].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[3].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[1].gen_fifo_s[3].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[0].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[0].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[1].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[1].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[2].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[2].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[3].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[2].gen_fifo_s[3].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[0].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[0].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[1].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[1].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[2].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[2].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[3].gen_fifo_n[0].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/gen_fifo_l[3].gen_fifo_s[3].gen_fifo_n[1].DAT_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/PRC_FIFO_INST/gen_aclk_sta.RP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+set_false_path -to [get_pins {DPTX_INST/DPTX_INST/LNK_INST/gen_sdp.SDP_INST/LEN_FIFO_INST/gen_bclk_sta.WP_CDC_INST/gen_gray.CDC_INST/lscc_cdc.CDC_INST/u_lscc_sync_src_rst/genblk1.genblk2.genblk1.src_to_dest_rstn_cc/PD}]
+
+###
+# Pins
+###
+# The pins of the Tentiva boards are those of the earlier Avant DP design
+# (gateware/ref/lsc/lav_g70_versa_evn). Where the HDMI Avant design uses the same FMC pin
+# for its own card, the pin agrees with it; the comments give that pin on the
+# CertusPro-NX and the HDMI signal there.
+
+# Bank VCCIO
+ldc_set_vcc -bank 6 1.8
+ldc_set_vcc -bank 9 1.8
+
+# Clocks
+ldc_set_location -site {T7} [get_ports SYS_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports SYS_CLK_IN]
+ldc_set_location -site {AP30} [get_ports TENTIVA_VID_CLK_IN]
+ldc_set_port -iobuf {IO_TYPE=LVDS} [get_ports TENTIVA_VID_CLK_IN]
+
+# PHY
+# The FMC high speed lanes are connected to MPQ0
+ldc_set_location -site {MPQ0_RX0P} [get_ports {DPRX_ML_IN_P[0]}]
+
+# LED
+ldc_set_location -site {AN10} [get_ports {LED_OUT[0]}]
+ldc_set_location -site {AJ13} [get_ports {LED_OUT[1]}]
+ldc_set_location -site {AH13} [get_ports {LED_OUT[2]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports {LED_OUT[0]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports {LED_OUT[1]}]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports {LED_OUT[2]}]
+
+# Switch
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports SYS_RSTN_IN]
+ldc_set_location -site {U3} [get_ports SYS_RSTN_IN]
+
+# I2C
+ldc_set_location -site {W4} [get_ports I2C_SCL_INOUT]
+ldc_set_location -site {U7} [get_ports I2C_SDA_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SCL_INOUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS33} [get_ports I2C_SDA_INOUT]
+
+# UART
+# Tentiva Rev. C/D
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports UART_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports UART_RX_IN]
+ldc_set_location -site {AJ32} [get_ports UART_TX_OUT]
+ldc_set_location -site {AJ31} [get_ports UART_RX_IN]
+
+# Tentiva DP2.1 RX
+ldc_set_location -site {AL33} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_AUX_EN_OUT]
+ldc_set_location -site {AL34} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_AUX_TX_OUT]
+ldc_set_location -site {AK30} [get_ports DPRX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_AUX_RX_IN]
+ldc_set_location -site {AK33} [get_ports DPRX_HPD_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_HPD_OUT]
+ldc_set_location -site {AK29} [get_ports DPRX_I2C_SEL_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_I2C_SEL_OUT]
+ldc_set_location -site {AK34} [get_ports DPRX_CABDET_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPRX_CABDET_IN]
+
+# Tentiva DP2.1 TX
+ldc_set_location -site {AH34} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPTX_AUX_EN_OUT]
+ldc_set_location -site {AG32} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPTX_AUX_TX_OUT]
+ldc_set_location -site {AG34} [get_ports DPTX_AUX_RX_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPTX_AUX_RX_IN]
+ldc_set_location -site {AG28} [get_ports DPTX_HPD_IN]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPTX_HPD_IN]
+ldc_set_location -site {AF32} [get_ports DPTX_I2C_SEL_OUT]
+ldc_set_port -iobuf {IO_TYPE=LVCMOS18} [get_ports DPTX_I2C_SEL_OUT]

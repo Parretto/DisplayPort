@@ -10,6 +10,9 @@
     History
     =======
     v1.0 - Initial release
+    v1.1 - RAM of 32 words. The aligner corrects a lane skew of +/- 16 words (+/- 32 symbols with
+           2 symbols per lane); with 16 words a larger skew on the Agilex 5 made a lane slip forever,
+           so TPS4 (checked after the descrambler) failed on that lane
     
     License
     =======
@@ -58,7 +61,7 @@ module prt_dprx_trn_ila
 
 
 // Parameters
-localparam P_RAM_WRDS = 16;
+localparam P_RAM_WRDS = 32;
 localparam P_RAM_ADR = $clog2(P_RAM_WRDS);
 localparam P_RAM_DAT = 9; 
 localparam P_RAM_SEL = $clog2(P_SPL);
@@ -451,8 +454,20 @@ endgenerate
 (* syn_noprune = 1 *) wire  dbg_ila_lock;
 assign dbg_ila_dat0 = clk_ila.dout[0];
 assign dbg_ila_dat1 = clk_ila.dout[1];
-assign dbg_ila_dat2 = clk_ila.dout[2];
-assign dbg_ila_dat3 = clk_ila.dout[3];
+// The last two symbols only exist with four symbols per lane
+generate
+    if (P_SPL == 4)
+    begin : gen_dbg_spl4
+        assign dbg_ila_dat2 = clk_ila.dout[2];
+        assign dbg_ila_dat3 = clk_ila.dout[3];
+    end
+
+    else
+    begin : gen_dbg_spl2
+        assign dbg_ila_dat2 = '0;
+        assign dbg_ila_dat3 = '0;
+    end
+endgenerate
 assign dbg_ila_trg_in = clk_ila.trg_in;
 assign dbg_ila_trg_out = clk_ila.trg_out;
 assign dbg_ila_lock = clk_ila.lock;

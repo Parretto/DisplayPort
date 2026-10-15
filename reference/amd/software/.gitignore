@@ -1,0 +1,6 @@
+# Arm GNU toolchain downloaded by build.sh
+tools/
+
+# Keep the build scripts, ignore the build output
+!build/
+build/*/bin/

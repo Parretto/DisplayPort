@@ -296,7 +296,7 @@ hpd_struct          clk_hpd;
 	assign clk_sta.r[P_STA_HPD_PULSE]  = clk_hpd.pulse;
 
 // Beat rising edge
-	prt_dp_lib_edge
+	prt_lib_edge
 	BEAT_EDGE_INST
 	(
 		.CLK_IN		(CLK_IN),			// Clock

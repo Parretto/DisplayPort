@@ -32,6 +32,7 @@
 module prt_dp_pm_ram
 #(
     parameter P_VENDOR      = "none",     // Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter P_FAMILY      = "none",     // Family (Only used for Lattice)
     parameter P_ADR         = 10,           // Address bits
     parameter P_INIT_FILE   = "none"        // Initilization file
 )
@@ -138,11 +139,11 @@ generate
     end
 
     // Lattice
-    else if ((P_VENDOR == "LSC") || (P_VENDOR == "LSC_LAV"))
+    else if (P_VENDOR == "LSC")
     begin : gen_ram_lsc
 
         // Avant
-        if (P_VENDOR == "LSC_LAV")
+        if (P_FAMILY == "LAV-AT")
         begin : gen_ram_lsc_lav
             pmi_ram_dp_be
             #(

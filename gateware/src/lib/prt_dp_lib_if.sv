@@ -284,9 +284,10 @@ interface prt_dp_rx_sdp_if
 	logic   			eop;		// End of packet
 	logic	[31:0]		dat;		// Data
 	logic   			vld;		// Valid
+	logic   			err;		// Parity error (valid with eop)
 
-	modport snk	(input sop, input eop, input dat, input vld);
-	modport src	(output sop, output eop, output dat, output vld);
+	modport snk	(input sop, input eop, input dat, input vld, input err);
+	modport src	(output sop, output eop, output dat, output vld, output err);
 
 endinterface
 

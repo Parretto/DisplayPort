@@ -237,6 +237,21 @@ generate
 		);
 	end
 
+	else if (P_VENDOR == "ALTERA")
+	begin : altera_cdc
+		altera_std_synchronizer
+		#(
+			.depth			(2)
+		)
+		CDC_INST
+		(
+			.clk			(DST_CLK_IN),
+			.reset_n		(1'b1),
+			.din			(SRC_DAT_IN),
+			.dout			(DST_DAT_OUT)
+		);
+	end
+
 	else
 	begin
 		$error ("No Vendor specified!");
@@ -319,6 +334,83 @@ generate
 			.dest_clk				(DST_CLK_IN),
 			.dest_out_bin			(DST_DAT_OUT)
 		);
+	end
+
+	else if (P_VENDOR == "ALTERA")
+	begin : altera_cdc
+		// Altera has no bus crossing macro, only altera_std_synchronizer for a single bit, so the
+		// handshake itself is built here. It is the two phase kind: the source toggles a request
+		// after it has captured the data, the destination captures on the toggle and echoes it
+		// back, and the source starts the next transfer once the echo has arrived. The data is
+		// held still for the whole round trip, so only the two toggles cross the domains and
+		// those are single bits.
+		// This follows the Lattice branch, not the AMD one: it carries arbitrary data, where
+		// xpm_cdc_gray only carries values that change by one.
+
+		logic						src_req;		// Request toggle
+		logic						src_ack;		// Acknowledge toggle, synchronised into the source domain
+		logic [P_WIDTH-1:0]			src_dat;		// Held still while the request crosses over
+		logic						dst_req;		// Request toggle, synchronised into the destination domain
+		logic						dst_ack;		// Acknowledge toggle
+		logic [P_WIDTH-1:0]			dst_dat;
+
+		// Source; start a new transfer as soon as the previous one has been acknowledged
+		always_ff @ (posedge SRC_RST_IN, posedge SRC_CLK_IN)
+		begin
+			if (SRC_RST_IN)
+			begin
+				src_req <= 0;
+				src_dat <= 0;
+			end
+
+			else if (src_req == src_ack)
+			begin
+				src_dat <= SRC_DAT_IN;
+				src_req <= ~src_req;
+			end
+		end
+
+		altera_std_synchronizer
+		#(
+			.depth					(2)
+		)
+		REQ_SYNC_INST
+		(
+			.clk					(DST_CLK_IN),
+			.reset_n				(~DST_RST_IN),
+			.din					(src_req),
+			.dout					(dst_req)
+		);
+
+		// Destination; capture when the request toggles and echo it back
+		always_ff @ (posedge DST_RST_IN, posedge DST_CLK_IN)
+		begin
+			if (DST_RST_IN)
+			begin
+				dst_ack <= 0;
+				dst_dat <= 0;
+			end
+
+			else if (dst_req != dst_ack)
+			begin
+				dst_dat <= src_dat;
+				dst_ack <= dst_req;
+			end
+		end
+
+		altera_std_synchronizer
+		#(
+			.depth					(2)
+		)
+		ACK_SYNC_INST
+		(
+			.clk					(SRC_CLK_IN),
+			.reset_n				(~SRC_RST_IN),
+			.din					(dst_ack),
+			.dout					(src_ack)
+		);
+
+		assign DST_DAT_OUT = dst_dat;
 	end
 
 	else

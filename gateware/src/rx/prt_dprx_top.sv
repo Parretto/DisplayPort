@@ -16,6 +16,8 @@
     v1.4 - Added secondary data packet 
     v1.5 - Added interlane aligner
     v1.6 - Added link training TPS status
+    v1.7 - Added the 8b/10b decoder for Altera Agilex
+    v1.8 - Added SDP parity error output
 
 
     License
@@ -41,7 +43,7 @@ module prt_dprx_top
 #(
     // System
     parameter                                   P_VENDOR    = "none",       // Vendor - "AMD", "ALTERA" or "LSC"
-    parameter                                   P_FAMILY    = "none",       // Family (Only used for Lattice)
+    parameter                                   P_FAMILY    = "none",       // Family. Lattice: "LFCPNX", Altera: "AGX" (Agilex)
     parameter                                   P_BEAT      = 'd125,        // Beat value
     parameter                                   P_MST       = 0,            // MST support
     parameter                                   P_SDP       = 0,            // SDP support
@@ -53,7 +55,12 @@ module prt_dprx_top
     // Video
     parameter                                   P_PPC       = 2,            // Pixels per clock
     parameter                                   P_BPC       = 8,            // Bits per component
-    parameter                                   P_VID_DAT   = 48
+    parameter                                   P_VID_DAT   = 48,
+
+    // Link data bits per symbol
+    // The Altera Agilex transceiver has no 8b/10b decoder in DisplayPort mode, the DPRX decodes
+    // the 10-bit code groups. The other vendors deliver the symbols (K and data, 9 bits).
+    parameter                                   P_LNK_SYM   = ((P_VENDOR == "ALTERA") && (P_FAMILY == "AGX")) ? 10 : 9
 )
 (
     // Reset and clock
@@ -76,7 +83,7 @@ module prt_dprx_top
     // Link
     input wire                                  LNK_CLK_IN,             // Clock
     input wire                                  LNK_LOCK_IN,            // Lock
-    input wire [(P_LANES * P_SPL * 9)-1:0]      LNK_DAT_IN,             // Data
+    input wire [(P_LANES * P_SPL * P_LNK_SYM)-1:0] LNK_DAT_IN,          // Data
     output wire                                 LNK_SYNC_OUT,           // Sync
     output wire [7:0]                           LNK_VBID_OUT,           // VB-ID 
 
@@ -99,7 +106,8 @@ module prt_dprx_top
     output wire                                 SDP_SOP_OUT,            // Start of packet
     output wire                                 SDP_EOP_OUT,            // End of packet
     output wire [31:0]                          SDP_DAT_OUT,            // Data
-    output wire                                 SDP_VLD_OUT             // Valid
+    output wire                                 SDP_VLD_OUT,            // Valid
+    output wire                                 SDP_ERR_OUT             // Parity error (valid with eop)
 );
 
 
@@ -196,6 +204,9 @@ wire [3:0]  dat_from_lnk_trn_sta_cdc;
 
 genvar i, j;
 
+// Link symbols (K and data)
+wire [(P_LANES * P_SPL * 9)-1:0]   lnk_sym;
+
 
 /*
     System domain
@@ -205,7 +216,10 @@ genvar i, j;
 // Reset
 //-----
     prt_lib_rst
-    RST_INST
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+RST_INST
     (
         .SRC_RST_IN     (SYS_RST_IN),
         .SRC_CLK_IN     (SYS_CLK_IN),
@@ -214,7 +228,10 @@ genvar i, j;
     );
 
     prt_lib_rst
-    LNK_RST_INST
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_RST_INST
     (
         .SRC_RST_IN     (~pio_from_pm[2]),
         .SRC_CLK_IN     (SYS_CLK_IN),
@@ -223,7 +240,10 @@ genvar i, j;
     );
 
     prt_lib_rst
-    VID_RST_INST
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID_RST_INST
     (
         .SRC_RST_IN     (~pio_from_pm[3]),
         .SRC_CLK_IN     (SYS_CLK_IN),
@@ -238,6 +258,7 @@ genvar i, j;
     prt_dp_pm_top
     #(
         .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY),         // Family
         .P_BEAT             (P_BEAT),           // Beat value
         .P_HW_VER_MAJOR     (P_HW_VER_MAJOR),   // Hardware version major
         .P_HW_VER_MINOR     (P_HW_VER_MINOR),   // Hardware version minor
@@ -360,6 +381,38 @@ genvar i, j;
     // Video ready
     assign vid_if.rdy = VID_RDY_IN;
 
+// Link data
+// The Altera Agilex transceiver has no word aligner and no 8b/10b decoder in DisplayPort mode,
+// the DPRX aligns and decodes the code groups.
+generate
+    if ((P_VENDOR == "ALTERA") && (P_FAMILY == "AGX"))
+    begin : gen_8b10b
+        logic [(P_LANES * P_SPL * 10)-1:0]  lclk_cg;
+
+        // Register (timing at the link clock of 405 MHz)
+        always_ff @ (posedge LNK_CLK_IN)
+            lclk_cg <= LNK_DAT_IN;
+
+        prt_dprx_8b10b_dec
+        #(
+            .P_LANES        (P_LANES),          // Lanes
+            .P_SPL          (P_SPL)             // Symbols per lane
+        )
+        DEC_INST
+        (
+            .CLK_IN         (LNK_CLK_IN),       // Link clock
+            .PHY_DAT_IN     (lclk_cg),          // Code groups
+            .LNK_DAT_OUT    (lnk_sym),          // Link symbols
+            .LNK_ALIGN_OUT  ()                  // Comma alignment
+        );
+    end
+
+    else
+    begin : gen_sym
+        assign lnk_sym = LNK_DAT_IN;
+    end
+endgenerate
+
 // Map link interface
     generate
         for (i = 0; i < P_LANES; i++)
@@ -369,8 +422,8 @@ genvar i, j;
                 assign lnk_if.vid[i][j] = 0;        // Not used
                 assign lnk_if.sdp[i][j] = 0;        // Not used
                 assign lnk_if.msa[i][j] = 0;        // Not used              
-                assign lnk_if.k[i][j]   = LNK_DAT_IN[(i*P_SPL*9)+(j*9)+8];
-                assign lnk_if.dat[i][j] = LNK_DAT_IN[((i*P_SPL*9)+(j*9))+:8];
+                assign lnk_if.k[i][j]   = lnk_sym[(i*P_SPL*9)+(j*9)+8];
+                assign lnk_if.dat[i][j] = lnk_sym[((i*P_SPL*9)+(j*9))+:8];
             end
         end
     endgenerate
@@ -414,6 +467,7 @@ assign SDP_SOP_OUT = sdp_if.sop;
 assign SDP_EOP_OUT = sdp_if.eop;
 assign SDP_DAT_OUT = sdp_if.dat;
 assign SDP_VLD_OUT = sdp_if.vld;
+assign SDP_ERR_OUT = sdp_if.err;
 
 assign LNK_TRN_TPS_CR_OUT   = dat_from_lnk_trn_sta_cdc[0];
 assign LNK_TRN_TPS_EQ_OUT   = dat_from_lnk_trn_sta_cdc[1];
@@ -435,8 +489,11 @@ generate
         end
 
     // Debug (link clock)
-        prt_dp_lib_cdc_bit
-        LCLK_DBG_CDC_INST
+        prt_lib_cdc_bit
+        #(
+            .P_VENDOR           (P_VENDOR)
+        )
+LCLK_DBG_CDC_INST
         (
             .SRC_CLK_IN         (SYS_CLK_IN),    // Clock
             .SRC_DAT_IN         (sclk_dbg),      // Data

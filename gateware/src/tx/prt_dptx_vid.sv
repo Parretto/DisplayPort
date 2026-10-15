@@ -16,6 +16,10 @@
     v1.4 - Added MST support
     v1.5 - Added 10-bits video support
     v1.6 - Improved performance
+    v1.7 - The video mapper and the FIFO take the pixels in the enabled clock cycles only
+    v1.8 - Fixed video unit length in 1 and 2 lanes (the last FIFO word of a line was not read)
+    v1.9 - Video unit length table without modulo, one table for the active lanes
+    v1.10 - Registered video unit length table
 
 
     License
@@ -39,6 +43,7 @@ module prt_dptx_vid
 #(
     // System
     parameter               P_VENDOR = "none",  // Vendor - "AMD", "ALTERA" or "LSC" 
+    parameter               P_FAMILY = "none",  // Family (Only used for Lattice)
     parameter               P_SIM = 0,          // Simulation
     parameter               P_STREAM = 0,       // Stream ID
 
@@ -96,6 +101,44 @@ localparam P_TU_CNT_LD = P_TU_SIZE / P_SPL;     // Transfer unit counter load
 localparam P_TU_FE = P_TU_CNT_LD - 4;           // Transfer unit stuffing end
 localparam P_TU_STR_THRESHOLD = 16;             // Transfer unit start    
 localparam P_VC_LEN = (P_SPL == 4) ? 4 : 5;     // VC length
+localparam P_VU_LVL = 10;                       // Video unit length table levels (1 and 2 lanes)
+
+// Functions
+// Video unit length (1 and 2 lanes)
+// Number of clock cycles from read select sel until the (lvl+1)th read of the first segment of the first FIFO.
+// The read select wraps like lclk_map.rd_sel.
+// The search runs one clock cycle past the transfer unit, so a length of a full transfer unit is also correct after one read cycle.
+function automatic int vu_clks (int lanes, int sel, int lvl);
+    int per;
+    int n;
+    int s;
+    bit str;
+    per = (P_SPL == 4) ? ((lanes == 1) ? 12 : 6) : ((lanes == 1) ? 24 : 12);
+
+    // Read select sel
+    s = 0;
+    for (int k = 0; k < sel; k++)
+        s = (s == (per - 1)) ? 0 : s + 1;
+
+    n = 0;
+    for (int k = 0; k < ((P_TU_SIZE / P_SPL) + 1); k++)
+    begin
+        if (P_SPL == 4)
+            str = (lanes == 1) ? ((s == 0) || (s == 3) || (s == 6)) : ((s == 0) || (s == 1) || (s == 3));
+        else
+            str = (lanes == 1) ? ((s == 0) || (s == 6) || (s == 13)) : ((s == 0) || (s == 3) || (s == 7));
+        if (str)
+        begin
+            if (n == lvl)
+                return k;
+            n++;
+        end
+
+        // Next read select
+        s = (s == (per - 1)) ? 0 : s + 1;
+    end
+    return (P_TU_SIZE / P_SPL) + 1;
+endfunction
 
 // Structures
 typedef struct {
@@ -172,6 +215,12 @@ typedef struct {
     logic                           stuff;          // Data stuffing
     logic [5:0]                     vu_len_in;      // Video unit length in a TU
     logic [5:0]                     vu_len;         // Video unit length in a TU
+    logic [7:0]                     vu_lvl;         // FIFO level for the video unit length (1 and 2 lanes)
+    logic [5:0]                     vu_len_tbl;     // Video unit length from the table (1 and 2 lanes)
+    logic [4:0]                     vu_sel;         // Read select for the video unit length table
+    logic [5:0]                     vu_len_reg;     // Registered video unit length from the table
+    logic                           vu_len_rd;      // A read was issued in the clock cycle of the registered video unit length
+    logic [5:0]                     vu_tbl[0:23][0:P_VU_LVL-1];     // Video unit length table (read select x level, 1 and 2 lanes)
     logic                           tu_str;         // TU start
     logic                           tu_run;         // TU run
     logic                           tu_run_re;
@@ -236,21 +285,27 @@ genvar i, j;
 */
 
 // Control lanes clock domain crossing
-    prt_dp_lib_cdc_vec
+    prt_lib_cdc_vec
     #(
+        .P_VENDOR           (P_VENDOR),
         .P_WIDTH        ($size(lclk_ctl.lanes))
     )
     VID_LANES_CDC_INST
     (
+        .SRC_RST_IN     (1'b0),               // No reset, as before
         .SRC_CLK_IN     (LNK_CLK_IN),         // Clock
         .SRC_DAT_IN     (lclk_ctl.lanes),     // Data
+        .DST_RST_IN     (1'b0),               // No reset, as before
         .DST_CLK_IN     (VID_CLK_IN),         // Clock
         .DST_DAT_OUT    (vclk_ctl.lanes)      // Data
     );
 
 // Control Enable clock domain crossing
-    prt_dp_lib_cdc_bit
-    VID_EN_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID_EN_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
         .SRC_DAT_IN     (lclk_ctl.en),      // Data
@@ -259,8 +314,11 @@ genvar i, j;
     );
 
 // Control MST clock domain crossing
-    prt_dp_lib_cdc_bit
-    VID_MST_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID_MST_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
         .SRC_DAT_IN     (lclk_ctl.mst),     // Data
@@ -269,8 +327,11 @@ genvar i, j;
     );
 
 // Control BPC clock domain crossing
-    prt_dp_lib_cdc_bit
-    VID_BPC_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+VID_BPC_CDC_INST
     (
         .SRC_CLK_IN     (LNK_CLK_IN),       // Clock
         .SRC_DAT_IN     (lclk_ctl.bpc),     // Data
@@ -323,7 +384,7 @@ genvar i, j;
 
 // Vsync edge detector
 // This is used for start of frame
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_VS_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),        // Clock
@@ -335,7 +396,7 @@ genvar i, j;
 
 // Hsync edge detector
 // This is used for blanking start
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_HS_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),        // Clock
@@ -347,7 +408,7 @@ genvar i, j;
 
 // Data enable edge detector
 // This is used for active line counter
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_DE_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),        // Clock
@@ -571,7 +632,7 @@ genvar i, j;
 
 // Virtual data enable edge detector
 // This is used for blanking end
-    prt_dp_lib_edge
+    prt_lib_edge
     VID_VDE_EDGE_INST
     (
         .CLK_IN    (VID_CLK_IN),         // Clock
@@ -664,9 +725,9 @@ genvar i, j;
 
         // Video
         .VID_RUN_IN         (vclk_vid.run),         // Run
-        .VID_CLR_IN         (vclk_vid.hs_re),       // Clear
-        .VID_DAT_IN         (vclk_vid.dat),         // Video data
-        .VID_DE_IN          (vclk_vid.vde),         // Video data enable
+        .VID_CLR_IN         (vclk_vid.hs_re && VID_CKE_IN),     // Clear
+        .VID_DAT_IN         (vclk_vid.dat),                     // Video data
+        .VID_DE_IN          (vclk_vid.vde && VID_CKE_IN),       // Video data enable (only in the enabled cycles)
 
         // Mapper
         .MAP_DAT_OUT        (vclk_map.dat),         // Mapper data
@@ -692,7 +753,7 @@ generate
                 if (vclk_ctl.mst)
                 begin
                     // Data
-                    if (vclk_vid.be || vclk_vid.bs || vclk_vid.de)
+                    if ((vclk_vid.be || vclk_vid.bs || vclk_vid.de) && VID_CKE_IN)
                         vclk_fifo.wr[i][j] = vclk_map.wr[i][j];
                     
                     // Idle
@@ -704,7 +765,7 @@ generate
                 else
                 begin
                     // (Virtual video data
-                    if (vclk_vid.vde)
+                    if (vclk_vid.vde && VID_CKE_IN)
                         vclk_fifo.wr[i][j] = vclk_map.wr[i][j];
                     
                     // Idle
@@ -719,6 +780,7 @@ endgenerate
     prt_dptx_vid_fifo
     #(
         .P_VENDOR           (P_VENDOR),         // Vendor
+        .P_FAMILY           (P_FAMILY),         // Family
         .P_SIM              (P_SIM),            // Simulation
         .P_FIFO_WRDS        (P_FIFO_WRDS),      // FIFO words
         .P_LANES            (P_LANES),          // Lanes
@@ -773,7 +835,7 @@ endgenerate
 
 // Link source read edge
 // This is used to start the burst
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_SRC_RD_EDGE_INST
     (
         .CLK_IN    (LNK_CLK_IN),        // Clock
@@ -784,8 +846,11 @@ endgenerate
     );
 
 // Run clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_RUN_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_RUN_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),       // Clock
         .SRC_DAT_IN     (vclk_vid.run),      // Data
@@ -794,8 +859,11 @@ endgenerate
     );
 
 // Vsync clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VS_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_VS_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),       // Clock
         .SRC_DAT_IN     (vclk_vid.vs),      // Data
@@ -804,8 +872,11 @@ endgenerate
     );
 
 // Vertical blanking flag clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VBF_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_VBF_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),       // Clock
         .SRC_DAT_IN     (vclk_vid.vbf),     // Data
@@ -814,8 +885,11 @@ endgenerate
     );
 
 // Video active clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VID_ACT_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_VID_ACT_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),        // Clock
         .SRC_DAT_IN     (vclk_vid.act),      // Data
@@ -824,7 +898,7 @@ endgenerate
     );
 
 // Video active rising edge
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_VID_ACT_EDGE_INST
     (
         .CLK_IN         (LNK_CLK_IN),         // Clock
@@ -835,8 +909,11 @@ endgenerate
     );
 
 // Video blanking clock domain crossing
-    prt_dp_lib_cdc_bit
-    LNK_VID_BLNK_CDC_INST
+    prt_lib_cdc_bit
+    #(
+        .P_VENDOR           (P_VENDOR)
+    )
+LNK_VID_BLNK_CDC_INST
     (
         .SRC_CLK_IN     (VID_CLK_IN),       // Clock
         .SRC_DAT_IN     (vclk_vid.blnk),    // Data
@@ -845,7 +922,7 @@ endgenerate
     );
 
 // Video blanking rising edge
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_VID_BLNK_EDGE_INST
     (
         .CLK_IN         (LNK_CLK_IN),        // Clock
@@ -1632,7 +1709,7 @@ endgenerate
     end
 
 // TU run edge
-    prt_dp_lib_edge
+    prt_lib_edge
     LNK_TU_RUN_EDGE_INST
     (
         .CLK_IN         (LNK_CLK_IN),         // Clock
@@ -1700,9 +1777,87 @@ generate
             assign lclk_lnk.vu_len_in = {lclk_fifo.lvl[0+:$size(lclk_lnk.vu_len)-1], 1'b0};
         end
 
+        // 1 and 2 lanes
+        // In these modes the read pattern (rd_sel) doesn't read the FIFO words in whole clock cycles.
+        // The first segment of the next word is read while the current word is still being read.
+        // The FIFO level only counts the words of which the first segment of the first FIFO hasn't been read.
+        // The video unit length is the number of clock cycles until the read pattern needs a word that isn't in the FIFO.
+        // This includes the remaining segments of a word that is being read (e.g. the last word of a line).
+        // The lengths are in a table (read select x level). From level P_VU_LVL the video unit has the maximum length.
+        // The active lanes only change while the link is in reset, so the table holds the lengths of the active lanes.
+        for (i = 0; i < 24; i++)
+        begin : gen_vu_tbl
+            for (j = 0; j < P_VU_LVL; j++)
+            begin : gen_vu_tbl_lvl
+                assign lclk_lnk.vu_tbl[i][j] = (lclk_ctl.lanes == 'd1) ? vu_clks (1, i, j) : vu_clks (2, i, j);
+            end
+        end
+
+        // The read issued in the previous clock cycle isn't counted in the FIFO level yet
         always_comb
         begin
-            if (lclk_lnk.vu_len_in > (P_TU_SIZE / P_SPL))
+            if ((lclk_fifo.lvl != 0) && lclk_fifo.rd[0][0])
+                lclk_lnk.vu_lvl = lclk_fifo.lvl - 'd1;
+            else
+                lclk_lnk.vu_lvl = lclk_fifo.lvl;
+        end
+
+        // The read select is cleared when the TU isn't running
+        assign lclk_lnk.vu_sel = (lclk_lnk.tu_run) ? lclk_map.rd_sel : 0;
+
+        // The table output is registered (timing).
+        // A read cycle advances the read select by one and takes one clock cycle of the video unit.
+        // So after a read cycle the length is the registered length minus one.
+        // Data written into the FIFO in the meantime is taken in the next video unit.
+        // From level P_VU_LVL the length is at least one clock cycle more than a transfer unit, also after a read cycle.
+        always_ff @ (posedge LNK_CLK_IN)
+        begin
+            // Clear
+            // In the first clock cycle after the TU run a read can still be issued while the read select is cleared.
+            if (lclk_lnk.dp_clr || (!lclk_lnk.tu_run && !lclk_lnk.vu_rd_cnt_end))
+                lclk_lnk.vu_len_reg <= 0;
+
+            else if (lclk_lnk.vu_lvl >= P_VU_LVL)
+                lclk_lnk.vu_len_reg <= (P_TU_SIZE / P_SPL) + 1;
+
+            else
+                lclk_lnk.vu_len_reg <= lclk_lnk.vu_tbl[lclk_lnk.vu_sel][lclk_lnk.vu_lvl];
+
+            // Read
+            lclk_lnk.vu_len_rd <= lclk_lnk.tu_run && !lclk_lnk.vu_rd_cnt_end;
+        end
+
+        always_comb
+        begin
+            // Read cycle
+            if (lclk_lnk.vu_len_rd)
+            begin
+                if (lclk_lnk.vu_len_reg > (P_TU_SIZE / P_SPL))
+                    lclk_lnk.vu_len_tbl = P_TU_SIZE / P_SPL;
+                else if (lclk_lnk.vu_len_reg != 0)
+                    lclk_lnk.vu_len_tbl = lclk_lnk.vu_len_reg - 'd1;
+                else
+                    lclk_lnk.vu_len_tbl = 0;
+            end
+
+            // No read
+            else
+            begin
+                if (lclk_lnk.vu_len_reg > (P_TU_SIZE / P_SPL))
+                    lclk_lnk.vu_len_tbl = P_TU_SIZE / P_SPL;
+                else
+                    lclk_lnk.vu_len_tbl = lclk_lnk.vu_len_reg;
+            end
+        end
+
+        always_comb
+        begin
+            // 1 and 2 lanes
+            if ((lclk_ctl.lanes == 'd1) || (lclk_ctl.lanes == 'd2))
+                lclk_lnk.vu_len = lclk_lnk.vu_len_tbl;
+
+            // 4 lanes
+            else if (lclk_lnk.vu_len_in > (P_TU_SIZE / P_SPL))
                 lclk_lnk.vu_len = P_TU_SIZE /P_SPL;
             else
                 lclk_lnk.vu_len = lclk_lnk.vu_len_in;
@@ -2482,7 +2637,7 @@ endgenerate
 generate
     if (P_STREAM == 0)
     begin : gen_map_de_edge
-        prt_dp_lib_edge
+        prt_lib_edge
         LNK_MAP_DE_EDGE_INST
         (
             .CLK_IN    (LNK_CLK_IN),        // Clock

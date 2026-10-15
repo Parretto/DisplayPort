@@ -13,6 +13,8 @@
     v1.1 - Added training TPS4
     v1.2 - Improved training
     v1.3 - Updated phase aligner behaviour, output aligned data and modified TPS2 and TPS3 detector behaviour
+    v1.4 - The phase aligner also detects phase 0. The phase was kept from a previous training,
+           so a lane that came up in another phase after a rate change failed the training
 
 
     License
@@ -187,9 +189,14 @@ generate
                 // Training pattern 2
                 if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
                 begin
+                    // Phase 0
+                    // Training start in sublane 0
+                    if ((clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_D11_6) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_D11_6))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training start in sublane 1
-                    if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_D11_6) && (clk_lnk.din[3] == P_K28_5))
+                    else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_D11_6) && (clk_lnk.din[3] == P_K28_5))
                         clk_lnk.aln_ph <= 'd1;
 
                     // Phase 2
@@ -206,9 +213,14 @@ generate
                 // Training pattern 3
                 else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
                 begin
+                    // Phase 0
+                    // Training start in sublane 0
+                    if ((clk_lnk.din_del[3] == P_D30_3) && (clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training start in sublane 1
-                    if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
+                    else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_5))
                         clk_lnk.aln_ph <= 'd1;
 
                     // Phase 2
@@ -225,9 +237,14 @@ generate
                 // Training pattern 4
                 else if (clk_cfg.tps == 'd4)
                 begin
+                    // Phase 0
+                    // Training start in sublane 0
+                    if ((clk_lnk.din[0] == P_K28_0) && (clk_lnk.din[1] == P_K28_5) && (clk_lnk.din[2] == P_K28_5) && (clk_lnk.din[3] == P_K28_0))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training start in sublane 1
-                    if ((clk_lnk.din_del[1] == P_K28_0) && (clk_lnk.din_del[2] == P_K28_5) && (clk_lnk.din_del[3] == P_K28_5) && (clk_lnk.din[0] == P_K28_0))
+                    else if ((clk_lnk.din_del[1] == P_K28_0) && (clk_lnk.din_del[2] == P_K28_5) && (clk_lnk.din_del[3] == P_K28_5) && (clk_lnk.din[0] == P_K28_0))
                         clk_lnk.aln_ph <= 'd1;
 
                     // Phase 2
@@ -258,27 +275,42 @@ generate
                 // Training pattern 2
                 if ((clk_cfg.tps == 'd2) && (clk_trn.tps2_cnt == 0))
                 begin
+                    // Phase 0
+                    // Training starts in sublane 0
+                    if ((clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_D11_6))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training starts in sublane 1
-                    if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5))
+                    else if ((clk_lnk.din[0] == P_D10_2) && (clk_lnk.din[1] == P_K28_5))
                         clk_lnk.aln_ph <= 'd1;
                 end
 
                 // Training pattern 3
                 else if ((clk_cfg.tps == 'd3) && (clk_trn.tps3_cnt == 0))
                 begin
+                    // Phase 0
+                    // Training starts in sublane 0
+                    if ((clk_lnk.din_del[0] == P_D30_3) && (clk_lnk.din_del[1] == P_D30_3) && (clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training starts in sublane 1
-                    if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5))
+                    else if ((clk_lnk.din[0] == P_D30_3) && (clk_lnk.din[1] == P_K28_5))
                         clk_lnk.aln_ph <= 'd1;
                 end
 
                 // Training pattern 4
                 else if (clk_cfg.tps == 'd4)
                 begin
+                    // Phase 0
+                    // Training starts in sublane 0
+                    if ((clk_lnk.din_del[0] == P_K28_0) && (clk_lnk.din_del[1] == P_K28_5) && (clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_0))
+                        clk_lnk.aln_ph <= 'd0;
+
                     // Phase 1
                     // Training starts in sublane 1
-                    if ((clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5))
+                    else if ((clk_lnk.din[0] == P_K28_5) && (clk_lnk.din[1] == P_K28_5))
                         clk_lnk.aln_ph <= 'd1;
                 end
             end

@@ -1,0 +1,214 @@
+/*
+     __        __   __   ___ ___ ___  __  
+    |__)  /\  |__) |__) |__   |   |  /  \ 
+    |    /~~\ |  \ |  \ |___  |   |  \__/ 
+
+
+    Module: DP TX Top with APB interface
+
+    (c) 2021 - 2026 by Parretto B.V.
+
+    History
+    =======
+    v1.0 - Initial release
+    v1.1 - Single video data input (YCbCr 4:4:4 has the same mapping as RGB)
+
+    License
+    =======
+    This License will apply to the use of the IP-core (as defined in the License). 
+    Please read the License carefully so that you know what your rights and obligations are when using the IP-core.
+    The acceptance of this License constitutes a valid and binding agreement between Parretto and you for the use of the IP-core. 
+    If you download and/or make any use of the IP-core you agree to be bound by this License. 
+    The License is available for download and print at www.parretto.com/license
+    Parretto grants you, as the Licensee, a free, non-exclusive, non-transferable, limited right to use the IP-core 
+    solely for internal business purposes for the term and conditions of the License. 
+    You are also allowed to create Modifications for internal business purposes, but explicitly only under the conditions of art. 3.2.
+    You are, however, obliged to pay the License Fees to Parretto for the use of the IP-core, or any Modification, in, or embodied in, 
+    a physical or non-tangible product or service that has substantial commercial, industrial or non-consumer uses. 
+*/
+
+`default_nettype none
+
+//------
+// Module
+//------
+module prt_dptx_apb
+#(
+    // System
+    parameter                                   P_VENDOR            = "none",   // Vendor - "AMD", "ALTERA" or "LSC"
+    parameter                                   P_FAMILY            = "none",   // Family. Lattice: "LFCPNX", Altera: "AGX" (Agilex)
+    parameter                                   P_BEAT              = 'd50,     // Beat value
+    parameter                                   P_MST               = 0,        // MST support   
+    parameter                                   P_SDP               = 0,        // SDP support
+
+    // Link
+    parameter                                   P_LANES             = 4,        // Lanes
+    parameter                                   P_SPL               = 2,        // Symbols per lane
+
+    // Video
+    parameter                                   P_PPC               = 2,        // Pixels per clock
+    parameter                                   P_BPC               = 8         // Bits per component
+)
+(
+    // Reset and Clock
+    input wire                                  SYS_RST_IN,     // System reset
+    input wire                                  SYS_CLK_IN,     // System clock
+
+    // Host APB interface
+    prt_apb_if.slv                              APB_IF,
+    output wire                                 HOST_IRQ_OUT, 
+
+    // AUX
+    output wire                                 AUX_EN_OUT,
+    output wire                                 AUX_TX_OUT,
+    input wire                                  AUX_RX_IN,
+
+    // Misc
+    input wire                                  HPD_IN,
+    output wire                                 HB_OUT,
+
+    // Video stream 0
+    input wire                                  VID0_CLK_IN,    // Clock
+    input wire                                  VID0_CKE_IN,    // Clock enable
+    input wire                                  VID0_VS_IN,     // Vsync
+    input wire                                  VID0_HS_IN,     // Hsync
+    input wire [(3 * P_PPC * P_BPC)-1:0]        VID0_DAT_IN,    // Data. Per pixel {R / Cr, B / Cb, G / Y}
+    input wire                                  VID0_DE_IN,     // Data enable
+
+    // Secondary data packet
+    input wire                                  SDP_CLK_IN,     // Clock
+    output wire                                 SDP_RDY_OUT,    // Ready
+    input wire                                  SDP_SOP_IN,     // Start of packet
+    input wire                                  SDP_EOP_IN,     // End of packet
+    input wire [31:0]                           SDP_DAT_IN,     // Data
+    input wire                                  SDP_VLD_IN,     // Valid
+
+    // Video stream 1
+    input wire                                  VID1_CLK_IN,    // Clock
+    input wire                                  VID1_CKE_IN,    // Clock enable
+    input wire                                  VID1_VS_IN,     // Vsync
+    input wire                                  VID1_HS_IN,     // Hsync
+    input wire [(3 * P_PPC * P_BPC)-1:0]        VID1_DAT_IN,    // Data. Per pixel {R / Cr, B / Cb, G / Y}
+    input wire                                  VID1_DE_IN,     // Data enable
+
+    // Link
+    input wire                                  LNK_CLK_IN,
+    output wire [(P_LANES * P_SPL * 11)-1:0]    LNK_DAT_OUT
+);
+
+
+//------
+// Interfaces
+//------
+prt_lb_if
+#(
+  .P_ADR_WIDTH  (8)
+)
+lb_if();
+
+prt_dp_lb_if
+#(
+  .P_ADR_WIDTH  (8)
+)
+dp_lb_if();
+
+
+//------
+// APB bridge 
+//------
+    prt_apb2lb
+    APB_INST
+    (
+        // Reset and clock
+        .RST_IN     (SYS_RST_IN),              // Reset (from host)  
+        .CLK_IN     (SYS_CLK_IN),              // Clock
+
+        // APB
+        .APB_IF     (APB_IF),
+
+        // Local bus interface
+        .LB_IF      (lb_if)
+    );
+
+// Currently the DPTX uses the DP interface variant of the local bus. 
+// The APB bridge uses the common local bus interface. 
+// This is the same interface, so map the signals to make it compatible with the DPRX top module.
+    assign dp_lb_if.adr = lb_if.adr;
+    assign dp_lb_if.wr = lb_if.wr;
+    assign dp_lb_if.rd = lb_if.rd;
+    assign dp_lb_if.din = lb_if.din;
+    assign lb_if.dout = dp_lb_if.dout;
+    assign lb_if.vld = dp_lb_if.vld; 
+
+
+//------
+// DPTX
+//------
+    prt_dptx_top
+    #(
+        // System
+        .P_VENDOR           (P_VENDOR),   // Vendor
+        .P_FAMILY           (P_FAMILY),   // Family
+        .P_BEAT             (P_BEAT),     // Beat value. The system clock is 50 MHz
+        .P_MST              (P_MST),      // MST support
+        .P_SDP              (P_SDP),      // SDP support
+
+        // Link
+        .P_LANES            (P_LANES),    // Lanes
+        .P_SPL              (P_SPL),      // Symbols per lane
+
+        // Video
+        .P_PPC              (P_PPC),      // Pixels per clock
+        .P_BPC              (P_BPC)       // Bits per component
+    )
+    DPTX_INST
+    (
+        // Reset and Clock
+        .SYS_RST_IN         (SYS_RST_IN),
+        .SYS_CLK_IN         (SYS_CLK_IN),
+
+        // Host Local bus interface
+        .HOST_IF            (dp_lb_if),
+        .HOST_IRQ_OUT       (HOST_IRQ_OUT),
+
+        // AUX
+        .AUX_EN_OUT         (AUX_EN_OUT),
+        .AUX_TX_OUT         (AUX_TX_OUT),
+        .AUX_RX_IN          (AUX_RX_IN),
+
+        // Misc
+        .HPD_IN             (HPD_IN),              // Hot plug polarity is inverted
+        .HB_OUT             (HB_OUT),
+
+        // Video stream 0
+        .VID0_CLK_IN         (VID0_CLK_IN),
+        .VID0_CKE_IN         (VID0_CKE_IN),
+        .VID0_VS_IN          (VID0_VS_IN),           // Vsync
+        .VID0_HS_IN          (VID0_HS_IN),           // Hsync
+        .VID0_DAT_IN         (VID0_DAT_IN),          // Data
+        .VID0_DE_IN          (VID0_DE_IN),           // Data enable
+
+        // Secondary data packet
+        .SDP_CLK_IN          (SDP_CLK_IN),           // Clock
+        .SDP_RDY_OUT         (SDP_RDY_OUT),          // Ready
+        .SDP_SOP_IN          (SDP_SOP_IN),           // Start of packet
+        .SDP_EOP_IN          (SDP_EOP_IN),           // End of packet
+        .SDP_DAT_IN          (SDP_DAT_IN),           // Data
+        .SDP_VLD_IN          (SDP_VLD_IN),           // Valid
+
+        // Video stream 1
+        .VID1_CLK_IN         (VID1_CLK_IN),
+        .VID1_CKE_IN         (VID1_CKE_IN),
+        .VID1_VS_IN          (VID1_VS_IN),           // Vsync
+        .VID1_HS_IN          (VID1_HS_IN),           // Hsync
+        .VID1_DAT_IN         (VID1_DAT_IN),          // Data
+        .VID1_DE_IN          (VID1_DE_IN),           // Data enable
+
+        // Link
+        .LNK_CLK_IN          (LNK_CLK_IN),
+        .LNK_DAT_OUT         (LNK_DAT_OUT)
+    );
+
+endmodule
+
+`default_nettype wire
